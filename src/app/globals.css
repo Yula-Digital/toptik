@@ -499,9 +499,9 @@ body {
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(215px, 0.85fr) minmax(0, 1.55fr);
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
   direction: ltr;
-  gap: 8px;
+  gap: 4px 8px;
   overflow: hidden;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
 }
@@ -536,7 +536,7 @@ body {
 
 .catalog-card-body {
   grid-column: 1;
-  grid-row: 1;
+  grid-row: 1 / -1;
   margin: 0;
   padding: 8px 10px;
   display: flex;
@@ -622,41 +622,59 @@ body {
 
 .catalog-card-specs {
   grid-column: 2;
+  grid-row: 3;
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 8px 0 4px;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 0 8px 6px;
   direction: rtl;
+  align-items: baseline;
+  overflow: hidden;
+  max-height: 48px;
 }
 .catalog-spec-section {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
 }
 .catalog-spec-title {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: #4a3b1f;
   letter-spacing: 0.02em;
 }
 .catalog-spec-value {
-  font-size: 12px;
+  font-size: 11px;
   color: #5a4828;
 }
 .catalog-spec-colors {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 4px;
   align-items: center;
 }
 .catalog-color-dot {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   border-radius: 50%;
   border: 1.5px solid rgba(0, 0, 0, 0.15);
   background: #ccc;
   display: inline-block;
 }
+.catalog-color-dot[data-color="black"] { background: #1a1a1a; }
+.catalog-color-dot[data-color="graphite"] { background: #4a4a4a; }
+.catalog-color-dot[data-color="steel"] { background: #71797E; }
+.catalog-color-dot[data-color="dress-blue"] { background: #1f3a5f; }
+.catalog-color-dot[data-color="taupe"] { background: #8b7d6b; }
+.catalog-color-dot[data-color="moire"] { background: #5e6b5e; }
+.catalog-color-dot[data-color="duck-yellow"] { background: #f2c94c; }
+.catalog-color-dot[data-color="flame-scarlet"] { background: #cf2f3b; }
+.catalog-color-dot[data-color="eclipse"] { background: #3b3b3b; }
+.catalog-color-dot[data-color="titanium"] { background: #9a9a9a; }
+.catalog-color-dot[data-color="military-olive"] { background: #4b5320; }
+.catalog-color-dot[data-color="colony-blue"] { background: #6b93a5; }
 .catalog-color-dot.is-current {
   outline: 2px solid #6f4f1f;
   outline-offset: 1.5px;
@@ -667,8 +685,8 @@ body {
   gap: 4px;
 }
 .catalog-size-chip {
-  font-size: 11px;
-  padding: 3px 8px;
+  font-size: 10px;
+  padding: 2px 6px;
   border: 1px solid rgba(0, 0, 0, 0.18);
   border-radius: 4px;
   color: #3a3019;
@@ -1295,6 +1313,10 @@ body {
   .catalog-card-cta-icon {
     width: 12px;
     height: 12px;
+  }
+
+  .catalog-card-specs {
+    display: none;
   }
 
   .carousel-header {

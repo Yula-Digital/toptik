@@ -118,6 +118,7 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem }: CarouselGridProp
                                   className={`catalog-color-dot${item.color?.toLowerCase() === color.toLowerCase() ? " is-current" : ""}`}
                                   title={color}
                                   aria-label={color}
+                                  data-color={color.toLowerCase().replace(/\s+/g, "-")}
                                 />
                               ))}
                             </div>
@@ -137,7 +138,7 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem }: CarouselGridProp
                         )}
                         {item.sizes && item.sizes.length > 0 && (
                           <div className="catalog-spec-section">
-                            <div className="catalog-spec-title">מידות</div>
+                            <div className="catalog-spec-title">גדלים</div>
                             <div className="catalog-spec-sizes">
                               {item.sizes.map((size) => (
                                 <span key={size} className="catalog-size-chip">{size}</span>
