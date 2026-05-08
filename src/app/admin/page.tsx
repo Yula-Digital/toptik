@@ -195,7 +195,7 @@ export default function AdminPage() {
         sourceUrl: null,
         coverImagePath: "/hero-web-airport.png",
         displayOrder: next.items.length + 1,
-        isActive: true,
+        isActive: false,
         angles: [
           {
             id: crypto.randomUUID(),
@@ -254,7 +254,16 @@ export default function AdminPage() {
     try {
       setIsSaving(true);
       setStatus("שומר...");
-      await persistPayload(payload);
+      const cleanedPayload = {
+        ...payload,
+        items: payload.items.filter(
+          (item) => item.catalogNumber?.trim() || !item.coverImagePath.includes("hero-web-airport"),
+        ),
+      };
+      if (cleanedPayload.items.length < payload.items.length) {
+        setPayload(cleanedPayload);
+      }
+      await persistPayload(cleanedPayload);
       setStatus("נשמר בהצלחה");
       setImportFeedback({
         tone: "success",
