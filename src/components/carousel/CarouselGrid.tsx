@@ -106,6 +106,47 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem }: CarouselGridProp
                         className="catalog-card-image"
                       />
                     </div>
+                    {(item.availableColors?.length || item.dimensions || item.sizes?.length) && (
+                      <div className="catalog-card-specs">
+                        {item.availableColors && item.availableColors.length > 0 && (
+                          <div className="catalog-spec-section">
+                            <div className="catalog-spec-title">צבעים</div>
+                            <div className="catalog-spec-colors">
+                              {item.availableColors.map((color) => (
+                                <span
+                                  key={color}
+                                  className={`catalog-color-dot${item.color?.toLowerCase() === color.toLowerCase() ? " is-current" : ""}`}
+                                  title={color}
+                                  aria-label={color}
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {item.dimensions && (
+                          <div className="catalog-spec-section">
+                            <div className="catalog-spec-title">מידות</div>
+                            <div className="catalog-spec-value">{item.dimensions}</div>
+                          </div>
+                        )}
+                        {item.weight && (
+                          <div className="catalog-spec-section">
+                            <div className="catalog-spec-title">משקל</div>
+                            <div className="catalog-spec-value">{item.weight}</div>
+                          </div>
+                        )}
+                        {item.sizes && item.sizes.length > 0 && (
+                          <div className="catalog-spec-section">
+                            <div className="catalog-spec-title">מידות</div>
+                            <div className="catalog-spec-sizes">
+                              {item.sizes.map((size) => (
+                                <span key={size} className="catalog-size-chip">{size}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <button
                       className="catalog-card-cta"
                       onMouseEnter={() => preloadAngleImages(item)}

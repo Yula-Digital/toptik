@@ -324,6 +324,71 @@ function extractDescription(html: string) {
   return null;
 }
 
+function extractColor(html: string) {
+  const match = html.match(/variant-option[^>]*>Color:\s*([^<]+)</i);
+  return match?.[1]?.trim() || null;
+}
+
+function extractAccordionSections(html: string) {
+  const matches = [...html.matchAll(/accordion__content[^>]*>([\s\S]*?)<\/div>/gi)];
+  return matches.map((m) => m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
+}
+
+function extractDimensionsFromAccordion(html: string) {
+  const sections = extractAccordionSections(html);
+  const dimSection = sections.find((s) => /\d+[x×X]\d+[x×X]\d+/.test(s) && /cm|inc/i.test(s));
+  if (dimSection) {
+    const match = dimSection.match(/(\d+[x×X]\d+[x×X]\d+(?:\/\d+(?:[.,]\d+)?)?)\s*cm/i);
+    if (match) return `${match[1].replace(/[×X]/g, "x")} cm`;
+  }
+  const breadcrumbMatch = html.match(
+    /(?:cm\s+)?(\d{2,3}\s*[xX×]\s*\d{2,3}\s*[xX×]\s*\d{2,3}(?:\s*\/\s*\d{2,3}(?:[.,]\d+)?)?)\s*(?:cm)?/i,
+  );
+  if (breadcrumbMatch) {
+    const raw = breadcrumbMatch[0].trim();
+    const normalized = raw.replace(/[×X]/g, "x").replace(/\s+/g, " ").replace(/^cm\s+/i, "").trim();
+    return normalized.endsWith("cm") ? normalized : `${normalized} cm`;
+  }
+  return null;
+}
+
+function extractWeight(html: string) {
+  const sections = extractAccordionSections(html);
+  const dimSection = sections.find((s) => /kg/i.test(s));
+  if (dimSection) {
+    const match = dimSection.match(/(\d+[.,]\d+)\s*KG/i);
+    if (match) return `${match[1].replace(",", ".")} kg`;
+  }
+  return null;
+}
+
+function extractAvailableColors(html: string) {
+  const tooltips = [...html.matchAll(/data-tooltip="([^"]+)"/gi)];
+  const colors = tooltips
+    .map((m) => m[1].trim())
+    .filter((c) => c.length > 1 && c.length < 40);
+  return [...new Set(colors)];
+}
+
+function extractSizes(html: string) {
+  const sizeLabels: string[] = [];
+  const sizeButtonMatches = [...html.matchAll(
+    /(?:class="[^"]*size[^"]*"[^>]*>|size-button[^>]*>)\s*([^<]{2,20})\s*</gi,
+  )];
+  for (const m of sizeButtonMatches) {
+    const label = m[1].trim();
+    if (label && !label.includes("{") && !label.includes("<")) {
+      sizeLabels.push(label);
+    }
+  }
+  if (sizeLabels.length === 0) {
+    const cmLabels = [...html.matchAll(/(\d{2,3}\s*cm(?:\s*EXP)?)/gi)];
+    const unique = [...new Set(cmLabels.map((m) => m[1].trim()))];
+    if (unique.length > 0 && unique.length <= 6) return unique;
+  }
+  return [...new Set(sizeLabels)];
+}
+
 function extractProductFromPage(
   catalogNumber: string,
   productUrl: string,
@@ -365,6 +430,11 @@ function extractProductFromPage(
         : extractDescription(html),
     imageUrls: uniqueImageUrls(mergedImages).slice(0, MAX_IMPORTED_IMAGES),
     sourceUrl: productUrl,
+    color: extractColor(html),
+    dimensions: extractDimensionsFromAccordion(html),
+    weight: extractWeight(html),
+    sizes: extractSizes(html),
+    availableColors: extractAvailableColors(html),
   };
 }
 

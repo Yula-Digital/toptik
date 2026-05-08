@@ -4,6 +4,11 @@ export interface SourceProduct {
   description: string | null;
   imageUrls: string[];
   sourceUrl: string;
+  color?: string | null;
+  dimensions?: string | null;
+  weight?: string | null;
+  sizes?: string[];
+  availableColors?: string[];
 }
 
 export interface CatalogSourceProvider {

@@ -157,6 +157,11 @@ export async function POST(req: NextRequest) {
       coverImagePath: uploadedUrls[0],
       displayOrder: 1,
       isActive: true,
+      color: sourceProduct.color || null,
+      dimensions: sourceProduct.dimensions || null,
+      weight: sourceProduct.weight || null,
+      sizes: sourceProduct.sizes?.length ? sourceProduct.sizes : null,
+      availableColors: sourceProduct.availableColors?.length ? sourceProduct.availableColors : null,
       angles: uploadedUrls.map((imagePath, index) => ({
         id: crypto.randomUUID(),
         itemId,

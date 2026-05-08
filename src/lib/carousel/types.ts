@@ -17,6 +17,11 @@ export interface CarouselItem {
   coverImagePath: string;
   displayOrder: number;
   isActive: boolean;
+  color?: string | null;
+  dimensions?: string | null;
+  weight?: string | null;
+  sizes?: string[] | null;
+  availableColors?: string[] | null;
   angles: CarouselAngle[];
 }
 
