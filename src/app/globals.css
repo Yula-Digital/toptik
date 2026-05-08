@@ -660,21 +660,8 @@ body {
   height: 14px;
   border-radius: 50%;
   border: 1.5px solid rgba(0, 0, 0, 0.15);
-  background: #ccc;
   display: inline-block;
 }
-.catalog-color-dot[data-color="black"] { background: #1a1a1a; }
-.catalog-color-dot[data-color="graphite"] { background: #4a4a4a; }
-.catalog-color-dot[data-color="steel"] { background: #71797E; }
-.catalog-color-dot[data-color="dress-blue"] { background: #1f3a5f; }
-.catalog-color-dot[data-color="taupe"] { background: #8b7d6b; }
-.catalog-color-dot[data-color="moire"] { background: #5e6b5e; }
-.catalog-color-dot[data-color="duck-yellow"] { background: #f2c94c; }
-.catalog-color-dot[data-color="flame-scarlet"] { background: #cf2f3b; }
-.catalog-color-dot[data-color="eclipse"] { background: #3b3b3b; }
-.catalog-color-dot[data-color="titanium"] { background: #9a9a9a; }
-.catalog-color-dot[data-color="military-olive"] { background: #4b5320; }
-.catalog-color-dot[data-color="colony-blue"] { background: #6b93a5; }
 .catalog-color-dot.is-current {
   outline: 2px solid #6f4f1f;
   outline-offset: 1.5px;

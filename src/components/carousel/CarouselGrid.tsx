@@ -11,6 +11,48 @@ import "swiper/css";
 import "swiper/css/navigation";
 import "swiper/css/pagination";
 
+const COLOR_MAP: Record<string, string> = {
+  black: "#1a1a1a",
+  graphite: "#4a4a4a",
+  steel: "#71797E",
+  "dress blue": "#1f3a5f",
+  taupe: "#8b7d6b",
+  moire: "#5e6b5e",
+  "duck yellow": "#f2c94c",
+  yellow: "#f2c94c",
+  "flame scarlet": "#cf2f3b",
+  eclipse: "#3b3b3b",
+  titanium: "#9a9a9a",
+  "military olive": "#4b5320",
+  "colony blue": "#6b93a5",
+  "honey ginger": "#b5651d",
+  white: "#f5f5f5",
+  red: "#d32f2f",
+  blue: "#1565c0",
+  green: "#388e3c",
+  grey: "#757575",
+  gray: "#757575",
+  brown: "#5d4037",
+  beige: "#d4c5a9",
+  navy: "#1a237e",
+  cream: "#fffdd0",
+  orange: "#e65100",
+  pink: "#c2185b",
+  purple: "#6a1b9a",
+  "dark blue": "#0d47a1",
+  "light grey": "#bdbdbd",
+  "light gray": "#bdbdbd",
+};
+
+function getColorHex(colorName: string): string {
+  const lower = colorName.toLowerCase().trim();
+  if (COLOR_MAP[lower]) return COLOR_MAP[lower];
+  for (const [key, value] of Object.entries(COLOR_MAP)) {
+    if (lower.includes(key) || key.includes(lower)) return value;
+  }
+  return "#ccc";
+}
+
 type CarouselGridProps = {
   items: CarouselItem[];
   autoplayMs: number;
@@ -118,7 +160,7 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem }: CarouselGridProp
                                   className={`catalog-color-dot${item.color?.toLowerCase() === color.toLowerCase() ? " is-current" : ""}`}
                                   title={color}
                                   aria-label={color}
-                                  data-color={color.toLowerCase().replace(/\s+/g, "-")}
+                                  style={{ backgroundColor: getColorHex(color) }}
                                 />
                               ))}
                             </div>
