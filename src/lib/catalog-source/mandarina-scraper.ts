@@ -375,14 +375,15 @@ export class MandarinaDuckScraperProvider implements CatalogSourceProvider {
       throw new Error("Catalog number is required");
     }
 
+    const fullToken = normalizedCatalog.replace(/[^A-Z0-9]/g, "");
     const searchQueries = uniqueStrings([
       normalizedCatalog,
-      normalizedCatalog.replace(/[^A-Z0-9]/g, ""),
+      fullToken,
+      fullToken.length >= 8 ? fullToken.slice(0, 8) : "",
       normalizedCatalog.slice(0, 6),
-      normalizedCatalog.slice(0, 5),
     ]).filter((query) => query.length >= 3);
 
-    let productLinks: string[] = [];
+    let allProductLinks: string[] = [];
     for (const query of searchQueries) {
       const searchUrl = `${MANDARINA_BASE_URL}/search?q=${encodeURIComponent(
         query,
@@ -390,22 +391,29 @@ export class MandarinaDuckScraperProvider implements CatalogSourceProvider {
       try {
         const searchHtml = await fetchHtml(searchUrl);
         const links = extractProductLinks(searchHtml);
-        if (links.length > 0) {
-          productLinks = links;
-          break;
-        }
+        allProductLinks.push(...links);
+        if (allProductLinks.length > 0 && query === normalizedCatalog) break;
       } catch {
         // try next query variant
       }
     }
 
-    if (productLinks.length === 0) {
-      productLinks = await fetchProductLinksFromSitemap(normalizedCatalog);
+    allProductLinks = uniqueStrings(allProductLinks);
+
+    if (allProductLinks.length === 0) {
+      allProductLinks = await fetchProductLinksFromSitemap(normalizedCatalog);
     }
 
-    if (productLinks.length === 0) {
+    if (allProductLinks.length === 0) {
       throw new Error("Product not found on Mandarina Duck");
     }
+
+    const catalogSlug = fullToken.toLowerCase();
+    const rankedLinks = [...allProductLinks].sort((a, b) => {
+      const aHasCatalog = a.toLowerCase().includes(catalogSlug) ? 1 : 0;
+      const bHasCatalog = b.toLowerCase().includes(catalogSlug) ? 1 : 0;
+      return bHasCatalog - aHasCatalog;
+    });
 
     let bestPage:
       | {
@@ -415,15 +423,19 @@ export class MandarinaDuckScraperProvider implements CatalogSourceProvider {
         }
       | undefined;
 
-    for (const url of productLinks.slice(0, 6)) {
+    for (const url of rankedLinks.slice(0, 8)) {
       try {
         const html = await fetchHtml(url);
-        const includesCatalog = html.toUpperCase().includes(normalizedCatalog) ? 2 : 0;
+        const upperHtml = html.toUpperCase();
+        const hasExactCatalog = upperHtml.includes(normalizedCatalog) ? 10 : 0;
+        const hasFullToken = upperHtml.includes(fullToken) ? 5 : 0;
+        const slugBonus = url.toLowerCase().includes(catalogSlug) ? 3 : 0;
         const hasStructuredProduct = html.includes("application/ld+json") ? 1 : 0;
-        const score = includesCatalog + hasStructuredProduct;
+        const score = hasExactCatalog + hasFullToken + slugBonus + hasStructuredProduct;
         if (!bestPage || score > bestPage.score) {
           bestPage = { url, html, score };
         }
+        if (hasExactCatalog) break;
       } catch {
         // try next candidate
       }
