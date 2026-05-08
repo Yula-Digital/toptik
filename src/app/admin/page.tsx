@@ -64,13 +64,10 @@ export default function AdminPage() {
     const existingIndex = targetItemId
       ? next.items.findIndex((item) => item.id === targetItemId)
       : next.items.findIndex((item) => {
+          if (!normalizedCatalog) return false;
           const byCatalogNumber =
             normalizeCatalogNumber(item.catalogNumber ?? "") === normalizedCatalog;
-          const byCatalogPath = item.angles.some((angle) =>
-            angle.imagePath.includes(`/imports/mandarina/${data.source.catalogNumber}/`),
-          );
-          const byTitle = item.title.trim().toLowerCase() === data.item.title.trim().toLowerCase();
-          return byCatalogNumber || byCatalogPath || byTitle;
+          return byCatalogNumber;
         });
 
     if (existingIndex >= 0) {
