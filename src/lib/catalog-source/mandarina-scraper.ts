@@ -371,6 +371,22 @@ function extractAvailableColors(html: string) {
 }
 
 function extractSizes(html: string) {
+  const sizeBlocks = [...html.matchAll(
+    /related__content__inner\s+size-([^"]+)"([\s\S]*?)<\/a>/gi,
+  )];
+  if (sizeBlocks.length > 0) {
+    const sizes: string[] = [];
+    for (const block of sizeBlocks) {
+      const text = block[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      const cleanLabel = text.replace(/^>\s*/, "").trim();
+      if (cleanLabel && cleanLabel.length < 40) {
+        const isCurrent = block[2].includes("current");
+        sizes.push(isCurrent ? `*${cleanLabel}` : cleanLabel);
+      }
+    }
+    if (sizes.length > 0) return sizes;
+  }
+
   const sizeLabels: string[] = [];
   const sizeButtonMatches = [...html.matchAll(
     /(?:class="[^"]*size[^"]*"[^>]*>|size-button[^>]*>)\s*([^<]{2,20})\s*</gi,

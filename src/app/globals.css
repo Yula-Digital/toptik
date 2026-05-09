@@ -499,7 +499,7 @@ body {
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(215px, 0.85fr) minmax(0, 1.55fr);
-  grid-template-rows: minmax(0, 1fr) auto auto;
+  grid-template-rows: 1fr auto auto;
   direction: ltr;
   gap: 4px 8px;
   overflow: hidden;
@@ -624,61 +624,67 @@ body {
   grid-column: 2;
   grid-row: 3;
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: 6px 12px;
-  padding: 0 8px 6px;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 16px 12px;
   direction: rtl;
-  align-items: baseline;
-  overflow: hidden;
-  max-height: 48px;
+  text-align: right;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
-.catalog-spec-section {
+.catalog-spec-block {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 4px;
+  flex-direction: column;
+  gap: 6px;
 }
-.catalog-spec-title {
-  font-size: 10px;
+.catalog-spec-heading {
+  font-size: 14px;
   font-weight: 700;
-  color: #4a3b1f;
-  letter-spacing: 0.02em;
+  color: #1f2731;
+  margin: 0;
+  letter-spacing: -0.01em;
 }
-.catalog-spec-value {
-  font-size: 11px;
-  color: #5a4828;
+.catalog-spec-dims {
+  font-size: 13px;
+  color: #3a3a3a;
+  font-weight: 400;
 }
 .catalog-spec-colors {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
   align-items: center;
 }
 .catalog-color-dot {
-  width: 14px;
-  height: 14px;
+  width: 20px;
+  height: 20px;
   border-radius: 50%;
-  border: 1.5px solid rgba(0, 0, 0, 0.15);
+  border: 1.5px solid rgba(0, 0, 0, 0.12);
   display: inline-block;
+  transition: outline-offset 0.15s ease;
 }
 .catalog-color-dot.is-current {
-  outline: 2px solid #6f4f1f;
-  outline-offset: 1.5px;
+  outline: 2px solid #1f2731;
+  outline-offset: 2px;
 }
 .catalog-spec-sizes {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 8px;
 }
 .catalog-size-chip {
-  font-size: 10px;
-  padding: 2px 6px;
-  border: 1px solid rgba(0, 0, 0, 0.18);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 6px 14px;
+  border: 1.5px solid rgba(0, 0, 0, 0.2);
   border-radius: 4px;
-  color: #3a3019;
+  color: #1f2731;
   background: #fff;
   white-space: nowrap;
+}
+.catalog-size-chip.is-current {
+  border-color: #1f2731;
+  border-width: 2px;
+  font-weight: 700;
 }
 
 .carousel-loading {

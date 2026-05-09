@@ -151,8 +151,8 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem }: CarouselGridProp
                     {(item.availableColors?.length || item.dimensions || item.sizes?.length) && (
                       <div className="catalog-card-specs">
                         {item.availableColors && item.availableColors.length > 0 && (
-                          <div className="catalog-spec-section">
-                            <div className="catalog-spec-title">צבעים</div>
+                          <div className="catalog-spec-block">
+                            <h4 className="catalog-spec-heading">צבעים</h4>
                             <div className="catalog-spec-colors">
                               {item.availableColors.map((color) => (
                                 <span
@@ -167,24 +167,23 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem }: CarouselGridProp
                           </div>
                         )}
                         {item.dimensions && (
-                          <div className="catalog-spec-section">
-                            <div className="catalog-spec-title">מידות</div>
-                            <div className="catalog-spec-value">{item.dimensions}</div>
-                          </div>
-                        )}
-                        {item.weight && (
-                          <div className="catalog-spec-section">
-                            <div className="catalog-spec-title">משקל</div>
-                            <div className="catalog-spec-value">{item.weight}</div>
+                          <div className="catalog-spec-block">
+                            <h4 className="catalog-spec-heading">מידות</h4>
+                            <div className="catalog-spec-dims">{item.dimensions}</div>
                           </div>
                         )}
                         {item.sizes && item.sizes.length > 0 && (
-                          <div className="catalog-spec-section">
-                            <div className="catalog-spec-title">גדלים</div>
+                          <div className="catalog-spec-block">
                             <div className="catalog-spec-sizes">
-                              {item.sizes.map((size) => (
-                                <span key={size} className="catalog-size-chip">{size}</span>
-                              ))}
+                              {item.sizes.map((size) => {
+                                const isCurrent = size.startsWith("*");
+                                const label = isCurrent ? size.slice(1) : size;
+                                return (
+                                  <span key={size} className={`catalog-size-chip${isCurrent ? " is-current" : ""}`}>
+                                    {label}
+                                  </span>
+                                );
+                              })}
                             </div>
                           </div>
                         )}
