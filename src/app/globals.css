@@ -521,6 +521,7 @@ body {
   justify-content: stretch;
   padding: 0;
   background: transparent;
+  overflow: hidden;
 }
 
 .catalog-card-image {
@@ -532,6 +533,7 @@ body {
   border: var(--card-frame) solid rgba(255, 255, 255, 0.98);
   border-radius: 10px;
   background: #fff;
+  transform: scale(1.4);
 }
 
 .catalog-card-body {
@@ -1181,6 +1183,10 @@ body {
     height: 100%;
     min-height: 0;
     cursor: pointer;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .catalog-card-image {
@@ -1188,6 +1194,7 @@ body {
     border-radius: 0;
     object-fit: contain;
     background: #fff;
+    transform: scale(1.4);
   }
 
   .catalog-card-body {
