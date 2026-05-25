@@ -36,3 +36,16 @@ Return counts of what was modified.
 
 This is the difference between a usable Figma file and an unusable one. Never skip it.
 <!-- END:figma-export-rules -->
+
+<!-- BEGIN:carousel-image-rules -->
+# Carousel product images — CSS rules (DO NOT revert)
+
+File: `src/app/globals.css`
+
+`.catalog-card-image-wrap` must have `overflow: hidden` and `align-items/justify-content: center` (not `stretch`).
+`.catalog-card-image` must have `transform: scale(1.4)` — this normalizes varying whitespace padding baked into product photos and fills the card visually.
+
+Both desktop and mobile (`@media max-width: 767px`) blocks require these rules.
+
+**Do not remove `transform: scale(1.4)` or `overflow: hidden` from these selectors.** They are intentional design decisions, not bugs.
+<!-- END:carousel-image-rules -->
