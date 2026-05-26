@@ -38,41 +38,35 @@ function lbsToKg(lbs: number) {
 }
 
 function convertMeasurements(text: string): string {
-  // 13.4" x 9.8" x 4.7" → 34 × 24.9 × 11.9 ס"מ
   text = text.replace(
     /(\d+(?:\.\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)/gi,
     (_, a, b, c) =>
       `${inchesToCm(parseFloat(a))} × ${inchesToCm(parseFloat(b))} × ${inchesToCm(parseFloat(c))} ס"מ`,
   );
-  // 12 x 25 x 33 cm
   text = text.replace(
     /(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*cm\b/gi,
     (_, a, b, c) => `${a} × ${b} × ${c} ס"מ`,
   );
-  // single inch value
   text = text.replace(/(\d+(?:\.\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)\b/gi, (_, n) => {
     return `${inchesToCm(parseFloat(n))} ס"מ`;
   });
-  // lbs
   text = text.replace(/(\d+(?:\.\d+)?)\s*(?:lbs?|pounds?)\b/gi, (_, n) => {
     return `${lbsToKg(parseFloat(n))} ק"ג`;
   });
-  // kg (already metric — keep as is with Hebrew unit)
   text = text.replace(/(\d+(?:\.\d+)?)\s*kg\b/gi, (_, n) => `${n} ק"ג`);
-  // cm (single value)
   text = text.replace(/(\d+(?:\.\d+)?)\s*cm\b/gi, (_, n) => `${n} ס"מ`);
   return text;
 }
 
-// ─── Whitelist — only these sections are allowed ──────────────────────────────
+// ─── Section whitelist + Hebrew translation ───────────────────────────────────
 
-const ALLOWED_SECTION_KEYS = new Set([
+const ALLOWED_SECTION_KEYS = [
   "exterior", "external", "outside", "outer",
   "interior", "internal", "inside", "inner",
   "composition", "materials", "material", "fabric",
   "dimensions", "measurements", "dimension", "sizes",
   "weight",
-]);
+];
 
 const SECTION_MAP: Record<string, string> = {
   exterior: "חיצוני",
@@ -94,25 +88,30 @@ const SECTION_MAP: Record<string, string> = {
   weight: "משקל",
 };
 
+// Lenient match: accept heading if it contains any allowed key (e.g. "Exterior Features")
+function isAllowedSection(heading: string): boolean {
+  const key = heading.trim().toLowerCase();
+  return ALLOWED_SECTION_KEYS.some((allowed) => key === allowed || key.includes(allowed));
+}
+
 function translateSection(heading: string): string {
   const key = heading.trim().toLowerCase();
-  return SECTION_MAP[key] ?? heading;
+  if (SECTION_MAP[key]) return SECTION_MAP[key];
+  for (const [src, hebrew] of Object.entries(SECTION_MAP)) {
+    if (key.includes(src)) return hebrew;
+  }
+  return heading;
 }
 
-function isAllowedSection(heading: string): boolean {
-  return ALLOWED_SECTION_KEYS.has(heading.trim().toLowerCase());
-}
-
-// ─── Item filtering ───────────────────────────────────────────────────────────
+// ─── Item content filter ─────────────────────────────────────────────────────
 
 function isValidSpecItem(text: string): boolean {
   if (!text || text.length < 2) return false;
-  // Items longer than 70 chars are usually marketing sentences, not spec values
   if (text.length > 70) return false;
   if (/https?:\/\/|www\./i.test(text)) return false;
   if (/[€$£¥₪]\s*\d|\d+[.,]\d+\s*(eur|usd|gbp)/i.test(text)) return false;
   if (/instagram|facebook|twitter|youtube|tiktok|pinterest/i.test(text)) return false;
-  if (/subscribe|follow us|shop now|discover|explore our/i.test(text)) return false;
+  if (/subscribe|follow us|shop now|discover|explore our|newsletter/i.test(text)) return false;
   return true;
 }
 
@@ -143,57 +142,20 @@ function translateItemLabel(label: string): string {
   return ITEM_LABEL_MAP[key] ?? label;
 }
 
-// ─── Color name → Hebrew ──────────────────────────────────────────────────────
+// ─── Color name → Hebrew + hex ────────────────────────────────────────────────
 
 const COLOR_NAME_MAP: Record<string, string> = {
-  black: "שחור",
-  white: "לבן",
-  red: "אדום",
-  blue: "כחול",
-  green: "ירוק",
-  yellow: "צהוב",
-  orange: "כתום",
-  purple: "סגול",
-  pink: "ורוד",
-  brown: "חום",
-  grey: "אפור",
-  gray: "אפור",
-  navy: "נייבי",
-  beige: "בז'",
-  taupe: "טאופ",
-  camel: "גמל",
-  tan: "שזוף",
-  khaki: "חאקי",
-  ivory: "שנהב",
-  cream: "קרם",
-  silver: "כסף",
-  gold: "זהב",
-  steel: "פלדה",
-  pirite: "פיריט",
-  diva: "דיווה",
-  stone: "אבן",
-  sand: "חול",
-  teal: "טיל",
-  wine: "יין",
-  bordeaux: "בורדו",
-  burgundy: "בורגונדי",
-  latte: "לאטה",
-  vanilla: "וניל",
-  forest: "יער",
-  sage: "מרווה",
-  coral: "אלמוג",
-  rust: "חלודה",
-  terracotta: "טרקוטה",
-  mustard: "חרדל",
-  olive: "זית",
-  cobalt: "קובלט",
-  turquoise: "טורקיז",
-  lilac: "לילך",
-  lavender: "לבנדר",
-  rose: "ורד",
-  copper: "נחושת",
-  bronze: "ברונזה",
-  charcoal: "פחם",
+  black: "שחור", white: "לבן", red: "אדום", blue: "כחול", green: "ירוק",
+  yellow: "צהוב", orange: "כתום", purple: "סגול", pink: "ורוד", brown: "חום",
+  grey: "אפור", gray: "אפור", navy: "נייבי", beige: "בז'", taupe: "טאופ",
+  camel: "גמל", tan: "שזוף", khaki: "חאקי", ivory: "שנהב", cream: "קרם",
+  silver: "כסף", gold: "זהב", steel: "פלדה", pirite: "פיריט", diva: "דיווה",
+  stone: "אבן", sand: "חול", teal: "טיל", wine: "יין", bordeaux: "בורדו",
+  burgundy: "בורגונדי", latte: "לאטה", vanilla: "וניל", forest: "יער",
+  sage: "מרווה", coral: "אלמוג", rust: "חלודה", terracotta: "טרקוטה",
+  mustard: "חרדל", olive: "זית", cobalt: "קובלט", turquoise: "טורקיז",
+  lilac: "לילך", lavender: "לבנדר", rose: "ורד", copper: "נחושת",
+  bronze: "ברונזה", charcoal: "פחם",
 };
 
 function translateColorName(name: string): string {
@@ -205,45 +167,16 @@ function translateColorName(name: string): string {
 }
 
 const COLOR_HEX_MAP: Record<string, string> = {
-  black: "#1a1a1a",
-  white: "#f5f5f5",
-  red: "#cc2222",
-  blue: "#1e4d9c",
-  navy: "#1a2d5a",
-  green: "#2d6e3a",
-  yellow: "#f0c040",
-  orange: "#e07020",
-  purple: "#6b3fa0",
-  pink: "#e8789a",
-  brown: "#7a4228",
-  grey: "#888888",
-  gray: "#888888",
-  beige: "#d4c4a8",
-  taupe: "#8d7966",
-  camel: "#c19a6b",
-  tan: "#c4a264",
-  khaki: "#8e8060",
-  ivory: "#fffff0",
-  cream: "#fffdd0",
-  silver: "#c0c0c0",
-  gold: "#d4a017",
-  steel: "#6e7b8b",
-  pirite: "#6e7060",
-  diva: "#a52828",
-  stone: "#9e9e8e",
-  sand: "#d4b896",
-  teal: "#2e8b8b",
-  wine: "#6b1a2c",
-  bordeaux: "#7c1c2c",
-  burgundy: "#800020",
-  latte: "#c4a882",
-  vanilla: "#f3e5ab",
-  coral: "#e07060",
-  rust: "#b74e1a",
-  mustard: "#c8a028",
-  olive: "#6b7028",
-  cobalt: "#0050a0",
-  charcoal: "#3c3c3c",
+  black: "#1a1a1a", white: "#f5f5f5", red: "#cc2222", blue: "#1e4d9c",
+  navy: "#1a2d5a", green: "#2d6e3a", yellow: "#f0c040", orange: "#e07020",
+  purple: "#6b3fa0", pink: "#e8789a", brown: "#7a4228", grey: "#888888",
+  gray: "#888888", beige: "#d4c4a8", taupe: "#8d7966", camel: "#c19a6b",
+  tan: "#c4a264", khaki: "#8e8060", ivory: "#fffff0", cream: "#fffdd0",
+  silver: "#c0c0c0", gold: "#d4a017", steel: "#6e7b8b", pirite: "#6e7060",
+  diva: "#a52828", stone: "#9e9e8e", sand: "#d4b896", teal: "#2e8b8b",
+  wine: "#6b1a2c", bordeaux: "#7c1c2c", burgundy: "#800020", latte: "#c4a882",
+  vanilla: "#f3e5ab", coral: "#e07060", rust: "#b74e1a", mustard: "#c8a028",
+  olive: "#6b7028", cobalt: "#0050a0", charcoal: "#3c3c3c",
 };
 
 function colorToHex(name: string): string | null {
@@ -255,7 +188,7 @@ function colorToHex(name: string): string | null {
   return null;
 }
 
-// ─── HTML parsing helpers ─────────────────────────────────────────────────────
+// ─── HTML helpers ─────────────────────────────────────────────────────────────
 
 function stripTags(html: string): string {
   return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
@@ -275,55 +208,52 @@ function clean(text: string): string {
   return decodeHtmlEntities(stripTags(text)).trim();
 }
 
-// ─── Spec extraction ──────────────────────────────────────────────────────────
+// ─── Spec extraction (scans HTML for whitelisted sections) ────────────────────
 
 function extractSpecsFromHtml(html: string): SpecSection[] {
   const sections: SpecSection[] = [];
-
-  // Attempt 1: <strong>HEADING</strong><br>item<br>item pattern (Mandarina Duck body_html style)
-  const strongBlockRegex =
-    /<(?:p|div)[^>]*>\s*<strong[^>]*>([^<]{2,60})<\/strong>(?:<br\s*\/?>|\n)([\s\S]*?)<\/(?:p|div)>/gi;
   let match: RegExpExecArray | null;
-  const strongSections = new Map<string, string[]>();
 
+  // Pattern A: <strong>HEADING</strong><br>item<br>item (Mandarina Duck Shopify body_html style)
+  const strongBlockRegex =
+    /<(?:p|div)[^>]*>\s*<strong[^>]*>([^<]{2,60})<\/strong>(?:<br\s*\/?>|\n|\s)+([\s\S]*?)<\/(?:p|div)>/gi;
+  const strongSections = new Map<string, string[]>();
   while ((match = strongBlockRegex.exec(html)) !== null) {
     const heading = clean(match[1]);
     if (!heading || !isAllowedSection(heading)) continue;
-    const body = match[2];
-    const lines = body
-      .split(/<br\s*\/?>/i)
+    const lines = match[2]
+      .split(/<br\s*\/?>|<\/?li[^>]*>|<\/?p[^>]*>|\n/i)
       .map((l) => convertMeasurements(clean(l)))
       .filter(isValidSpecItem);
     if (lines.length > 0) {
       const existing = strongSections.get(heading) ?? [];
-      strongSections.set(heading, [...existing, ...lines]);
+      strongSections.set(heading, [...existing, ...lines].slice(0, 12));
     }
   }
-
   for (const [heading, lines] of strongSections) {
     const items = lines.map((line) => {
       const colonIdx = line.indexOf(":");
       if (colonIdx > 0 && colonIdx < 35) {
-        const label = translateItemLabel(line.slice(0, colonIdx).trim());
-        const value = line.slice(colonIdx + 1).trim();
-        return { label, value };
+        return {
+          label: translateItemLabel(line.slice(0, colonIdx).trim()),
+          value: line.slice(colonIdx + 1).trim(),
+        };
       }
       return { label: line, value: "" };
     });
     sections.push({ heading: translateSection(heading), items });
   }
-
   if (sections.length > 0) return sections;
 
-  // Attempt 2: heading tags followed by lists (only whitelisted headings)
+  // Pattern B: <h2>/<h3> heading followed by content
   const headingBlockRegex =
     /<h[23][^>]*>([^<]{2,60})<\/h[23]>\s*([\s\S]*?)(?=<h[23]|$)/gi;
   while ((match = headingBlockRegex.exec(html)) !== null) {
     const heading = clean(match[1]);
     if (!heading || !isAllowedSection(heading)) continue;
     const body = match[2];
-
     const items: SpecItem[] = [];
+    // Try <li> items
     const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
     let liMatch: RegExpExecArray | null;
     while ((liMatch = liRegex.exec(body)) !== null) {
@@ -336,21 +266,30 @@ function extractSpecsFromHtml(html: string): SpecSection[] {
         items.push({ label: text, value: "" });
       }
     }
-
+    // Fallback: <br>-separated lines
+    if (items.length === 0) {
+      const lines = body.split(/<br\s*\/?>|\n/i).map((l) => convertMeasurements(clean(l))).filter(isValidSpecItem);
+      for (const line of lines) {
+        const colonIdx = line.indexOf(":");
+        if (colonIdx > 0 && colonIdx < 35) {
+          items.push({ label: translateItemLabel(line.slice(0, colonIdx).trim()), value: line.slice(colonIdx + 1).trim() });
+        } else {
+          items.push({ label: line, value: "" });
+        }
+      }
+    }
     if (items.length > 0) {
-      sections.push({ heading: translateSection(heading), items });
+      sections.push({ heading: translateSection(heading), items: items.slice(0, 12) });
     }
   }
 
   return sections;
 }
 
-// ─── Color extraction ─────────────────────────────────────────────────────────
+// ─── Color extraction from page HTML (Shopify variant pattern) ────────────────
 
-function extractColorsFromShopifyJson(html: string): ColorSwatch[] {
+function extractColorsFromPageHtml(html: string): ColorSwatch[] {
   const swatches: ColorSwatch[] = [];
-
-  // Find which option index is "Color"
   let colorOptionIndex = 0;
   const optionMatch = /"options"\s*:\s*\[([^\]]{0,500})\]/i.exec(html);
   if (optionMatch) {
@@ -362,12 +301,10 @@ function extractColorsFromShopifyJson(html: string): ColorSwatch[] {
       colorOptionIndex = (before.match(/"/g) ?? []).length / 2;
     }
   }
-
   const seenColors = new Set<string>();
   const variantOptionKey = colorOptionIndex === 0 ? "option1" : colorOptionIndex === 1 ? "option2" : "option3";
   const variantRegex = new RegExp(`"${variantOptionKey}"\\s*:\\s*"([^"]+)"`, "gi");
   let variantMatch: RegExpExecArray | null;
-
   while ((variantMatch = variantRegex.exec(html)) !== null) {
     const colorName = variantMatch[1].trim();
     if (!colorName || seenColors.has(colorName.toLowerCase())) continue;
@@ -378,7 +315,6 @@ function extractColorsFromShopifyJson(html: string): ColorSwatch[] {
       swatchUrl: null,
     });
   }
-
   return swatches;
 }
 
@@ -394,29 +330,64 @@ async function fetchHtml(url: string): Promise<string> {
   return res.text();
 }
 
-// Try Shopify product JSON endpoint — returns clean body_html without page noise
-async function tryShopifyProductJson(sourceUrl: string): Promise<string | null> {
+function buildShopifyJsonUrls(sourceUrl: string): string[] {
   try {
     const url = new URL(sourceUrl);
+    const urls = new Set<string>();
+    // Variant 1: append .json to current path (preserves locale prefix)
+    urls.add(`${url.origin}${url.pathname.replace(/\/$/, "")}.json`);
+    // Variant 2: /products/<handle>.json without locale
     const parts = url.pathname.split("/").filter(Boolean);
     const productsIdx = parts.lastIndexOf("products");
-    if (productsIdx === -1 || !parts[productsIdx + 1]) return null;
-    const handle = parts[productsIdx + 1].split("?")[0];
-    const jsonUrl = `${url.origin}/products/${handle}.json`;
-    const res = await fetch(jsonUrl, {
-      headers: DEFAULT_HEADERS,
-      cache: "no-store",
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as { product?: { body_html?: string } };
-    return data?.product?.body_html ?? null;
+    if (productsIdx !== -1 && parts[productsIdx + 1]) {
+      const handle = parts[productsIdx + 1].split("?")[0];
+      urls.add(`${url.origin}/products/${handle}.json`);
+    }
+    return [...urls];
   } catch {
-    return null;
+    return [];
   }
 }
 
-// Extract product description HTML from full page (JSON-LD and specific containers only)
+interface ShopifyProduct {
+  body_html?: string;
+  options?: Array<{ name?: string; values?: string[] }>;
+}
+
+async function tryShopifyProductData(sourceUrl: string): Promise<{ bodyHtml: string | null; colors: ColorSwatch[] }> {
+  for (const jsonUrl of buildShopifyJsonUrls(sourceUrl)) {
+    try {
+      const res = await fetch(jsonUrl, {
+        headers: { ...DEFAULT_HEADERS, accept: "application/json" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!res.ok) continue;
+      const data = (await res.json()) as { product?: ShopifyProduct };
+      const product = data?.product;
+      if (!product) continue;
+
+      // Extract colors from the Color option's full values list
+      const colors: ColorSwatch[] = [];
+      const colorOption = product.options?.find((o) => /colou?r/i.test(o?.name ?? ""));
+      if (colorOption?.values?.length) {
+        const seen = new Set<string>();
+        for (const value of colorOption.values) {
+          const v = String(value).trim();
+          const key = v.toLowerCase();
+          if (!v || seen.has(key)) continue;
+          seen.add(key);
+          colors.push({ name: translateColorName(v), hex: colorToHex(v), swatchUrl: null });
+        }
+      }
+      return { bodyHtml: product.body_html ?? null, colors };
+    } catch {
+      continue;
+    }
+  }
+  return { bodyHtml: null, colors: [] };
+}
+
 function extractDescriptionFromPage(pageHtml: string): string | null {
   // Try JSON-LD Product schema
   const jsonLdRegex = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
@@ -431,20 +402,16 @@ function extractDescriptionFromPage(pageHtml: string): string | null {
       continue;
     }
   }
-
-  // Try product description containers (narrow patterns only)
   const containerPatterns = [
-    /<div[^>]*itemprop="description"[^>]*>([\s\S]{20,3000}?)<\/div>/i,
-    /<div[^>]*class="[^"]*product[_-]?description[^"]*"[^>]*>([\s\S]{20,3000}?)<\/div>/i,
-    /<section[^>]*class="[^"]*product[_-]?description[^"]*"[^>]*>([\s\S]{20,3000}?)<\/section>/i,
+    /<div[^>]*itemprop="description"[^>]*>([\s\S]{20,5000}?)<\/div>/i,
+    /<div[^>]*class="[^"]*product[_-]?description[^"]*"[^>]*>([\s\S]{20,5000}?)<\/div>/i,
+    /<section[^>]*class="[^"]*product[_-]?description[^"]*"[^>]*>([\s\S]{20,5000}?)<\/section>/i,
   ];
-
   for (const pattern of containerPatterns) {
     const m = pattern.exec(pageHtml);
     if (m?.[1] && m[1].length > 30) return m[1];
   }
-
-  return null; // Never fall through to full page
+  return null;
 }
 
 export async function fetchProductDetails(sourceUrl: string): Promise<ProductDetails> {
@@ -452,12 +419,25 @@ export async function fetchProductDetails(sourceUrl: string): Promise<ProductDet
     return { specs: [], colors: [] };
   }
 
-  const pageHtml = await fetchHtml(sourceUrl);
-  const colors = extractColorsFromShopifyJson(pageHtml);
+  // Layer 1: Shopify .json endpoint (cleanest source)
+  const shopify = await tryShopifyProductData(sourceUrl);
 
-  // Priority: Shopify JSON endpoint (clean body_html) → JSON-LD → specific containers
-  const bodyHtml = (await tryShopifyProductJson(sourceUrl)) ?? extractDescriptionFromPage(pageHtml);
+  // Layer 2: page HTML (for sites that don't expose .json or for fallback)
+  let pageHtml = "";
+  try {
+    pageHtml = await fetchHtml(sourceUrl);
+  } catch {
+    // Page fetch may fail; rely on Shopify data if available
+  }
+
+  // body_html source priority:
+  //   Shopify .json body_html → JSON-LD description → product-description container → full page
+  // Whitelist + content filter ensures only relevant data survives even from full page.
+  const bodyHtml = shopify.bodyHtml ?? extractDescriptionFromPage(pageHtml) ?? pageHtml;
   const specs = bodyHtml ? extractSpecsFromHtml(bodyHtml) : [];
+
+  // colors: prefer Shopify .json (has all variants), fall back to page scan
+  const colors = shopify.colors.length > 0 ? shopify.colors : extractColorsFromPageHtml(pageHtml);
 
   return { specs, colors };
 }

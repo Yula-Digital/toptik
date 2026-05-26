@@ -62,23 +62,30 @@ function CardColors({ sourceUrl }: { sourceUrl: string }) {
           })
           .catch(() => {});
       },
-      { threshold: 0.1 },
+      { threshold: 0 },
     );
     observer.observe(el);
     return () => observer.disconnect();
   }, [sourceUrl]);
 
+  if (colors.length === 0) {
+    return <div ref={containerRef} className="catalog-card-colors-anchor" aria-hidden="true" />;
+  }
+
   return (
-    <div ref={containerRef} className="catalog-card-colors">
-      {colors.map((c, i) => (
-        <span
-          key={i}
-          className="catalog-card-color-dot"
-          style={c.hex ? { background: c.hex } : undefined}
-          title={c.name}
-          aria-label={c.name}
-        />
-      ))}
+    <div ref={containerRef} className="catalog-card-colors" dir="rtl">
+      <span className="catalog-card-colors-label">צבעים</span>
+      <div className="catalog-card-colors-dots">
+        {colors.map((c, i) => (
+          <span
+            key={i}
+            className="catalog-card-color-dot"
+            style={c.hex ? { background: c.hex } : undefined}
+            title={c.name}
+            aria-label={c.name}
+          />
+        ))}
+      </div>
     </div>
   );
 }
