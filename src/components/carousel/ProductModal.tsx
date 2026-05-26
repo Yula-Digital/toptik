@@ -186,7 +186,7 @@ export function ProductModal({
                 onClick={(e) => { e.stopPropagation(); onOpenTechSpecs(item); }}
                 aria-label="פרטים טכניים"
               >
-                לנתונים טכניים
+                לנתונים טכנים
               </button>
             )}
           </div>

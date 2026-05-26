@@ -81,6 +81,15 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }:
                       <div className="catalog-card-title">{item.title}</div>
                       {item.description && <div className="catalog-card-description">{item.description}</div>}
                     </div>
+                    {item.sourceUrl && (
+                      <button
+                        className="catalog-card-tech-btn"
+                        onClick={(e) => { e.stopPropagation(); onOpenTechSpecs(item); }}
+                        aria-label={`נתונים טכניים עבור ${item.title}`}
+                      >
+                        <span>לנתונים טכנים</span>
+                      </button>
+                    )}
                   </div>
                   <div className="catalog-card-visual">
                     <div
@@ -122,17 +131,6 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }:
                         <span>להגדלה וזוויות נוספות</span>
                       </button>
 
-                      {/* bottom: tech specs */}
-                      {item.sourceUrl && (
-                        <button
-                          className="catalog-card-tech-btn"
-                          onTouchStart={(e) => e.stopPropagation()}
-                          onClick={(e) => { e.stopPropagation(); onOpenTechSpecs(item); }}
-                          aria-label={`פרטים טכניים עבור ${item.title}`}
-                        >
-                          <span>לפרטים טכניים</span>
-                        </button>
-                      )}
                     </div>
                   </div>
                 </article>

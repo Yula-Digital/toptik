@@ -632,11 +632,10 @@ body {
 }
 
 .catalog-card-tech-btn {
-  position: absolute;
-  bottom: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
   font-size: 12px;
   font-weight: 800;
   color: #6f4f1f;
@@ -645,9 +644,6 @@ body {
   padding: 0 10px;
   background: rgba(255, 250, 240, 0.95);
   line-height: 1.2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   cursor: pointer;
   font-family: inherit;
   width: 182px;
@@ -760,9 +756,8 @@ body {
   direction: rtl;
   text-align: right;
   width: 100%;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
-  align-content: stretch;
+  display: flex;
+  flex-direction: column;
   gap: 8px;
   padding-top: 20px;
   min-height: min(54dvh, 500px);
@@ -792,6 +787,7 @@ body {
   -webkit-line-clamp: 10;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  flex: 1 1 auto;
 }
 
 .product-modal-cycle-btn {
@@ -1652,9 +1648,8 @@ body {
   }
 
   .catalog-card-tech-btn {
-    bottom: 8px;
     font-size: 9px;
-    width: calc(100% - 32px);
+    width: calc(100% - 16px);
     min-width: 0;
     max-width: none;
     height: 24px;
