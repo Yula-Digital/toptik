@@ -490,7 +490,7 @@ body {
 
 .catalog-card {
   --card-frame: clamp(3px, 0.35vw, 5px);
-  border: none;
+  border: 1px solid rgba(31, 39, 49, 0.14);
   border-radius: 0;
   background: transparent;
   color: var(--ink);
@@ -501,9 +501,9 @@ body {
   grid-template-columns: minmax(215px, 0.85fr) minmax(0, 1.55fr);
   grid-template-rows: minmax(0, 1fr) auto;
   direction: ltr;
-  gap: 0;
+  gap: 8px;
   overflow: hidden;
-  box-shadow: none;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
 }
 
 .catalog-card-visual {
@@ -534,6 +534,7 @@ body {
   border-radius: 0;
   background: transparent;
   mix-blend-mode: multiply;
+  filter: sepia(0.18) saturate(0.85) brightness(1.04);
 }
 
 .catalog-card-image-placeholder {
@@ -1202,6 +1203,7 @@ body {
     object-fit: contain;
     background: transparent;
     mix-blend-mode: multiply;
+    filter: sepia(0.18) saturate(0.85) brightness(1.04);
   }
 
   .catalog-card-body {
