@@ -43,8 +43,21 @@ function chunkItems(items: CarouselItem[], size: number) {
   return chunks;
 }
 
+// Match colour name against title (Hebrew + English keywords).
+// Returns the index of the colour swatch that matches the product variant
+// being shown, or -1 if no match found.
+function findActiveColorIndex(colors: ColorSwatch[], productTitle: string): number {
+  if (colors.length === 0) return -1;
+  const titleLower = productTitle.toLowerCase();
+  for (let i = 0; i < colors.length; i++) {
+    const name = colors[i].name.toLowerCase();
+    if (name && titleLower.includes(name)) return i;
+  }
+  return -1;
+}
+
 // Lazy-loads color swatches when the card scrolls into view
-function CardColors({ sourceUrl }: { sourceUrl: string }) {
+function CardColors({ sourceUrl, productTitle }: { sourceUrl: string; productTitle: string }) {
   const [colors, setColors] = useState<ColorSwatch[]>([]);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -72,6 +85,8 @@ function CardColors({ sourceUrl }: { sourceUrl: string }) {
     return <div ref={containerRef} className="catalog-card-colors-anchor" aria-hidden="true" />;
   }
 
+  const activeIndex = findActiveColorIndex(colors, productTitle);
+
   return (
     <div ref={containerRef} className="catalog-card-colors" dir="rtl">
       <span className="catalog-card-colors-label">צבעים</span>
@@ -79,7 +94,7 @@ function CardColors({ sourceUrl }: { sourceUrl: string }) {
         {colors.map((c, i) => (
           <span
             key={i}
-            className="catalog-card-color-dot"
+            className={`catalog-card-color-dot${i === activeIndex ? " is-current" : ""}`}
             style={c.hex ? { background: c.hex } : undefined}
             title={c.name}
             aria-label={c.name}
@@ -93,27 +108,22 @@ function CardColors({ sourceUrl }: { sourceUrl: string }) {
 export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }: CarouselGridProps) {
   const pages = useMemo(() => chunkItems(items, 4), [items]);
   const swiperKey = useMemo(() => items.map((item) => item.id).join("|"), [items]);
-  const prevRef = useRef<HTMLButtonElement>(null);
-  const nextRef = useRef<HTMLButtonElement>(null);
 
   return (
     <section className="catalog-carousel" aria-label="קטלוג מוצרים">
-      <button ref={prevRef} type="button" className="carousel-nav carousel-nav-prev" aria-label="עמוד קודם">‹</button>
-      <button ref={nextRef} type="button" className="carousel-nav carousel-nav-next" aria-label="עמוד הבא">›</button>
+      <button type="button" dir="ltr" className="carousel-nav carousel-nav-prev" aria-label="עמוד קודם">
+        <span className="carousel-nav-glyph">&#x2039;</span>
+      </button>
+      <button type="button" dir="ltr" className="carousel-nav carousel-nav-next" aria-label="עמוד הבא">
+        <span className="carousel-nav-glyph">&#x203A;</span>
+      </button>
       <Swiper
         key={swiperKey}
         modules={[Navigation, Pagination, Keyboard, A11y, Autoplay]}
         slidesPerView={1}
         initialSlide={0}
         speed={450}
-        navigation={{ prevEl: prevRef.current, nextEl: nextRef.current }}
-        onBeforeInit={(swiper) => {
-          const nav = swiper.params.navigation;
-          if (nav && typeof nav !== "boolean") {
-            nav.prevEl = prevRef.current;
-            nav.nextEl = nextRef.current;
-          }
-        }}
+        navigation={{ prevEl: ".carousel-nav-prev", nextEl: ".carousel-nav-next" }}
         pagination={{ clickable: true }}
         keyboard={{ enabled: true, onlyInViewport: true }}
         a11y={{
@@ -191,7 +201,7 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }:
                       </button>
 
                       {/* bottom: color swatches */}
-                      {item.sourceUrl && <CardColors sourceUrl={item.sourceUrl} />}
+                      {item.sourceUrl && <CardColors sourceUrl={item.sourceUrl} productTitle={item.title} />}
                     </div>
                   </div>
                 </article>

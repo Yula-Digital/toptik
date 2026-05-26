@@ -483,9 +483,6 @@ body {
   border: none;
   padding: 0;
   font-family: inherit;
-  font-size: 64px;
-  font-weight: 700;
-  line-height: 1;
   color: #5a3a0c;
   cursor: pointer;
   display: flex;
@@ -494,6 +491,17 @@ body {
   width: 48px;
   height: 64px;
   transition: color 0.15s, transform 0.15s;
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.carousel-nav-glyph {
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 1;
+  direction: ltr;
+  unicode-bidi: bidi-override;
+  display: inline-block;
 }
 
 .carousel-nav:hover {
@@ -717,12 +725,21 @@ body {
 
 .catalog-card-color-dot {
   display: inline-block;
-  width: 12px;
-  height: 12px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
-  border: 1.5px solid rgba(31, 39, 49, 0.28);
+  border: 1px solid rgba(31, 39, 49, 0.28);
   background: #ccc;
   flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.catalog-card-color-dot.is-current {
+  width: 16px;
+  height: 16px;
+  border-width: 2px;
+  border-color: #6f4f1f;
+  box-shadow: 0 0 0 2px rgba(255, 250, 240, 0.95), 0 0 0 3px rgba(111, 79, 31, 0.5);
 }
 
 .catalog-card-tech-btn {
@@ -1024,12 +1041,21 @@ body {
 
 .product-modal-color-dot {
   display: inline-block;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  border: 2px solid rgba(31, 39, 49, 0.2);
+  border: 1.5px solid rgba(31, 39, 49, 0.25);
   background: #ccc;
   cursor: default;
+  transition: transform 0.15s;
+}
+
+.product-modal-color-dot.is-current {
+  width: 24px;
+  height: 24px;
+  border-width: 2.5px;
+  border-color: #6f4f1f;
+  box-shadow: 0 0 0 2px rgba(255, 250, 240, 0.95), 0 0 0 4px rgba(111, 79, 31, 0.5);
 }
 
 .product-modal-tech-btn {

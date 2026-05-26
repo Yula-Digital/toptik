@@ -153,22 +153,26 @@ export function ProductModal({
               </div>
 
               {/* color swatches */}
-              {colors.length > 0 && (
-                <div className="product-modal-colors" dir="rtl">
-                  <span className="product-modal-colors-label">צבעים</span>
-                  <div className="product-modal-colors-swatches">
-                    {colors.map((c, i) => (
-                      <span
-                        key={i}
-                        className="product-modal-color-dot"
-                        title={c.name}
-                        style={c.hex ? { background: c.hex } : undefined}
-                        aria-label={c.name}
-                      />
-                    ))}
+              {colors.length > 0 && (() => {
+                const titleLower = item.title.toLowerCase();
+                const activeIdx = colors.findIndex((c) => c.name && titleLower.includes(c.name.toLowerCase()));
+                return (
+                  <div className="product-modal-colors" dir="rtl">
+                    <span className="product-modal-colors-label">צבעים</span>
+                    <div className="product-modal-colors-swatches">
+                      {colors.map((c, i) => (
+                        <span
+                          key={i}
+                          className={`product-modal-color-dot${i === activeIdx ? " is-current" : ""}`}
+                          title={c.name}
+                          style={c.hex ? { background: c.hex } : undefined}
+                          aria-label={c.name}
+                        />
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           </div>
 
