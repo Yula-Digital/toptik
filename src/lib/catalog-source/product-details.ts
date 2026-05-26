@@ -418,20 +418,21 @@ function extractSpecsFromHtml(html: string): SpecSection[] {
     flushSection();
   }
 
-  // Pattern D: if no "מידות" section was found, scan body_html directly for
-  // floating spec lines like "Size: 28.5 x 26.5 x 16.5 cm" and "Strap Length: 132 cm"
-  // that appear before any section header and are missed by Pattern C's section logic.
-  if (!sections.some(s => s.heading === "מידות")) {
-    const floatingSection = extractFloatingSpecs(html);
-    if (floatingSection) sections.push(floatingSection);
-  } else {
-    // Enrich existing מידות section with any missing floating items
-    const dimSection = sections.find(s => s.heading === "מידות")!;
+  // Pattern D: scan body_html for floating spec lines (Size/Weight/Strap Length etc.)
+  // that appear before any section header and are missed by Patterns A–C.
+  // Deduplicate against every label already found in any section.
+  {
     const floating = extractFloatingSpecs(html);
     if (floating) {
-      const existingLabels = new Set(dimSection.items.map(i => i.label));
-      for (const item of floating.items) {
-        if (!existingLabels.has(item.label)) dimSection.items.push(item);
+      const existingLabels = new Set(sections.flatMap(s => s.items.map(i => i.label)));
+      const newItems = floating.items.filter(item => !existingLabels.has(item.label));
+      if (newItems.length > 0) {
+        const dimSection = sections.find(s => s.heading === "מידות");
+        if (dimSection) {
+          dimSection.items.push(...newItems);
+        } else {
+          sections.push({ heading: "מידות", items: newItems });
+        }
       }
     }
   }
