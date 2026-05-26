@@ -37,24 +37,38 @@ function lbsToKg(lbs: number) {
   return Math.round(lbs * 0.453592 * 100) / 100;
 }
 
+function normalizeDecimal(n: string): number {
+  return parseFloat(n.replace(",", "."));
+}
+
+function normalizeDecimalStr(n: string): string {
+  return n.replace(",", ".");
+}
+
 function convertMeasurements(text: string): string {
+  // 3-dim inches (e.g. 10" x 12" x 5")
   text = text.replace(
-    /(\d+(?:\.\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)/gi,
+    /(\d+(?:[.,]\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)/gi,
     (_, a, b, c) =>
-      `${inchesToCm(parseFloat(a))} × ${inchesToCm(parseFloat(b))} × ${inchesToCm(parseFloat(c))} ס"מ`,
+      `${inchesToCm(normalizeDecimal(a))} × ${inchesToCm(normalizeDecimal(b))} × ${inchesToCm(normalizeDecimal(c))} ס"מ`,
   );
+  // 3-dim cm — supports European commas: "10,4x11,2x6,5 cm"
   text = text.replace(
-    /(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*cm\b/gi,
-    (_, a, b, c) => `${a} × ${b} × ${c} ס"מ`,
+    /(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*cm\b/gi,
+    (_, a, b, c) => `${normalizeDecimalStr(a)} × ${normalizeDecimalStr(b)} × ${normalizeDecimalStr(c)} ס"מ`,
   );
-  text = text.replace(/(\d+(?:\.\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)\b/gi, (_, n) => {
-    return `${inchesToCm(parseFloat(n))} ס"מ`;
+  // single inch
+  text = text.replace(/(\d+(?:[.,]\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)\b/gi, (_, n) => {
+    return `${inchesToCm(normalizeDecimal(n))} ס"מ`;
   });
-  text = text.replace(/(\d+(?:\.\d+)?)\s*(?:lbs?|pounds?)\b/gi, (_, n) => {
-    return `${lbsToKg(parseFloat(n))} ק"ג`;
+  // lbs
+  text = text.replace(/(\d+(?:[.,]\d+)?)\s*(?:lbs?|pounds?)\b/gi, (_, n) => {
+    return `${lbsToKg(normalizeDecimal(n))} ק"ג`;
   });
-  text = text.replace(/(\d+(?:\.\d+)?)\s*kg\b/gi, (_, n) => `${n} ק"ג`);
-  text = text.replace(/(\d+(?:\.\d+)?)\s*cm\b/gi, (_, n) => `${n} ס"מ`);
+  // kg — supports European commas: "1,2 KG"
+  text = text.replace(/(\d+(?:[.,]\d+)?)\s*kg\b/gi, (_, n) => `${normalizeDecimalStr(n)} ק"ג`);
+  // single cm
+  text = text.replace(/(\d+(?:[.,]\d+)?)\s*cm\b/gi, (_, n) => `${normalizeDecimalStr(n)} ס"מ`);
   return text;
 }
 
@@ -126,6 +140,7 @@ const ITEM_LABEL_MAP: Record<string, string> = {
   "shoulder strap": "רצועת כתף",
   strap: "רצועה",
   "strap length": "אורך רצועה",
+  "shoulder strap length": "אורך רצועת כתף",
   pocket: "כיס",
   pockets: "כיסים",
   "front pocket": "כיס קדמי",
@@ -133,11 +148,28 @@ const ITEM_LABEL_MAP: Record<string, string> = {
   "exterior pockets": "כיסים חיצוניים",
   "interior pockets": "כיסים פנימיים",
   dimensions: "מידות",
+  size: "גודל",
   material: "חומר",
+  composition: "הרכב",
   lining: "בטנה",
   external: "חיצוני",
   internal: "פנימי",
+  interior: "פנימי",
+  exterior: "חיצוני",
   zipper: "רוכסן",
+  "internal divider": "מחיצה פנימית",
+  "double compartment": "תא כפול",
+  compartment: "תא",
+  divider: "מחיצה",
+  "zip pocket": "כיס רוכסן",
+  "trolley attachment": "אבזם לגרר",
+  type: "סוג",
+  width: "רוחב",
+  height: "גובה",
+  depth: "עומק",
+  length: "אורך",
+  volume: "נפח",
+  capacity: "קיבולת",
 };
 
 function translateItemLabel(label: string): string {
@@ -209,6 +241,65 @@ function decodeHtmlEntities(text: string): string {
 
 function clean(text: string): string {
   return decodeHtmlEntities(stripTags(text)).trim();
+}
+
+// ─── Floating spec extraction (Size/Weight lines outside section headers) ────
+
+// Known spec labels that should be captured even without a section header above them
+const FLOATING_SPEC_LABEL_RE =
+  /\b(Size|Weight|Shoulder\s+Strap\s+Length|Strap\s+Length|Width|Height|Depth|Volume|Capacity|Dimensions)\s*:\s*([^\n<]{3,80})/gi;
+
+function extractFloatingSpecs(html: string): SpecSection | null {
+  // Replace <br> with newlines BEFORE stripping tags so they act as spec-line separators
+  const text = decodeHtmlEntities(
+    html.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/[ \t]+/g, " ")
+  );
+  const items: SpecItem[] = [];
+  let m: RegExpExecArray | null;
+  const seen = new Set<string>();
+  FLOATING_SPEC_LABEL_RE.lastIndex = 0;
+  while ((m = FLOATING_SPEC_LABEL_RE.exec(text)) !== null) {
+    const labelRaw = m[1].trim();
+    const valueRaw = m[2].trim().replace(/\s*[–—]\s*.+$/, ""); // strip trailing dash-separated noise
+    const value = convertMeasurements(valueRaw);
+    if (!isValidSpecItem(value)) continue;
+    const labelKey = labelRaw.toLowerCase();
+    if (seen.has(labelKey)) continue;
+    seen.add(labelKey);
+    items.push({ label: translateItemLabel(labelRaw), value });
+  }
+  return items.length > 0 ? { heading: "מידות", items } : null;
+}
+
+// ─── Dimensions accordion in full page HTML ───────────────────────────────────
+
+function extractDimensionsAccordion(pageHtml: string): SpecSection | null {
+  // Mandarina Duck page has a "Dimensions" accordion separate from body_html
+  // Pattern: look for "Dimensions" heading within ~600 chars of dimension data
+  const accordionRe =
+    /(?:>|^)\s*Dimensions\s*(?:<[^>]+>|\s){0,20}([\s\S]{0,600}?)(?=<\/(?:details|div|section|article)|$)/i;
+  const m = accordionRe.exec(pageHtml);
+  if (!m) return null;
+
+  const block = m[1];
+  const items: SpecItem[] = [];
+
+  // Extract "NxNxN cm" measurements — supports European commas
+  const dimRe = /(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*cm\b/i;
+  const dimMatch = dimRe.exec(block);
+  if (dimMatch) {
+    const [a, b, c] = [dimMatch[1], dimMatch[2], dimMatch[3]].map(n => n.replace(",", "."));
+    items.push({ label: "מידות", value: `${a} × ${b} × ${c} ס"מ` });
+  }
+
+  // Extract weight in KG — European comma support
+  const kgRe = /(\d+(?:[.,]\d+)?)\s*(?:KG|Kg|kg)\b/i;
+  const kgMatch = kgRe.exec(block);
+  if (kgMatch) {
+    items.push({ label: "משקל", value: `${kgMatch[1].replace(",", ".")} ק"ג` });
+  }
+
+  return items.length > 0 ? { heading: "מידות", items } : null;
 }
 
 // ─── Spec extraction (scans HTML for whitelisted sections) ────────────────────
@@ -305,7 +396,7 @@ function extractSpecsFromHtml(html: string): SpecSection[] {
           if (colonIdx > 0 && colonIdx < 35) {
             return { label: translateItemLabel(text.slice(0, colonIdx).trim()), value: text.slice(colonIdx + 1).trim() };
           }
-          return { label: text, value: "" };
+          return { label: translateItemLabel(text), value: "" };
         })
         .filter((item): item is SpecItem => item !== null);
       if (items.length > 0) sections.push({ heading: translateSection(currentHeading), items: items.slice(0, 12) });
@@ -325,6 +416,24 @@ function extractSpecsFromHtml(html: string): SpecSection[] {
       if (currentHeading) pendingItems.push(line);
     }
     flushSection();
+  }
+
+  // Pattern D: if no "מידות" section was found, scan body_html directly for
+  // floating spec lines like "Size: 28.5 x 26.5 x 16.5 cm" and "Strap Length: 132 cm"
+  // that appear before any section header and are missed by Pattern C's section logic.
+  if (!sections.some(s => s.heading === "מידות")) {
+    const floatingSection = extractFloatingSpecs(html);
+    if (floatingSection) sections.push(floatingSection);
+  } else {
+    // Enrich existing מידות section with any missing floating items
+    const dimSection = sections.find(s => s.heading === "מידות")!;
+    const floating = extractFloatingSpecs(html);
+    if (floating) {
+      const existingLabels = new Set(dimSection.items.map(i => i.label));
+      for (const item of floating.items) {
+        if (!existingLabels.has(item.label)) dimSection.items.push(item);
+      }
+    }
   }
 
   return sections;
@@ -479,6 +588,23 @@ export async function fetchProductDetails(sourceUrl: string): Promise<ProductDet
   // Whitelist + content filter ensures only relevant data survives even from full page.
   const bodyHtml = shopify.bodyHtml ?? extractDescriptionFromPage(pageHtml) ?? pageHtml;
   const specs = bodyHtml ? extractSpecsFromHtml(bodyHtml) : [];
+
+  // Layer 3: Mandarina Duck has a separate "Dimensions" accordion on the page
+  // that is NOT part of body_html. Extract it from the full page HTML and merge.
+  if (pageHtml) {
+    const accordionSection = extractDimensionsAccordion(pageHtml);
+    if (accordionSection) {
+      const existing = specs.find(s => s.heading === "מידות");
+      if (existing) {
+        const existingLabels = new Set(existing.items.map(i => i.label));
+        for (const item of accordionSection.items) {
+          if (!existingLabels.has(item.label)) existing.items.push(item);
+        }
+      } else {
+        specs.push(accordionSection);
+      }
+    }
+  }
 
   // colors: prefer Shopify .json (has all variants), fall back to page scan
   const colors = shopify.colors.length > 0 ? shopify.colors : extractColorsFromPageHtml(pageHtml);
