@@ -112,6 +112,9 @@ function isValidSpecItem(text: string): boolean {
   if (/[€$£¥₪]\s*\d|\d+[.,]\d+\s*(eur|usd|gbp)/i.test(text)) return false;
   if (/instagram|facebook|twitter|youtube|tiktok|pinterest/i.test(text)) return false;
   if (/subscribe|follow us|shop now|discover|explore our|newsletter/i.test(text)) return false;
+  if (/designed in italy/i.test(text)) return false;
+  if (/\bwarranty\b/i.test(text)) return false;
+  if (/^made in /i.test(text)) return false;
   return true;
 }
 

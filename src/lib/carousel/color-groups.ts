@@ -50,7 +50,7 @@ export function extractColorWord(title: string): string | null {
   return null;
 }
 
-function getFamilyKey(title: string): string {
+export function getFamilyKey(title: string): string {
   const normalized = normalizeForFamily(title);
   const color = extractColorWord(title);
   if (!color) return normalized;
@@ -68,8 +68,9 @@ export function buildItemColorGroups(items: CarouselItem[]): Map<string, ColorSw
 
   const result = new Map<string, ColorSwatch[]>();
   for (const [, members] of families) {
+    const seen = new Set<string>();
     const swatches: ColorSwatch[] = members
-      .filter(m => m.colorWord)
+      .filter(m => m.colorWord && !seen.has(m.colorWord) && (seen.add(m.colorWord), true))
       .map(m => ({
         name: COLOR_HEBREW[m.colorWord!] ?? m.colorWord!,
         hex: COLOR_HEX[m.colorWord!] ?? null,

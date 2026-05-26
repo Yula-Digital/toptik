@@ -593,6 +593,7 @@ body {
   background: transparent;
   mix-blend-mode: multiply;
   filter: sepia(0.18) saturate(0.85) brightness(1.04);
+  transform: scale(1.4);
 }
 
 .catalog-card-image-placeholder {
@@ -689,7 +690,7 @@ body {
 .catalog-card-colors,
 .catalog-card-colors-anchor {
   position: absolute;
-  bottom: 10px;
+  bottom: 14px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 2;
@@ -1562,6 +1563,7 @@ body {
     background: transparent;
     mix-blend-mode: multiply;
     filter: sepia(0.18) saturate(0.85) brightness(1.04);
+    transform: scale(1.4);
   }
 
   .catalog-card-body {
@@ -1813,7 +1815,7 @@ body {
   }
 
   .catalog-card-colors {
-    bottom: 6px;
+    bottom: 10px;
     gap: 5px;
     padding: 2px 7px;
   }
