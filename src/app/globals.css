@@ -533,7 +533,6 @@ body {
   border: none;
   border-radius: 0;
   background: transparent;
-  transform: scale(1.4);
   mix-blend-mode: multiply;
 }
 
@@ -1196,7 +1195,6 @@ body {
     border-radius: 0;
     object-fit: contain;
     background: transparent;
-    transform: scale(1.4);
     mix-blend-mode: multiply;
   }
 
