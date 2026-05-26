@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   try {
     const details = await fetchProductDetails(url);
     return NextResponse.json(details, {
-      headers: { "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400" },
+      headers: { "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600" },
     });
   } catch (err) {
     console.error("[product-details] fetch error", err);
