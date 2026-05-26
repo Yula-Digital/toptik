@@ -13,37 +13,31 @@ type FetchState = "idle" | "loading" | "done" | "error";
 
 export function TechSpecsModal({ item, onClose }: TechSpecsModalProps) {
   const [details, setDetails] = useState<ProductDetails | null>(null);
-  const [state, setState] = useState<FetchState>("idle");
+  const [fetchedUrl, setFetchedUrl] = useState<string | null>(null);
+  const [fetchFailed, setFetchFailed] = useState(false);
+
+  const url = item?.sourceUrl ?? null;
 
   useEffect(() => {
-    if (!item) {
-      setDetails(null);
-      setState("idle");
-      return;
-    }
-
-    const url = item.sourceUrl;
-    if (!url) {
-      setState("done");
-      setDetails({ specs: [], colors: [] });
-      return;
-    }
-
-    setState("loading");
+    if (!url) return;
     const controller = new AbortController();
 
     fetch(`/api/product-details?url=${encodeURIComponent(url)}`, { signal: controller.signal })
       .then((res) => res.json())
       .then((data: ProductDetails) => {
         setDetails(data);
-        setState("done");
+        setFetchFailed(false);
+        setFetchedUrl(url);
       })
       .catch((err) => {
-        if (err.name !== "AbortError") setState("error");
+        if (err.name !== "AbortError") {
+          setFetchFailed(true);
+          setFetchedUrl(url);
+        }
       });
 
     return () => controller.abort();
-  }, [item]);
+  }, [url]);
 
   useEffect(() => {
     if (!item) return;
@@ -53,6 +47,20 @@ export function TechSpecsModal({ item, onClose }: TechSpecsModalProps) {
   }, [item, onClose]);
 
   if (!item) return null;
+
+  let displayState: FetchState;
+  let displayDetails: ProductDetails | null = null;
+  if (!url) {
+    displayState = "done";
+    displayDetails = { specs: [], colors: [] };
+  } else if (fetchFailed && fetchedUrl === url) {
+    displayState = "error";
+  } else if (details && fetchedUrl === url && !fetchFailed) {
+    displayState = "done";
+    displayDetails = details;
+  } else {
+    displayState = "loading";
+  }
 
   return (
     <div
@@ -70,32 +78,32 @@ export function TechSpecsModal({ item, onClose }: TechSpecsModalProps) {
           <div className="tech-specs-catalog">דגם {item.catalogNumber}</div>
         )}
 
-        {state === "loading" && (
+        {displayState === "loading" && (
           <div className="tech-specs-loading">טוען נתונים...</div>
         )}
 
-        {state === "error" && (
+        {displayState === "error" && (
           <div className="tech-specs-error">לא ניתן לטעון פרטים כרגע</div>
         )}
 
-        {state === "done" && details && (
+        {displayState === "done" && displayDetails && (
           <>
-            {details.specs.length === 0 && (
+            {displayDetails.specs.length === 0 && (
               <div className="tech-specs-empty">לא נמצאו פרטים טכניים למוצר זה</div>
             )}
-            {details.specs.map((section: SpecSection, i: number) => (
+            {displayDetails.specs.map((section: SpecSection, i: number) => (
               <div key={i} className="tech-specs-section">
                 <div className="tech-specs-section-heading">{section.heading}</div>
                 <ul className="tech-specs-list">
-                  {section.items.map((item, j) => (
+                  {section.items.map((specItem, j) => (
                     <li key={j} className="tech-specs-item">
-                      {item.value ? (
+                      {specItem.value ? (
                         <>
-                          <span className="tech-specs-item-label">{item.label}</span>
-                          <span className="tech-specs-item-value">{item.value}</span>
+                          <span className="tech-specs-item-label">{specItem.label}</span>
+                          <span className="tech-specs-item-value">{specItem.value}</span>
                         </>
                       ) : (
-                        <span className="tech-specs-item-full">{item.label}</span>
+                        <span className="tech-specs-item-full">{specItem.label}</span>
                       )}
                     </li>
                   ))}
