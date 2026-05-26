@@ -97,14 +97,18 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem }: CarouselGridProp
                         if (event.key === "Enter" || event.key === " ") onOpenItem(item);
                       }}
                     >
-                      <Image
-                        src={item.coverImagePath}
-                        alt={item.title}
-                        width={1200}
-                        height={1200}
-                        sizes="(max-width: 767px) 45vw, 22vw"
-                        className="catalog-card-image"
-                      />
+                      {item.coverImagePath ? (
+                        <Image
+                          src={item.coverImagePath}
+                          alt={item.title}
+                          width={1200}
+                          height={1200}
+                          sizes="(max-width: 767px) 45vw, 22vw"
+                          className="catalog-card-image"
+                        />
+                      ) : (
+                        <div className="catalog-card-image-placeholder" aria-hidden="true" />
+                      )}
                     </div>
                     <button
                       className="catalog-card-cta"
