@@ -109,18 +109,18 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem }: CarouselGridProp
                       ) : (
                         <div className="catalog-card-image-placeholder" aria-hidden="true" />
                       )}
+                      <button
+                        className="catalog-card-cta"
+                        onMouseEnter={(e) => { e.stopPropagation(); preloadAngleImages(item); }}
+                        onFocus={() => preloadAngleImages(item)}
+                        onTouchStart={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); onOpenItem(item); }}
+                        aria-label={`הגדלה וזוויות נוספות עבור ${item.title}`}
+                      >
+                        <Image src={magnifierIcon} alt="" aria-hidden="true" className="catalog-card-cta-icon" />
+                        <span>להגדלה וזוויות נוספות</span>
+                      </button>
                     </div>
-                    <button
-                      className="catalog-card-cta"
-                      onMouseEnter={() => preloadAngleImages(item)}
-                      onFocus={() => preloadAngleImages(item)}
-                      onTouchStart={() => preloadAngleImages(item)}
-                      onClick={() => onOpenItem(item)}
-                      aria-label={`הגדלה וזוויות נוספות עבור ${item.title}`}
-                    >
-                      <Image src={magnifierIcon} alt="" aria-hidden="true" className="catalog-card-cta-icon" />
-                      <span>להגדלה וזוויות נוספות</span>
-                    </button>
                   </div>
                 </article>
               ))}

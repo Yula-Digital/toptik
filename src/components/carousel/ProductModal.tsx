@@ -96,6 +96,9 @@ export function ProductModal({
                 sizes="(max-width: 767px) 90vw, 70vw"
                 className="product-modal-image"
               />
+              <div className="product-modal-cycle-btn" aria-label="הנחיית דפדוף זוויות">
+                לזויות נוספות דפדפו בתמונה
+              </div>
             </div>
 
             <div className="product-modal-slider" aria-label="דפדוף זוויות מוצר">
@@ -123,9 +126,6 @@ export function ProductModal({
             <div className="product-modal-catalog">{catalogLabel}</div>
             <div className="product-modal-title">{item.title}</div>
             {item.description && <div className="product-modal-description">{item.description}</div>}
-            <div className="product-modal-cycle-btn" aria-label="הנחיית דפדוף זוויות">
-              לזויות נוספות דפדפו בתמונה
-            </div>
             <div className="product-modal-angle">
               {activeAngleIndex + 1} / {angleCount}
             </div>
