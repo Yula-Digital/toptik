@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import Image from "next/image";
 import { CarouselItem } from "@/lib/carousel/types";
 import type { ColorSwatch } from "@/lib/catalog-source/product-details";
+import { extractColorWord, COLOR_HEBREW } from "@/lib/carousel/color-groups";
 
 type ProductModalProps = {
   item: CarouselItem | null;
   activeAngleIndex: number;
+  colors?: ColorSwatch[];
   onClose: () => void;
   onNextAngle: () => void;
   onPrevAngle: () => void;
@@ -27,6 +29,7 @@ function preloadAngleImages(item: CarouselItem) {
 export function ProductModal({
   item,
   activeAngleIndex,
+  colors = [],
   onClose,
   onNextAngle,
   onPrevAngle,
@@ -34,26 +37,11 @@ export function ProductModal({
   onOpenTechSpecs,
 }: ProductModalProps) {
   const touchStartX = useRef<number | null>(null);
-  const [colors, setColors] = useState<ColorSwatch[]>([]);
 
   useEffect(() => {
     if (!item) return;
     preloadAngleImages(item);
   }, [item]);
-
-  // Fetch colors when item changes
-  useEffect(() => {
-    setColors([]);
-    if (!item?.sourceUrl) return;
-    const controller = new AbortController();
-    fetch(`/api/product-details?url=${encodeURIComponent(item.sourceUrl)}`, { signal: controller.signal })
-      .then((res) => res.json())
-      .then((data: { colors?: ColorSwatch[] }) => {
-        if (data.colors?.length) setColors(data.colors);
-      })
-      .catch(() => {/* silent */});
-    return () => controller.abort();
-  }, [item?.sourceUrl]);
 
   useEffect(() => {
     if (!item) return;
@@ -154,21 +142,24 @@ export function ProductModal({
 
               {/* color swatches */}
               {colors.length > 0 && (() => {
-                const titleLower = item.title.toLowerCase();
-                const activeIdx = colors.findIndex((c) => c.name && titleLower.includes(c.name.toLowerCase()));
+                const activeColorWord = extractColorWord(item.title);
                 return (
                   <div className="product-modal-colors" dir="rtl">
                     <span className="product-modal-colors-label">צבעים</span>
                     <div className="product-modal-colors-swatches">
-                      {colors.map((c, i) => (
-                        <span
-                          key={i}
-                          className={`product-modal-color-dot${i === activeIdx ? " is-current" : ""}`}
-                          title={c.name}
-                          style={c.hex ? { background: c.hex } : undefined}
-                          aria-label={c.name}
-                        />
-                      ))}
+                      {colors.map((c, i) => {
+                        const swatchColor = Object.entries(COLOR_HEBREW).find(([, v]) => v === c.name)?.[0] ?? c.name.toLowerCase();
+                        const isActive = activeColorWord ? swatchColor === activeColorWord : false;
+                        return (
+                          <span
+                            key={i}
+                            className={`product-modal-color-dot${isActive ? " is-current" : ""}`}
+                            title={c.name}
+                            style={c.hex ? { background: c.hex } : undefined}
+                            aria-label={c.name}
+                          />
+                        );
+                      })}
                     </div>
                   </div>
                 );

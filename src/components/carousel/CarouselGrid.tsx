@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState, useMemo } from "react";
+import { useRef, useState, useMemo } from "react";
 import Image from "next/image";
-import { A11y, Autoplay, Keyboard, Navigation, Pagination } from "swiper/modules";
+import { A11y, Autoplay, Keyboard, Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
+import type { Swiper as SwiperType } from "swiper";
 import magnifierIcon from "../../../images/images_from_mandarina/magnifaier_icon.svg";
 import { CarouselItem } from "@/lib/carousel/types";
 import type { ColorSwatch } from "@/lib/catalog-source/product-details";
+import { buildItemColorGroups, extractColorWord, COLOR_HEX, COLOR_HEBREW } from "@/lib/carousel/color-groups";
 
 import "swiper/css";
 import "swiper/css/navigation";
@@ -43,63 +45,25 @@ function chunkItems(items: CarouselItem[], size: number) {
   return chunks;
 }
 
-// Match colour name against title (Hebrew + English keywords).
-// Returns the index of the colour swatch that matches the product variant
-// being shown, or -1 if no match found.
-function findActiveColorIndex(colors: ColorSwatch[], productTitle: string): number {
-  if (colors.length === 0) return -1;
-  const titleLower = productTitle.toLowerCase();
-  for (let i = 0; i < colors.length; i++) {
-    const name = colors[i].name.toLowerCase();
-    if (name && titleLower.includes(name)) return i;
-  }
-  return -1;
-}
-
-// Lazy-loads color swatches when the card scrolls into view
-function CardColors({ sourceUrl, productTitle }: { sourceUrl: string; productTitle: string }) {
-  const [colors, setColors] = useState<ColorSwatch[]>([]);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) return;
-        observer.disconnect();
-        fetch(`/api/product-details?url=${encodeURIComponent(sourceUrl)}`)
-          .then((r) => r.json())
-          .then((d: { colors?: ColorSwatch[] }) => {
-            if (d.colors?.length) setColors(d.colors);
-          })
-          .catch(() => {});
-      },
-      { threshold: 0 },
-    );
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [sourceUrl]);
-
-  if (colors.length === 0) {
-    return <div ref={containerRef} className="catalog-card-colors-anchor" aria-hidden="true" />;
-  }
-
-  const activeIndex = findActiveColorIndex(colors, productTitle);
-
+function CardColors({ swatches, activeColorWord }: { swatches: ColorSwatch[]; activeColorWord: string | null }) {
+  if (swatches.length === 0) return null;
   return (
-    <div ref={containerRef} className="catalog-card-colors" dir="rtl">
+    <div className="catalog-card-colors" dir="rtl">
       <span className="catalog-card-colors-label">צבעים</span>
       <div className="catalog-card-colors-dots">
-        {colors.map((c, i) => (
-          <span
-            key={i}
-            className={`catalog-card-color-dot${i === activeIndex ? " is-current" : ""}`}
-            style={c.hex ? { background: c.hex } : undefined}
-            title={c.name}
-            aria-label={c.name}
-          />
-        ))}
+        {swatches.map((c, i) => {
+          const swatchColor = Object.entries(COLOR_HEBREW).find(([, v]) => v === c.name)?.[0] ?? c.name.toLowerCase();
+          const isActive = activeColorWord ? swatchColor === activeColorWord : false;
+          return (
+            <span
+              key={i}
+              className={`catalog-card-color-dot${isActive ? " is-current" : ""}`}
+              style={c.hex ? { background: c.hex } : undefined}
+              title={c.name}
+              aria-label={c.name}
+            />
+          );
+        })}
       </div>
     </div>
   );
@@ -108,22 +72,38 @@ function CardColors({ sourceUrl, productTitle }: { sourceUrl: string; productTit
 export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }: CarouselGridProps) {
   const pages = useMemo(() => chunkItems(items, 4), [items]);
   const swiperKey = useMemo(() => items.map((item) => item.id).join("|"), [items]);
+  const colorGroups = useMemo(() => buildItemColorGroups(items), [items]);
+  const [swiperInstance, setSwiperInstance] = useState<SwiperType | null>(null);
+  const [isBeginning, setIsBeginning] = useState(true);
+  const [isEnd, setIsEnd] = useState(false);
 
   return (
     <section className="catalog-carousel" aria-label="קטלוג מוצרים">
-      <button type="button" dir="ltr" className="carousel-nav carousel-nav-prev" aria-label="עמוד קודם">
+      <button
+        type="button"
+        dir="ltr"
+        className={`carousel-nav carousel-nav-prev${isBeginning && pages.length <= 1 ? " swiper-button-disabled" : ""}`}
+        aria-label="עמוד קודם"
+        onClick={() => swiperInstance?.slidePrev()}
+      >
         <span className="carousel-nav-glyph">&#x2039;</span>
       </button>
-      <button type="button" dir="ltr" className="carousel-nav carousel-nav-next" aria-label="עמוד הבא">
+      <button
+        type="button"
+        dir="ltr"
+        className={`carousel-nav carousel-nav-next${isEnd && pages.length <= 1 ? " swiper-button-disabled" : ""}`}
+        aria-label="עמוד הבא"
+        onClick={() => swiperInstance?.slideNext()}
+      >
         <span className="carousel-nav-glyph">&#x203A;</span>
       </button>
       <Swiper
         key={swiperKey}
-        modules={[Navigation, Pagination, Keyboard, A11y, Autoplay]}
+        modules={[Pagination, Keyboard, A11y, Autoplay]}
         slidesPerView={1}
         initialSlide={0}
         speed={450}
-        navigation={{ prevEl: ".carousel-nav-prev", nextEl: ".carousel-nav-next" }}
+        navigation={false}
         pagination={{ clickable: true }}
         keyboard={{ enabled: true, onlyInViewport: true }}
         a11y={{
@@ -136,6 +116,8 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }:
           disableOnInteraction: false,
           pauseOnMouseEnter: true,
         }}
+        onSwiper={(s) => { setSwiperInstance(s); setIsBeginning(s.isBeginning); setIsEnd(s.isEnd); }}
+        onSlideChange={(s) => { setIsBeginning(s.isBeginning); setIsEnd(s.isEnd); }}
       >
         {pages.map((page, pageIndex) => (
           <SwiperSlide key={`page-${pageIndex}`}>
@@ -201,7 +183,12 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }:
                       </button>
 
                       {/* bottom: color swatches */}
-                      {item.sourceUrl && <CardColors sourceUrl={item.sourceUrl} productTitle={item.title} />}
+                      {colorGroups.has(item.id) && (
+                        <CardColors
+                          swatches={colorGroups.get(item.id)!}
+                          activeColorWord={extractColorWord(item.title)}
+                        />
+                      )}
                     </div>
                   </div>
                 </article>

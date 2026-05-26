@@ -283,6 +283,47 @@ function extractSpecsFromHtml(html: string): SpecSection[] {
     }
   }
 
+  if (sections.length > 0) return sections;
+
+  // Pattern C: inline section headers "Exterior:<br>- item<br>- item"
+  // (Mandarina Duck Shopify body_html format)
+  {
+    const fragments = html.split(/<br\s*\/?>/gi);
+    let currentHeading: string | null = null;
+    const pendingItems: string[] = [];
+
+    const flushSection = () => {
+      if (!currentHeading || pendingItems.length === 0) { pendingItems.length = 0; return; }
+      const items: SpecItem[] = pendingItems
+        .map((rawLine) => {
+          const text = convertMeasurements(clean(rawLine.replace(/^[-•*]\s*/, "")));
+          if (!isValidSpecItem(text)) return null;
+          const colonIdx = text.indexOf(":");
+          if (colonIdx > 0 && colonIdx < 35) {
+            return { label: translateItemLabel(text.slice(0, colonIdx).trim()), value: text.slice(colonIdx + 1).trim() };
+          }
+          return { label: text, value: "" };
+        })
+        .filter((item): item is SpecItem => item !== null);
+      if (items.length > 0) sections.push({ heading: translateSection(currentHeading), items: items.slice(0, 12) });
+      pendingItems.length = 0;
+      currentHeading = null;
+    };
+
+    for (const fragment of fragments) {
+      const line = clean(fragment);
+      if (!line) continue;
+      const sectionMatch = line.match(/^([A-Za-z][A-Za-z\s]{1,30}?):\s*$/);
+      if (sectionMatch && isAllowedSection(sectionMatch[1].trim())) {
+        flushSection();
+        currentHeading = sectionMatch[1].trim();
+        continue;
+      }
+      if (currentHeading) pendingItems.push(line);
+    }
+    flushSection();
+  }
+
   return sections;
 }
 
