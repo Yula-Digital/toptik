@@ -541,6 +541,86 @@ async function tryShopifyProductData(sourceUrl: string): Promise<{ bodyHtml: str
   return { bodyHtml: null, colors: [] };
 }
 
+// Extract search keywords from a /products/<handle> URL
+function handleToKeywords(sourceUrl: string): string {
+  try {
+    const url = new URL(sourceUrl);
+    const parts = url.pathname.split("/").filter(Boolean);
+    const idx = parts.lastIndexOf("products");
+    if (idx === -1 || !parts[idx + 1]) return "";
+    const handle = parts[idx + 1];
+    const stop = new Set(["a", "an", "the", "and", "or", "for", "de", "of", "le", "la", "duck"]);
+    return handle
+      .split("-")
+      .filter((w) => w.length >= 2 && !stop.has(w.toLowerCase()))
+      .slice(0, 5)
+      .join(" ");
+  } catch {
+    return "";
+  }
+}
+
+interface SuggestProduct {
+  handle?: string;
+  url?: string;
+  title?: string;
+  body?: string;
+}
+
+// Shopify predictive-search fallback: when the stored sourceUrl returns 404,
+// search by keywords extracted from the handle and use the body from the best match.
+async function tryShopifySuggestFallback(sourceUrl: string): Promise<string | null> {
+  const keywords = handleToKeywords(sourceUrl);
+  if (!keywords) return null;
+  try {
+    const origin = new URL(sourceUrl).origin;
+    const suggestUrl =
+      `${origin}/search/suggest.json?q=${encodeURIComponent(keywords)}` +
+      `&resources[type]=product&resources[limit]=5`;
+    const res = await fetch(suggestUrl, {
+      headers: { ...DEFAULT_HEADERS, accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      resources?: { results?: { products?: SuggestProduct[] } };
+    };
+    const products: SuggestProduct[] = data?.resources?.results?.products ?? [];
+    if (products.length === 0) return null;
+
+    // Score by keyword overlap with the stored handle
+    const handleWords = keywords.toLowerCase().split(/\s+/);
+    let best: SuggestProduct = products[0];
+    let bestScore = -1;
+    for (const p of products) {
+      const combined = `${p.handle ?? ""} ${p.title ?? ""}`.toLowerCase();
+      const score = handleWords.filter((w) => combined.includes(w)).length;
+      if (score > bestScore) { bestScore = score; best = p; }
+    }
+
+    // suggest body may be truncated; if we got a URL try fetching the full .json
+    if (best.url) {
+      try {
+        const fullJsonUrl = `${origin}${best.url.split("?")[0]}.json`;
+        const r = await fetch(fullJsonUrl, {
+          headers: { ...DEFAULT_HEADERS, accept: "application/json" },
+          cache: "no-store",
+          signal: AbortSignal.timeout(10000),
+        });
+        if (r.ok) {
+          const d = (await r.json()) as { product?: ShopifyProduct };
+          if (d?.product?.body_html) return d.product.body_html;
+        }
+      } catch { /* fall through to suggest body */ }
+    }
+
+    return best.body ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function extractDescriptionFromPage(pageHtml: string): string | null {
   // Try JSON-LD Product schema
   const jsonLdRegex = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
@@ -583,13 +663,19 @@ export async function fetchProductDetails(sourceUrl: string): Promise<ProductDet
     // Page fetch may fail; rely on Shopify data if available
   }
 
+  // Layer 3: if both Shopify .json and direct page failed (stale/wrong handle),
+  // fall back to Shopify predictive-search API using keywords from the stored handle.
+  let suggestBodyHtml: string | null = null;
+  if (!shopify.bodyHtml && !pageHtml) {
+    suggestBodyHtml = await tryShopifySuggestFallback(sourceUrl);
+  }
+
   // body_html source priority:
-  //   Shopify .json body_html → JSON-LD description → product-description container → full page
-  // Whitelist + content filter ensures only relevant data survives even from full page.
-  const bodyHtml = shopify.bodyHtml ?? extractDescriptionFromPage(pageHtml) ?? pageHtml;
+  //   Shopify .json body_html → suggest fallback → JSON-LD description → product-description container → full page
+  const bodyHtml = shopify.bodyHtml ?? suggestBodyHtml ?? extractDescriptionFromPage(pageHtml) ?? pageHtml;
   const specs = bodyHtml ? extractSpecsFromHtml(bodyHtml) : [];
 
-  // Layer 3: Mandarina Duck has a separate "Dimensions" accordion on the page
+  // Layer 4: Mandarina Duck has a separate "Dimensions" accordion on the page
   // that is NOT part of body_html. Extract it from the full page HTML and merge.
   if (pageHtml) {
     const accordionSection = extractDimensionsAccordion(pageHtml);
