@@ -471,12 +471,59 @@ body {
   width: 100%;
   flex: 1;
   min-height: 0;
+  position: relative;
+}
+
+.carousel-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 20;
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 64px;
+  font-weight: 700;
+  line-height: 1;
+  color: #5a3a0c;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 64px;
+  transition: color 0.15s, transform 0.15s;
+}
+
+.carousel-nav:hover {
+  color: #3a2208;
+  transform: translateY(-50%) scale(1.08);
+}
+
+.carousel-nav.swiper-button-disabled {
+  opacity: 0.35;
+  cursor: default;
+  pointer-events: none;
+}
+
+.carousel-nav-prev {
+  left: -18px;
+}
+
+.carousel-nav-next {
+  right: -18px;
 }
 
 .catalog-carousel .swiper,
 .catalog-carousel .swiper-wrapper,
 .catalog-carousel .swiper-slide {
   height: 100%;
+}
+
+.catalog-carousel .swiper > .swiper-button-prev,
+.catalog-carousel .swiper > .swiper-button-next {
+  display: none;
 }
 
 .catalog-grid {
@@ -1713,6 +1760,20 @@ body {
     height: 24px;
     min-height: 24px;
     padding: 0 6px;
+  }
+
+  .carousel-nav {
+    font-size: 40px;
+    width: 32px;
+    height: 44px;
+  }
+
+  .carousel-nav-prev {
+    left: 2px;
+  }
+
+  .carousel-nav-next {
+    right: 2px;
   }
 
   .product-modal-side-arrow {

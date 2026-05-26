@@ -93,16 +93,27 @@ function CardColors({ sourceUrl }: { sourceUrl: string }) {
 export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }: CarouselGridProps) {
   const pages = useMemo(() => chunkItems(items, 4), [items]);
   const swiperKey = useMemo(() => items.map((item) => item.id).join("|"), [items]);
+  const prevRef = useRef<HTMLButtonElement>(null);
+  const nextRef = useRef<HTMLButtonElement>(null);
 
   return (
     <section className="catalog-carousel" aria-label="קטלוג מוצרים">
+      <button ref={prevRef} type="button" className="carousel-nav carousel-nav-prev" aria-label="עמוד קודם">‹</button>
+      <button ref={nextRef} type="button" className="carousel-nav carousel-nav-next" aria-label="עמוד הבא">›</button>
       <Swiper
         key={swiperKey}
         modules={[Navigation, Pagination, Keyboard, A11y, Autoplay]}
         slidesPerView={1}
         initialSlide={0}
         speed={450}
-        navigation
+        navigation={{ prevEl: prevRef.current, nextEl: nextRef.current }}
+        onBeforeInit={(swiper) => {
+          const nav = swiper.params.navigation;
+          if (nav && typeof nav !== "boolean") {
+            nav.prevEl = prevRef.current;
+            nav.nextEl = nextRef.current;
+          }
+        }}
         pagination={{ clickable: true }}
         keyboard={{ enabled: true, onlyInViewport: true }}
         a11y={{
