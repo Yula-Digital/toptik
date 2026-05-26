@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useMemo } from "react";
+import { useState, useMemo } from "react";
 import Image from "next/image";
 import { A11y, Autoplay, Keyboard, Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -8,7 +8,7 @@ import type { Swiper as SwiperType } from "swiper";
 import magnifierIcon from "../../../images/images_from_mandarina/magnifaier_icon.svg";
 import { CarouselItem } from "@/lib/carousel/types";
 import type { ColorSwatch } from "@/lib/catalog-source/product-details";
-import { buildItemColorGroups, extractColorWord, COLOR_HEX, COLOR_HEBREW } from "@/lib/carousel/color-groups";
+import { buildItemColorGroups, extractColorWord, COLOR_HEBREW } from "@/lib/carousel/color-groups";
 
 import "swiper/css";
 import "swiper/css/navigation";

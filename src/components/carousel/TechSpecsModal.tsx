@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { CarouselItem } from "@/lib/carousel/types";
-import type { ProductDetails, SpecSection, ColorSwatch } from "@/lib/catalog-source/product-details";
+import type { ProductDetails, SpecSection } from "@/lib/catalog-source/product-details";
 
 type TechSpecsModalProps = {
   item: CarouselItem | null;
