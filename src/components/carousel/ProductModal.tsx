@@ -92,15 +92,6 @@ export function ProductModal({
         <div className="product-modal-content">
           <div className="product-modal-gallery">
 
-            {/* side arrows — inside gallery, centred vertically on image */}
-            <button
-              className="product-modal-side-arrow product-modal-side-arrow--prev"
-              onClick={(e) => { e.stopPropagation(); onPrevAngle(); }}
-              aria-label="זווית קודמת"
-            >
-              ›
-            </button>
-
             <div className="product-modal-gallery-center">
               {/* image */}
               <div
@@ -128,6 +119,22 @@ export function ProductModal({
                 <div className="product-modal-cycle-btn" aria-label="הנחיית דפדוף זוויות">
                   לזוויות נוספות דפדפו בתמונה
                 </div>
+
+                {/* side arrows — inside image frame, pointing outward */}
+                <button
+                  className="product-modal-side-arrow product-modal-side-arrow--prev"
+                  onClick={(e) => { e.stopPropagation(); onPrevAngle(); }}
+                  aria-label="זווית קודמת"
+                >
+                  ‹
+                </button>
+                <button
+                  className="product-modal-side-arrow product-modal-side-arrow--next"
+                  onClick={(e) => { e.stopPropagation(); onNextAngle(); }}
+                  aria-label="זווית הבאה"
+                >
+                  ›
+                </button>
               </div>
 
               {/* dots */}
@@ -163,14 +170,6 @@ export function ProductModal({
                 </div>
               )}
             </div>
-
-            <button
-              className="product-modal-side-arrow product-modal-side-arrow--next"
-              onClick={(e) => { e.stopPropagation(); onNextAngle(); }}
-              aria-label="זווית הבאה"
-            >
-              ‹
-            </button>
           </div>
 
           <div className="product-modal-meta">

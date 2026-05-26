@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import Image from "next/image";
 import { A11y, Autoplay, Keyboard, Navigation, Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 import magnifierIcon from "../../../images/images_from_mandarina/magnifaier_icon.svg";
 import { CarouselItem } from "@/lib/carousel/types";
+import type { ColorSwatch } from "@/lib/catalog-source/product-details";
 
 import "swiper/css";
 import "swiper/css/navigation";
@@ -40,6 +41,46 @@ function chunkItems(items: CarouselItem[], size: number) {
     chunks.push(items.slice(i, i + size));
   }
   return chunks;
+}
+
+// Lazy-loads color swatches when the card scrolls into view
+function CardColors({ sourceUrl }: { sourceUrl: string }) {
+  const [colors, setColors] = useState<ColorSwatch[]>([]);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return;
+        observer.disconnect();
+        fetch(`/api/product-details?url=${encodeURIComponent(sourceUrl)}`)
+          .then((r) => r.json())
+          .then((d: { colors?: ColorSwatch[] }) => {
+            if (d.colors?.length) setColors(d.colors);
+          })
+          .catch(() => {});
+      },
+      { threshold: 0.1 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [sourceUrl]);
+
+  return (
+    <div ref={containerRef} className="catalog-card-colors">
+      {colors.map((c, i) => (
+        <span
+          key={i}
+          className="catalog-card-color-dot"
+          style={c.hex ? { background: c.hex } : undefined}
+          title={c.name}
+          aria-label={c.name}
+        />
+      ))}
+    </div>
+  );
 }
 
 export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }: CarouselGridProps) {
@@ -131,6 +172,8 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }:
                         <span>להגדלה וזוויות נוספות</span>
                       </button>
 
+                      {/* bottom: color swatches */}
+                      {item.sourceUrl && <CardColors sourceUrl={item.sourceUrl} />}
                     </div>
                   </div>
                 </article>

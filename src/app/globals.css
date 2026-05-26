@@ -519,7 +519,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px;
+  padding: 12px 12px 34px;
   background: #ece5d1;
   overflow: hidden;
   position: relative;
@@ -629,6 +629,28 @@ body {
   width: 16px;
   height: 16px;
   object-fit: contain;
+}
+
+.catalog-card-colors {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.catalog-card-color-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(31, 39, 49, 0.25);
+  background: #ccc;
+  flex-shrink: 0;
 }
 
 .catalog-card-tech-btn {
@@ -868,24 +890,35 @@ body {
 }
 
 .product-modal-side-arrow {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 44px;
-  line-height: 1;
-  color: rgba(31, 39, 49, 0.55);
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 4;
+  background: rgba(255, 250, 240, 0.9);
+  border: 1px solid rgba(138, 106, 45, 0.28);
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 0 4px;
-  flex-shrink: 0;
-  width: 36px;
-  align-self: center;
-  transition: color 0.15s;
+  font-size: 26px;
+  line-height: 1;
+  color: #6f4f1f;
+  cursor: pointer;
+  transition: background 0.15s;
 }
 
 .product-modal-side-arrow:hover {
-  color: rgba(31, 39, 49, 0.9);
+  background: rgba(255, 250, 240, 1);
+}
+
+.product-modal-side-arrow--prev {
+  left: 10px;
+}
+
+.product-modal-side-arrow--next {
+  right: 10px;
 }
 
 .product-modal-gallery-center {
@@ -1658,11 +1691,27 @@ body {
   }
 
   .product-modal-side-arrow {
-    display: none;
+    width: 32px;
+    height: 32px;
+    font-size: 20px;
   }
 
   .product-modal-gallery-center {
     width: 100%;
+  }
+
+  .catalog-card-colors {
+    bottom: 6px;
+    gap: 4px;
+  }
+
+  .catalog-card-color-dot {
+    width: 10px;
+    height: 10px;
+  }
+
+  .catalog-card-image-wrap {
+    padding-bottom: 26px;
   }
 
   .product-modal-colors {
