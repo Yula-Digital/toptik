@@ -5,6 +5,7 @@ import Link from "next/link";
 import carouselTexture from "../../../images/carusell/carucell_backgrownd.svg";
 import { CarouselGrid } from "@/components/carousel/CarouselGrid";
 import { ProductModal } from "@/components/carousel/ProductModal";
+import { TechSpecsModal } from "@/components/carousel/TechSpecsModal";
 import { CarouselItem, CarouselPayload } from "@/lib/carousel/types";
 import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
 
@@ -13,6 +14,7 @@ export default function CarouselPageClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<CarouselItem | null>(null);
   const [activeAngleIndex, setActiveAngleIndex] = useState(0);
+  const [techSpecsItem, setTechSpecsItem] = useState<CarouselItem | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -69,6 +71,8 @@ export default function CarouselPageClient() {
   }, []);
 
   const onCloseModal = useCallback(() => setSelectedItem(null), []);
+  const onOpenTechSpecs = useCallback((item: CarouselItem) => setTechSpecsItem(item), []);
+  const onCloseTechSpecs = useCallback(() => setTechSpecsItem(null), []);
 
   const onNextAngle = useCallback(() => {
     if (!selectedItem) return;
@@ -105,7 +109,7 @@ export default function CarouselPageClient() {
       {isLoading ? (
         <div className="carousel-loading">טוען מוצרים...</div>
       ) : (
-        <CarouselGrid items={activeItems} autoplayMs={payload.settings.autoplayMs} onOpenItem={onOpenItem} />
+        <CarouselGrid items={activeItems} autoplayMs={payload.settings.autoplayMs} onOpenItem={onOpenItem} onOpenTechSpecs={onOpenTechSpecs} />
       )}
 
       <ProductModal
@@ -115,7 +119,10 @@ export default function CarouselPageClient() {
         onNextAngle={onNextAngle}
         onPrevAngle={onPrevAngle}
         onSelectAngle={setActiveAngleIndex}
+        onOpenTechSpecs={onOpenTechSpecs}
       />
+
+      <TechSpecsModal item={techSpecsItem} onClose={onCloseTechSpecs} />
     </main>
   );
 }

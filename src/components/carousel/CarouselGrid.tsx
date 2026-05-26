@@ -15,11 +15,11 @@ type CarouselGridProps = {
   items: CarouselItem[];
   autoplayMs: number;
   onOpenItem: (item: CarouselItem) => void;
+  onOpenTechSpecs: (item: CarouselItem) => void;
 };
 
 function preloadAngleImages(item: CarouselItem) {
   if (typeof window === "undefined") return;
-
   item.angles.forEach((angle) => {
     const image = new window.Image();
     image.decoding = "async";
@@ -30,7 +30,6 @@ function preloadAngleImages(item: CarouselItem) {
 function extractCatalogNumber(item: CarouselItem) {
   const explicit = item.catalogNumber?.trim();
   if (explicit) return explicit;
-
   const titleToken = item.title.match(/[A-Z0-9]{2,}(?:[-_/][A-Z0-9]{2,})+/i)?.[0];
   return titleToken ?? "";
 }
@@ -43,7 +42,7 @@ function chunkItems(items: CarouselItem[], size: number) {
   return chunks;
 }
 
-export function CarouselGrid({ items, autoplayMs, onOpenItem }: CarouselGridProps) {
+export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }: CarouselGridProps) {
   const pages = useMemo(() => chunkItems(items, 4), [items]);
   const swiperKey = useMemo(() => items.map((item) => item.id).join("|"), [items]);
 
@@ -109,6 +108,8 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem }: CarouselGridProp
                       ) : (
                         <div className="catalog-card-image-placeholder" aria-hidden="true" />
                       )}
+
+                      {/* top: view angles */}
                       <button
                         className="catalog-card-cta"
                         onMouseEnter={(e) => { e.stopPropagation(); preloadAngleImages(item); }}
@@ -120,6 +121,18 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem }: CarouselGridProp
                         <Image src={magnifierIcon} alt="" aria-hidden="true" className="catalog-card-cta-icon" />
                         <span>להגדלה וזוויות נוספות</span>
                       </button>
+
+                      {/* bottom: tech specs */}
+                      {item.sourceUrl && (
+                        <button
+                          className="catalog-card-tech-btn"
+                          onTouchStart={(e) => e.stopPropagation()}
+                          onClick={(e) => { e.stopPropagation(); onOpenTechSpecs(item); }}
+                          aria-label={`פרטים טכניים עבור ${item.title}`}
+                        >
+                          <span>לפרטים טכניים</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </article>
