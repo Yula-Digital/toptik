@@ -77,7 +77,9 @@ The image MUST NOT touch or visually crowd either pill. Required CSS:
 `.catalog-card-image-wrap`:
 - `overflow: hidden`
 - `display: flex; align-items: center; justify-content: center` (not `stretch`)
-- `padding: 54px 16px 46px` on desktop, `padding: 38px 12px 30px` on mobile (`@media max-width: 767px`) — the padding RESERVES the gap to the top/bottom pills
+- `padding: 52px 12px 44px` on desktop, `padding: 36px 8px 30px` on mobile (`@media max-width: 767px`).
+- The padding is tuned to be the MINIMUM safe distance to the pills: button bottom is at y=46 (desktop) / y=32 (mobile), color pill top is ~38px (desktop) / ~26px (mobile) from the wrap bottom, so the padding sits ~4–6 px outside each pill. Horizontal padding equals the `box-shadow: inset` frame width (12 px desktop / 8 px mobile) so the image rides flush against the inner edge of the white frame.
+- **DO NOT increase padding past these values.** The user explicitly asked for "the largest centered image that fits with only a few pixels gap to the pills". Smaller padding violates the pill safety zone; larger padding wastes image surface.
 
 `.catalog-card-image`:
 - `object-fit: contain`, `mix-blend-mode: multiply`, transparent background (cream wrap blends white product photo whitespace)

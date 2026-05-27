@@ -574,7 +574,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 54px 16px 46px;
+  padding: 52px 12px 44px;
   background: #ece5d1;
   overflow: hidden;
   position: relative;
@@ -1553,7 +1553,7 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 38px 12px 30px;
+    padding: 36px 8px 30px;
   }
 
   .catalog-card-image {
