@@ -3,11 +3,17 @@
 import { CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { CarouselGrid } from "@/components/carousel/CarouselGrid";
+import { CategoryNav } from "@/components/carousel/CategoryNav";
 import { ProductModal } from "@/components/carousel/ProductModal";
 import { TechSpecsModal } from "@/components/carousel/TechSpecsModal";
 import { CarouselItem, CarouselPayload } from "@/lib/carousel/types";
 import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
 import { buildItemColorGroups } from "@/lib/carousel/color-groups";
+import {
+  CategoryKey,
+  filterByCategory,
+  parseCategoryParam,
+} from "@/lib/carousel/categories";
 
 export default function CarouselPageClient() {
   const [payload, setPayload] = useState<CarouselPayload>(fallbackCarouselPayload);
@@ -15,6 +21,20 @@ export default function CarouselPageClient() {
   const [selectedItem, setSelectedItem] = useState<CarouselItem | null>(null);
   const [activeAngleIndex, setActiveAngleIndex] = useState(0);
   const [techSpecsItem, setTechSpecsItem] = useState<CarouselItem | null>(null);
+  const [activeCategory, setActiveCategory] = useState<CategoryKey>(() => {
+    if (typeof window === "undefined") return "all";
+    const param = new URL(window.location.href).searchParams.get("category");
+    return parseCategoryParam(param);
+  });
+
+  const onChangeCategory = useCallback((key: CategoryKey) => {
+    setActiveCategory(key);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (key === "all") url.searchParams.delete("category");
+    else url.searchParams.set("category", key);
+    window.history.replaceState({}, "", url.toString());
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -102,6 +122,11 @@ export default function CarouselPageClient() {
     setActiveAngleIndex((current) => (current - 1 + selectedItem.angles.length) % selectedItem.angles.length);
   }, [selectedItem]);
 
+  const visibleItems = useMemo(
+    () => filterByCategory(activeItems, activeCategory),
+    [activeItems, activeCategory],
+  );
+
   const carouselSurfaceStyle = useMemo(
     () =>
       ({
@@ -127,7 +152,15 @@ export default function CarouselPageClient() {
       {isLoading ? (
         <div className="carousel-loading">טוען מוצרים...</div>
       ) : (
-        <CarouselGrid items={activeItems} autoplayMs={payload.settings.autoplayMs} onOpenItem={onOpenItem} onOpenTechSpecs={onOpenTechSpecs} />
+        <div className="carousel-page-body" dir="rtl">
+          <CategoryNav active={activeCategory} onChange={onChangeCategory} />
+          <CarouselGrid
+            items={visibleItems}
+            autoplayMs={payload.settings.autoplayMs}
+            onOpenItem={onOpenItem}
+            onOpenTechSpecs={onOpenTechSpecs}
+          />
+        </div>
       )}
 
       <ProductModal
