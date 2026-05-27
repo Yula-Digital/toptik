@@ -25,31 +25,19 @@ export default function CarouselPageClient() {
       })
       .then((data: CarouselPayload) => {
         setPayload(data);
-        // Background-warm tech specs for any active item without cached
-        // specs. The /api/product-details handler writes results back to
-        // the DB, so once any visitor's browser finishes this loop the
-        // entire catalog is warm for everyone else. Throttled to 4
-        // parallel fetches to be polite to mandarinaduck.com.
+        // Fallback warming: most visitors arrive via the landing page which
+        // already pre-warms. This catches deep-link visits to /carousel.
         const cold = data.items
           .filter((it) => it.isActive && it.sourceUrl && !it.techSpecs)
           .map((it) => it.sourceUrl!);
         if (cold.length > 0) {
-          const queue = [...cold];
-          const workers = Array.from({ length: Math.min(4, queue.length) }, async () => {
-            while (queue.length) {
-              const url = queue.shift();
-              if (!url) return;
-              try {
-                await fetch(`/api/product-details?url=${encodeURIComponent(url)}`, {
-                  signal: controller.signal,
-                });
-              } catch {
-                /* network noise; harmless */
-              }
-            }
-          });
-          // Fire and forget — never blocks the UI
-          void Promise.all(workers);
+          void Promise.all(
+            cold.map((url) =>
+              fetch(`/api/product-details?url=${encodeURIComponent(url)}`, {
+                signal: controller.signal,
+              }).catch(() => {}),
+            ),
+          );
         }
       })
       .catch((error) => {

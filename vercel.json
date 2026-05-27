@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/admin/warm-tech-specs?force=1",
+      "schedule": "0 3 * * *"
+    }
+  ]
+}

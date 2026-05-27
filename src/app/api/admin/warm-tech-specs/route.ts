@@ -9,7 +9,13 @@ export const maxDuration = 300;
 function isAuthorized(req: NextRequest) {
   // Accept token from header (admin tool) or query param (one-off curl/MCP).
   const token = req.headers.get("x-admin-token") ?? req.nextUrl.searchParams.get("token");
-  return Boolean(token && supabaseEnv.adminToken && token === supabaseEnv.adminToken);
+  if (token && supabaseEnv.adminToken && token === supabaseEnv.adminToken) return true;
+  // Vercel Cron Jobs authenticate via `Authorization: Bearer <CRON_SECRET>`,
+  // where CRON_SECRET is an env var the project owner sets on Vercel.
+  const cronSecret = process.env.CRON_SECRET;
+  const authHeader = req.headers.get("authorization");
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) return true;
+  return false;
 }
 
 export async function POST(req: NextRequest) {

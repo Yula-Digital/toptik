@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createCatalogSourceProvider } from "@/lib/catalog-source/provider";
+import { fetchProductDetails } from "@/lib/catalog-source/product-details";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { supabaseEnv } from "@/lib/supabase/env";
-import { CarouselItem } from "@/lib/carousel/types";
+import { CachedTechSpecs, CarouselItem } from "@/lib/carousel/types";
 
 const importCatalogSchema = z.object({
   catalogNumber: z
@@ -142,6 +143,19 @@ export async function POST(req: NextRequest) {
       throw new Error("Import failed: no images were saved to storage");
     }
 
+    // Fetch + cache tech specs at import time so the product is "born warm"
+    // — no visitor ever pays the cold-scrape cost. Failure here is non-fatal:
+    // the carousel still imports, the tech-specs background warmer will
+    // eventually populate the row on first carousel visit.
+    let techSpecs: CachedTechSpecs | null = null;
+    if (sourceProduct.sourceUrl) {
+      try {
+        techSpecs = (await fetchProductDetails(sourceProduct.sourceUrl)) as CachedTechSpecs;
+      } catch (specError) {
+        console.warn("Tech specs prefetch failed", specError);
+      }
+    }
+
     const translatedDescription = await translateToHebrew(sourceProduct.description);
 
     const itemId = targetItemId ?? crypto.randomUUID();
@@ -157,6 +171,7 @@ export async function POST(req: NextRequest) {
       coverImagePath: uploadedUrls[0],
       displayOrder: 1,
       isActive: true,
+      techSpecs,
       angles: uploadedUrls.map((imagePath, index) => ({
         id: crypto.randomUUID(),
         itemId,
@@ -165,6 +180,21 @@ export async function POST(req: NextRequest) {
         angleOrder: index + 1,
       })),
     };
+
+    // Persist the pre-fetched tech specs to the DB row created/updated by
+    // the admin save flow. Best-effort: missing column or older row schema
+    // shouldn't break the import.
+    if (techSpecs && targetItemId) {
+      try {
+        const supabase = createSupabaseServiceRoleClient();
+        await supabase
+          .from("carousel_items")
+          .update({ tech_specs: techSpecs })
+          .eq("id", targetItemId);
+      } catch (persistError) {
+        console.warn("Tech specs persist failed", persistError);
+      }
+    }
 
     return NextResponse.json({
       ok: true,
