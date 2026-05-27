@@ -42,10 +42,21 @@ This is the difference between a usable Figma file and an unusable one. Never sk
 
 File: `src/app/globals.css`
 
-`.catalog-card-image-wrap` must have `overflow: hidden` and `align-items/justify-content: center` (not `stretch`).
-`.catalog-card-image` must have `transform: scale(1.4)` — this normalizes varying whitespace padding baked into product photos and fills the card visually.
+The image area in each carousel card holds THREE absolutely-positioned things stacked over one image:
+- the "להגדלה וזוויות נוספות" pill button at the top
+- the product image (`.catalog-card-image`) — flex-centered, `object-fit: contain`
+- the color swatches pill at the bottom
 
-Both desktop and mobile (`@media max-width: 767px`) blocks require these rules.
+The image MUST NOT touch or visually crowd either pill. Required CSS:
 
-**Do not remove `transform: scale(1.4)` or `overflow: hidden` from these selectors.** They are intentional design decisions, not bugs.
+`.catalog-card-image-wrap`:
+- `overflow: hidden`
+- `display: flex; align-items: center; justify-content: center` (not `stretch`)
+- `padding: 54px 16px 46px` on desktop, `padding: 38px 12px 30px` on mobile (`@media max-width: 767px`) — the padding RESERVES the gap to the top/bottom pills
+
+`.catalog-card-image`:
+- `object-fit: contain`, `mix-blend-mode: multiply`, transparent background (cream wrap blends white product photo whitespace)
+- **No `transform: scale()`** — scale overflows the wrap and crowds the pills. The multiply blend already removes the white halo around products; no extra zoom is needed.
+
+**Do not add `transform: scale(...)` and do not reduce the wrap padding.** Both regressions cause the image to touch or cover the pill buttons. Historical AGENTS.md text mandating `transform: scale(1.4)` was wrong and produced exactly that bug — replaced with this rule on 2026-05-27.
 <!-- END:carousel-image-rules -->
