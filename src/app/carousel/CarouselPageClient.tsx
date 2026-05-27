@@ -2,7 +2,6 @@
 
 import { CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import carouselTexture from "../../../images/carusell/carucell_backgrownd.svg";
 import { CarouselGrid } from "@/components/carousel/CarouselGrid";
 import { ProductModal } from "@/components/carousel/ProductModal";
 import { TechSpecsModal } from "@/components/carousel/TechSpecsModal";
@@ -90,7 +89,7 @@ export default function CarouselPageClient() {
   const carouselSurfaceStyle = useMemo(
     () =>
       ({
-        ["--carousel-bg-url" as string]: `url(${carouselTexture.src})`,
+        ["--carousel-bg-url" as string]: `url(/carousel-texture.webp)`,
       }) as CSSProperties,
     [],
   );

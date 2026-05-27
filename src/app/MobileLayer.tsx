@@ -80,9 +80,8 @@ export default function MobileLayer({ isCarouselEnabled = true }: MobileLayerPro
               <Image
                 src="/whatsapp.png"
                 alt="WhatsApp"
-                width={1024}
-                height={1024}
-                unoptimized
+                width={96}
+                height={96}
               />
             </span>
           </a>
