@@ -11,21 +11,31 @@ type TechSpecsModalProps = {
 
 type FetchState = "idle" | "loading" | "done" | "error";
 
+// Module-level cache so repeated opens within the same session are instant.
+const sessionCache = new Map<string, ProductDetails>();
+
 export function TechSpecsModal({ item, onClose }: TechSpecsModalProps) {
-  const [details, setDetails] = useState<ProductDetails | null>(null);
+  const [fetchedDetails, setFetchedDetails] = useState<ProductDetails | null>(null);
   const [fetchedUrl, setFetchedUrl] = useState<string | null>(null);
   const [fetchFailed, setFetchFailed] = useState(false);
 
   const url = item?.sourceUrl ?? null;
+  // Synchronous sources (no setState needed): the item may carry pre-cached
+  // tech specs from the carousel payload, or we may have the URL in the
+  // session cache from a prior open.
+  const cachedTechSpecs = (item?.techSpecs ?? null) as ProductDetails | null;
+  const sessionHit = url ? sessionCache.get(url) ?? null : null;
+  const synchronousDetails = cachedTechSpecs ?? sessionHit;
 
   useEffect(() => {
-    if (!url) return;
-    const controller = new AbortController();
+    if (!url || synchronousDetails) return;
 
+    const controller = new AbortController();
     fetch(`/api/product-details?url=${encodeURIComponent(url)}`, { signal: controller.signal })
       .then((res) => res.json())
       .then((data: ProductDetails) => {
-        setDetails(data);
+        sessionCache.set(url, data);
+        setFetchedDetails(data);
         setFetchFailed(false);
         setFetchedUrl(url);
       })
@@ -37,7 +47,9 @@ export function TechSpecsModal({ item, onClose }: TechSpecsModalProps) {
       });
 
     return () => controller.abort();
-  }, [url]);
+  }, [url, synchronousDetails]);
+
+  const details = synchronousDetails ?? (fetchedUrl === url ? fetchedDetails : null);
 
   useEffect(() => {
     if (!item) return;
@@ -53,11 +65,11 @@ export function TechSpecsModal({ item, onClose }: TechSpecsModalProps) {
   if (!url) {
     displayState = "done";
     displayDetails = { specs: [], colors: [] };
-  } else if (fetchFailed && fetchedUrl === url) {
-    displayState = "error";
-  } else if (details && fetchedUrl === url && !fetchFailed) {
+  } else if (details) {
     displayState = "done";
     displayDetails = details;
+  } else if (fetchFailed && fetchedUrl === url) {
+    displayState = "error";
   } else {
     displayState = "loading";
   }

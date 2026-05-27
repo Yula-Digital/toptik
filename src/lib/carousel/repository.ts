@@ -19,6 +19,7 @@ type ItemRow = {
   cover_image_path: string;
   display_order: number;
   is_active: boolean;
+  tech_specs?: import("./types").CachedTechSpecs | null;
 };
 
 type AngleRow = {
@@ -94,6 +95,7 @@ export async function getCarouselPayload(
       coverImagePath: item.cover_image_path,
       displayOrder: item.display_order,
       isActive: item.is_active,
+      techSpecs: item.tech_specs ?? null,
       angles: (anglesByItem.get(item.id) ?? []).map((angle) => ({
         id: angle.id,
         itemId: angle.item_id,

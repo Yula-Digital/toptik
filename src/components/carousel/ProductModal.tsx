@@ -18,13 +18,23 @@ type ProductModalProps = {
   onOpenTechSpecs: (item: CarouselItem) => void;
 };
 
+// Issue immediate fetches for every angle's trimmed image so that switching
+// angles inside the modal is instant. We use direct <link> preloads which
+// the browser shares with the next/image optimizer's same-URL fetches.
 function preloadAngleImages(item: CarouselItem) {
   if (typeof window === "undefined") return;
-  item.angles.forEach((angle) => {
-    const image = new window.Image();
-    image.decoding = "async";
-    image.src = trimmedProductSrc(angle.imagePath);
-  });
+  for (const angle of item.angles) {
+    const src = trimmedProductSrc(angle.imagePath);
+    // Hint the optimizer at the size the modal renders (matches sizes="55vw")
+    const optimized = `/_next/image?url=${encodeURIComponent(src)}&w=1080&q=85`;
+    const link = document.createElement("link");
+    link.rel = "preload";
+    link.as = "image";
+    link.href = optimized;
+    link.fetchPriority = "low";
+    document.head.appendChild(link);
+    setTimeout(() => link.remove(), 30000);
+  }
 }
 
 export function ProductModal({
