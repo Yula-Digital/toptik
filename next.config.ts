@@ -12,6 +12,11 @@ const nextConfig: NextConfig = {
         pathname: "/storage/v1/object/public/**",
       },
     ],
+    localPatterns: [
+      {
+        pathname: "/api/img-trim",
+      },
+    ],
   },
 };
 
