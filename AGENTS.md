@@ -4,6 +4,31 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+<!-- BEGIN:deployment-workflow -->
+# Deployment workflow — DO NOT improvise
+
+**Production URL the user verifies on:** `https://toptik-iota.vercel.app` (deploys from `master`, ~90 s).
+
+**Vercel preview URLs are GATED by Vercel Authentication** (`https://toptik-git-<branch>-rordan-ais-projects.vercel.app` returns 401 to logged-out visitors). The user has explicitly asked NOT to be sent there to verify visuals — it caused a full day of wasted time.
+
+So the workflow for any visual / user-facing change is:
+
+1. Work on the session's designated feature branch (`claude/...` per the session prompt).
+2. Run `npm run build` locally — must pass.
+3. Fast-forward `master` to the feature branch HEAD, push `master`:
+   ```bash
+   git checkout master
+   git merge --ff-only origin/<feature-branch>
+   git push origin master
+   git checkout <feature-branch>   # stay on feature branch for next task
+   ```
+4. Tell the user: "production updates in ~90 s at `https://toptik-iota.vercel.app/<path>`".
+
+Optional long-term improvement (one-click, user-driven, NOT to be presented as a blocker): the user can disable Vercel Authentication on Preview at `https://vercel.com/rordan-ais-projects/toptik/settings/deployment-protection`. Until then, master is the only public path.
+
+Never push commits to `master` that haven't first landed on the feature branch — that defeats the lint/build verification step. Always feature → ff-merge → push master.
+<!-- END:deployment-workflow -->
+
 <!-- BEGIN:figma-export-rules -->
 # Figma Export — MANDATORY post-capture cleanup
 
