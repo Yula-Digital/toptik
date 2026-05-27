@@ -5,6 +5,7 @@ import Image from "next/image";
 import { CarouselItem } from "@/lib/carousel/types";
 import type { ColorSwatch } from "@/lib/catalog-source/product-details";
 import { extractColorWord, COLOR_HEBREW } from "@/lib/carousel/color-groups";
+import { trimmedProductSrc } from "@/lib/carousel/trim-src";
 
 type ProductModalProps = {
   item: CarouselItem | null;
@@ -22,7 +23,7 @@ function preloadAngleImages(item: CarouselItem) {
   item.angles.forEach((angle) => {
     const image = new window.Image();
     image.decoding = "async";
-    image.src = angle.imagePath;
+    image.src = trimmedProductSrc(angle.imagePath);
   });
 }
 
@@ -97,7 +98,7 @@ export function ProductModal({
                 }}
               >
                 <Image
-                  src={activeAngle?.imagePath || item.coverImagePath}
+                  src={trimmedProductSrc(activeAngle?.imagePath || item.coverImagePath)}
                   alt={`${item.title} - ${activeAngle?.angleKey ?? "view"}`}
                   width={1600}
                   height={1600}

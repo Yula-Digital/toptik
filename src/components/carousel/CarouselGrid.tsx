@@ -9,6 +9,7 @@ import magnifierIcon from "../../../images/images_from_mandarina/magnifaier_icon
 import { CarouselItem } from "@/lib/carousel/types";
 import type { ColorSwatch } from "@/lib/catalog-source/product-details";
 import { buildItemColorGroups, extractColorWord, COLOR_HEBREW } from "@/lib/carousel/color-groups";
+import { trimmedProductSrc } from "@/lib/carousel/trim-src";
 
 import "swiper/css";
 import "swiper/css/navigation";
@@ -26,7 +27,7 @@ function preloadAngleImages(item: CarouselItem) {
   item.angles.forEach((angle) => {
     const image = new window.Image();
     image.decoding = "async";
-    image.src = angle.imagePath;
+    image.src = trimmedProductSrc(angle.imagePath);
   });
 }
 
@@ -158,7 +159,7 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }:
                     >
                       {item.coverImagePath ? (
                         <Image
-                          src={item.coverImagePath}
+                          src={trimmedProductSrc(item.coverImagePath)}
                           alt={item.title}
                           width={1200}
                           height={1200}
