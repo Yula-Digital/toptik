@@ -27,157 +27,424 @@ export interface ProductDetails {
   colors: ColorSwatch[];
 }
 
-// ─── Measurement conversion ──────────────────────────────────────────────────
+// ─── Sanitization ────────────────────────────────────────────────────────────
 
-function inchesToCm(inches: number) {
-  return Math.round(inches * 2.54 * 10) / 10;
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/&nbsp;/g, " ");
 }
 
-function lbsToKg(lbs: number) {
-  return Math.round(lbs * 0.453592 * 100) / 100;
+function stripTags(html: string): string {
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
-function normalizeDecimal(n: string): number {
-  return parseFloat(n.replace(",", "."));
+function clean(text: string): string {
+  return decodeHtmlEntities(stripTags(text)).trim();
 }
 
-function normalizeDecimalStr(n: string): string {
-  return n.replace(",", ".");
+function splitLines(html: string): string[] {
+  return decodeHtmlEntities(
+    html.replace(/<br\s*\/?>/gi, "\n").replace(/<\/?(?:p|li|div)[^>]*>/gi, "\n").replace(/<[^>]+>/g, " "),
+  )
+    .split("\n")
+    .map((l) => l.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
 }
 
-function convertMeasurements(text: string): string {
-  // 3-dim inches (e.g. 10" x 12" x 5")
-  text = text.replace(
-    /(\d+(?:[.,]\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)/gi,
-    (_, a, b, c) =>
-      `${inchesToCm(normalizeDecimal(a))} × ${inchesToCm(normalizeDecimal(b))} × ${inchesToCm(normalizeDecimal(c))} ס"מ`,
-  );
-  // 3-dim cm — supports European commas: "10,4x11,2x6,5 cm"
-  text = text.replace(
-    /(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*cm\b/gi,
-    (_, a, b, c) => `${normalizeDecimalStr(a)} × ${normalizeDecimalStr(b)} × ${normalizeDecimalStr(c)} ס"מ`,
-  );
-  // single inch
-  text = text.replace(/(\d+(?:[.,]\d+)?)\s*(?:"|''|in(?:ch(?:es)?)?)\b/gi, (_, n) => {
-    return `${inchesToCm(normalizeDecimal(n))} ס"מ`;
-  });
-  // lbs
-  text = text.replace(/(\d+(?:[.,]\d+)?)\s*(?:lbs?|pounds?)\b/gi, (_, n) => {
-    return `${lbsToKg(normalizeDecimal(n))} ק"ג`;
-  });
-  // kg — supports European commas: "1,2 KG"
-  text = text.replace(/(\d+(?:[.,]\d+)?)\s*kg\b/gi, (_, n) => `${normalizeDecimalStr(n)} ק"ג`);
-  // single cm
-  text = text.replace(/(\d+(?:[.,]\d+)?)\s*cm\b/gi, (_, n) => `${normalizeDecimalStr(n)} ס"מ`);
-  return text;
+// ─── Metric extraction (cm + kg only — imperial silently discarded) ──────────
+
+function normalizeNum(s: string): string {
+  return s.replace(",", ".");
 }
 
-// ─── Section whitelist + Hebrew translation ───────────────────────────────────
+// Returns "A × B × C ס\"מ" if the text contains a 3-dim cm measurement, else null.
+function extractDimensionsCm(text: string): string | null {
+  const m = /(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*cm\b/i.exec(text);
+  if (!m) return null;
+  return `${normalizeNum(m[1])} × ${normalizeNum(m[2])} × ${normalizeNum(m[3])} ס"מ`;
+}
 
-const ALLOWED_SECTION_KEYS = [
-  "exterior", "external", "outside", "outer",
-  "interior", "internal", "inside", "inner",
-  "composition", "materials", "material", "fabric",
-  "dimensions", "measurements", "dimension", "sizes",
-  "weight",
-];
+// Returns "X ק\"ג" if the text contains a kg measurement, else null.
+function extractWeightKg(text: string): string | null {
+  const m = /(\d+(?:[.,]\d+)?)\s*kg\b/i.exec(text);
+  if (!m) return null;
+  return `${normalizeNum(m[1])} ק"ג`;
+}
 
-const SECTION_MAP: Record<string, string> = {
-  exterior: "חיצוני",
-  external: "חיצוני",
-  outside: "חיצוני",
-  outer: "חיצוני",
-  interior: "פנימי",
-  internal: "פנימי",
-  inside: "פנימי",
-  inner: "פנימי",
-  materials: "הרכב",
-  material: "הרכב",
-  composition: "הרכב",
-  fabric: "הרכב",
-  dimensions: "מידות",
-  measurements: "מידות",
-  dimension: "מידות",
-  sizes: "מידות",
-  weight: "משקל",
+// Returns "X ס\"מ" if the text contains a single cm measurement (length/strap/etc).
+function extractLengthCm(text: string): string | null {
+  const m = /(\d+(?:[.,]\d+)?)\s*cm\b/i.exec(text);
+  if (!m) return null;
+  return `${normalizeNum(m[1])} ס"מ`;
+}
+
+// Returns "X ליטר" if the text contains a liter volume measurement.
+function extractVolumeLiters(text: string): string | null {
+  const m = /(\d+(?:[.,]\d+)?)\s*(?:l|lt|liters?|litres?)\b/i.exec(text);
+  if (!m) return null;
+  return `${normalizeNum(m[1])} ליטר`;
+}
+
+// ─── Hebrew translation ──────────────────────────────────────────────────────
+
+// Used for whole-line replacement of common Mandarina descriptive items
+// (typically bullet items under Exterior:/Interior:). Keys are lowercase.
+const LINE_TRANSLATIONS: Record<string, string> = {
+  "double compartment": "תא כפול",
+  "single compartment": "תא יחיד",
+  "triple compartment": "תא משולש",
+  "divider mesh": "מחיצת רשת",
+  "internal divider": "מחיצה פנימית",
+  "padded compartment": "תא מרופד",
+  "padded laptop compartment": "תא מרופד למחשב נייד",
+  "italian leather": "עור איטלקי",
+  "calf leather": "עור עגל",
+  "real leather": "עור אמיתי",
+  "genuine leather": "עור אמיתי",
+  "designed in italy": "",  // dropped
+  "made in italy": "תוצרת איטליה",
 };
 
-// Lenient match: accept heading if it contains any allowed key (e.g. "Exterior Features")
-function isAllowedSection(heading: string): boolean {
-  const key = heading.trim().toLowerCase();
-  return ALLOWED_SECTION_KEYS.some((allowed) => key === allowed || key.includes(allowed));
-}
+// Bullet noun translations. Each entry: [regex matching the English form,
+// singular Hebrew form, plural Hebrew form]. Singular is used when the
+// bullet has a leading count of 1, plural otherwise. More specific patterns
+// must come before less specific ones.
+const NOUN_TRANSLATIONS: Array<[RegExp, string, string]> = [
+  [/external front pockets? with flap and zipper/gi, "כיס חיצוני קדמי עם דש ורוכסן", "כיסים חיצוניים קדמיים עם דש ורוכסן"],
+  [/external front pockets? with flap/gi, "כיס חיצוני קדמי עם דש", "כיסים חיצוניים קדמיים עם דש"],
+  [/external front pockets?/gi, "כיס חיצוני קדמי", "כיסים חיצוניים קדמיים"],
+  [/internal applied phone pockets?/gi, "כיס טלפון פנימי", "כיסי טלפון פנימיים"],
+  [/internal phone pockets?/gi, "כיס טלפון פנימי", "כיסי טלפון פנימיים"],
+  [/internal zip pockets?/gi, "כיס רוכסן פנימי", "כיסי רוכסן פנימיים"],
+  [/internal pockets?/gi, "כיס פנימי", "כיסים פנימיים"],
+  [/front zip pockets?/gi, "כיס רוכסן קדמי", "כיסי רוכסן קדמיים"],
+  [/back zip pockets?/gi, "כיס רוכסן אחורי", "כיסי רוכסן אחוריים"],
+  [/rear pockets? with velcro closure/gi, "כיס אחורי עם סגירת סקוץ׳", "כיסים אחוריים עם סגירת סקוץ׳"],
+  [/rear pockets?/gi, "כיס אחורי", "כיסים אחוריים"],
+  [/zip pockets?/gi, "כיס רוכסן", "כיסי רוכסן"],
+  [/phone pockets?/gi, "כיס טלפון", "כיסי טלפון"],
+  [/front pockets?/gi, "כיס קדמי", "כיסים קדמיים"],
+  [/back pockets?/gi, "כיס אחורי", "כיסים אחוריים"],
+  [/external pockets?/gi, "כיס חיצוני", "כיסים חיצוניים"],
+  [/pockets?/gi, "כיס", "כיסים"],
+  [/adjustable straps? with buckle/gi, "רצועה מתכווננת עם אבזם", "רצועות מתכווננות עם אבזם"],
+  [/adjustable straps?/gi, "רצועה מתכווננת", "רצועות מתכווננות"],
+  [/top handles?/gi, "ידית עליונה", "ידיות עליונות"],
+  [/luggage cover/gi, "כיסוי מזוודה", "כיסויי מזוודה"],
+  [/address tag/gi, "תווית כתובת", "תוויות כתובת"],
+  [/integrated tsa/gi, "מנעול TSA משולב", "מנעולי TSA משולבים"],
+  [/tsa lock/gi, "מנעול TSA", "מנעולי TSA"],
+];
 
-function translateSection(heading: string): string {
-  const key = heading.trim().toLowerCase();
-  if (SECTION_MAP[key]) return SECTION_MAP[key];
-  for (const [src, hebrew] of Object.entries(SECTION_MAP)) {
-    if (key.includes(src)) return hebrew;
-  }
-  return heading;
-}
-
-// ─── Item content filter ─────────────────────────────────────────────────────
-
-function isValidSpecItem(text: string): boolean {
-  if (!text || text.length < 2) return false;
-  if (text.length > 70) return false;
-  if (/https?:\/\/|www\./i.test(text)) return false;
-  if (/[€$£¥₪]\s*\d|\d+[.,]\d+\s*(eur|usd|gbp)/i.test(text)) return false;
-  if (/instagram|facebook|twitter|youtube|tiktok|pinterest/i.test(text)) return false;
-  if (/subscribe|follow us|shop now|discover|explore our|newsletter/i.test(text)) return false;
-  if (/designed in italy/i.test(text)) return false;
-  if (/\bwarranty\b/i.test(text)) return false;
-  if (/^made in /i.test(text)) return false;
-  return true;
-}
-
-// ─── Label translation ────────────────────────────────────────────────────────
-
-const ITEM_LABEL_MAP: Record<string, string> = {
-  weight: "משקל",
+// Key labels in "Key: value" lines. Lowercase keys → Hebrew label.
+const KEY_TRANSLATIONS: Record<string, string> = {
   closure: "סגירה",
   "shoulder strap": "רצועת כתף",
+  "shoulder strap length": "אורך רצועת כתף",
   strap: "רצועה",
   "strap length": "אורך רצועה",
-  "shoulder strap length": "אורך רצועת כתף",
-  pocket: "כיס",
-  pockets: "כיסים",
-  "front pocket": "כיס קדמי",
-  "back pocket": "כיס אחורי",
-  "exterior pockets": "כיסים חיצוניים",
-  "interior pockets": "כיסים פנימיים",
-  dimensions: "מידות",
+  length: "אורך",
   size: "גודל",
-  material: "חומר",
-  composition: "הרכב",
-  lining: "בטנה",
-  external: "חיצוני",
-  internal: "פנימי",
-  interior: "פנימי",
-  exterior: "חיצוני",
-  zipper: "רוכסן",
-  "internal divider": "מחיצה פנימית",
-  "double compartment": "תא כפול",
-  compartment: "תא",
-  divider: "מחיצה",
-  "zip pocket": "כיס רוכסן",
-  "trolley attachment": "אבזם לגרר",
   type: "סוג",
+  weight: "משקל",
+  dimensions: "מידות",
+  volume: "נפח",
+  capacity: "קיבולת",
   width: "רוחב",
   height: "גובה",
   depth: "עומק",
-  length: "אורך",
-  volume: "נפח",
-  capacity: "קיבולת",
+  handles: "ידיות",
+  handle: "ידית",
+  "handle system": "מערכת ידיות",
+  lock: "מנעול",
+  accessories: "אבזרים",
+  lining: "בטנה",
+  material: "חומר",
+  materials: "חומרים",
+  composition: "הרכב",
 };
 
-function translateItemLabel(label: string): string {
-  const key = label.trim().toLowerCase();
-  return ITEM_LABEL_MAP[key] ?? label;
+// Generic phrase replacements applied to values (free text after a colon).
+const VALUE_PHRASE_TRANSLATIONS: Array<[RegExp, string]> = [
+  [/with zipper/gi, "רוכסן"],
+  [/with flap/gi, "עם דש"],
+  [/jacquard tape/gi, "סרט ז׳קארד"],
+  [/jacquard/gi, "ז׳קארד"],
+  [/adjustable with sliding ring/gi, "מתכוונן עם טבעת הזזה"],
+  [/adjustable/gi, "מתכוונן"],
+  [/sliding ring/gi, "טבעת הזזה"],
+  [/velcro closure/gi, "סגירת סקוץ׳"],
+  [/dual rods, retractable, multi-step/gi, "מוטות כפולים נשלפים רב-שלביים"],
+  [/dual rods/gi, "מוטות כפולים"],
+  [/retractable/gi, "נשלף"],
+  [/multi-step/gi, "רב-שלבי"],
+  [/integrated tsa/gi, "מנעול TSA משולב"],
+  [/tsa lock/gi, "מנעול TSA"],
+  [/top handles?/gi, "ידית עליונה"],
+  [/side handles?/gi, "ידיות צד"],
+  [/customized, tone-on-tone resin details/gi, "אביזרי שרף בגוון תואם"],
+  [/customized tone-on-tone resin details/gi, "אביזרי שרף בגוון תואם"],
+  [/tone-on-tone resin details/gi, "אביזרי שרף בגוון תואם"],
+  [/tone-on-tone printed lettering logo/gi, "לוגו מודפס בגוון תואם"],
+  [/tone-on-tone/gi, "בגוון תואם"],
+  [/printed lettering logo/gi, "לוגו אותיות מודפס"],
+  [/k-ring logoed/gi, "טבעת K עם לוגו"],
+  [/k-ring/gi, "טבעת K"],
+  [/expandable hard-shell cabin trolley/gi, "טרולי קבינה מתרחב עם מעטפת קשיחה"],
+  [/hard-shell/gi, "מעטפת קשיחה"],
+  [/expandable/gi, "מתרחב"],
+  [/4 wheels/gi, "4 גלגלים"],
+  [/crossbody bag with double front pockets/gi, "תיק צד עם שני כיסים קדמיים"],
+  [/crossbody bag/gi, "תיק צד"],
+  [/crossbody and shoulder/gi, "צד וכתף"],
+  [/crossbody/gi, "צד"],
+  [/dual portability/gi, "נשיאה כפולה"],
+  [/polyester/gi, "פוליאסטר"],
+  [/polycarbonate/gi, "פוליקרבונט"],
+  [/polyurethane/gi, "פוליאוריתן"],
+  [/100\s*%\s*([a-zA-Zא-ת]+)/g, "100% $1"],
+];
+
+function translateValue(text: string): string {
+  let out = text;
+  for (const [re, hebrew] of VALUE_PHRASE_TRANSLATIONS) {
+    out = out.replace(re, hebrew);
+  }
+  return out.trim();
 }
 
-// ─── Color name → Hebrew + hex ────────────────────────────────────────────────
+function translateNouns(text: string, singular: boolean): string {
+  let out = text;
+  for (const [re, sing, plur] of NOUN_TRANSLATIONS) {
+    out = out.replace(re, singular ? sing : plur);
+  }
+  return out;
+}
+
+function translateKey(label: string): string {
+  const k = label.trim().toLowerCase();
+  return KEY_TRANSLATIONS[k] ?? label;
+}
+
+// Translate a whole-line bullet item (e.g. "1 zip pocket", "Double compartment").
+function translateLineItem(line: string): string {
+  let s = line.trim();
+  const lower = s.toLowerCase();
+  if (LINE_TRANSLATIONS[lower] !== undefined) return LINE_TRANSLATIONS[lower];
+  // Detect leading count; if present, place it after the Hebrew noun
+  // (e.g. "1 zip pocket" → "כיס רוכסן 1") and pick singular vs plural Hebrew.
+  const countMatch = /^(\d{1,2})\s+(.+)$/.exec(s);
+  let suffix = "";
+  let singular = false;
+  if (countMatch) {
+    const n = parseInt(countMatch[1], 10);
+    suffix = ` ${n}`;
+    singular = n === 1;
+    s = countMatch[2];
+  }
+  let translated = translateNouns(s, singular);
+  translated = translated.replace(/\bwith\b/gi, "עם");
+  return (translated + suffix).trim();
+}
+
+// ─── Junk filter ─────────────────────────────────────────────────────────────
+
+function isJunkLine(line: string): boolean {
+  if (!line || line.length < 2 || line.length > 200) return true;
+  if (/^https?:\/\//i.test(line)) return true;
+  if (/^designed in /i.test(line)) return true;
+  if (/^made in /i.test(line)) return true;
+  if (/^\s*warranty\b/i.test(line)) return true;
+  if (/[€$£¥₪]\s*\d/.test(line)) return true;
+  if (/instagram|facebook|twitter|youtube|tiktok|pinterest|newsletter|subscribe|follow us|shop now/i.test(line)) return true;
+  if (/^k-ring logoed$/i.test(line)) return true;
+  if (/^tone-on-tone printed lettering logo$/i.test(line)) return true;
+  return false;
+}
+
+// ─── Body HTML structured parser ─────────────────────────────────────────────
+
+// Lowercase keys whose values belong on the EXTERIOR side.
+const EXT_KEYS = new Set([
+  "closure", "shoulder strap", "shoulder strap length", "strap", "strap length",
+  "handles", "handle", "handle system", "lock", "accessories",
+]);
+
+// Lowercase keys whose values belong on the INTERIOR side.
+const INT_KEYS = new Set(["lining"]);
+
+// Lowercase keys that belong under composition/material.
+const COMP_KEYS = new Set(["material", "materials", "composition"]);
+
+// Lowercase keys that are dimensional facts.
+const DIM_KEYS = new Set(["size", "weight", "dimensions", "volume", "capacity", "length"]);
+
+interface ParsedBody {
+  exterior: SpecItem[];
+  interior: SpecItem[];
+  composition: SpecItem[];
+  dimensions: SpecItem[];
+}
+
+function parseStructuredBody(html: string): ParsedBody {
+  const lines = splitLines(html);
+  const out: ParsedBody = { exterior: [], interior: [], composition: [], dimensions: [] };
+  let bullet: "exterior" | "interior" | null = null;
+
+  const pushKeyValue = (key: string, value: string) => {
+    const k = key.trim().toLowerCase();
+    const trimmedValue = value.trim();
+    if (!trimmedValue) return;
+
+    // Length-style keys → extract single cm value. Belong on EXTERIOR (strap)
+    // even though they look dimensional.
+    if (k === "shoulder strap length" || k === "strap length" || k === "length") {
+      const len = extractLengthCm(trimmedValue);
+      if (len) out.exterior.push({ label: translateKey(key), value: len });
+      return;
+    }
+
+    if (DIM_KEYS.has(k)) {
+      // For dimension keys, prefer cm/kg parsed value over translated text.
+      let displayValue: string | null = null;
+      if (k === "weight") displayValue = extractWeightKg(trimmedValue);
+      else if (k === "size" || k === "dimensions") displayValue = extractDimensionsCm(trimmedValue);
+      else if (k === "volume" || k === "capacity")
+        displayValue = extractVolumeLiters(trimmedValue) ?? extractLengthCm(trimmedValue);
+      // If size/dimensions has no actual cm measurement, drop it — "Size: Expandable Cabin" is noise.
+      if (!displayValue) return;
+      out.dimensions.push({ label: translateKey(key), value: displayValue });
+      return;
+    }
+    if (EXT_KEYS.has(k)) {
+      const v = translateValue(trimmedValue);
+      out.exterior.push({ label: translateKey(key), value: v });
+      // Also detect strap length embedded inside the value (e.g. "Jacquard ... 135 cm")
+      const len = extractLengthCm(trimmedValue);
+      if (len && (k === "shoulder strap" || k === "strap")) {
+        if (!out.exterior.some((it) => it.label === "אורך רצועה" || it.label === "אורך רצועת כתף")) {
+          out.exterior.push({ label: "אורך רצועה", value: len });
+        }
+      }
+      return;
+    }
+    if (INT_KEYS.has(k)) {
+      out.interior.push({ label: translateKey(key), value: translateValue(trimmedValue) });
+      return;
+    }
+    if (COMP_KEYS.has(k)) {
+      out.composition.push({ label: translateKey(key), value: translateValue(trimmedValue) });
+      return;
+    }
+    // Unknown key — ignore (Type, Dual Portability, etc.)
+  };
+
+  for (const raw of lines) {
+    if (isJunkLine(raw)) continue;
+
+    // Section markers
+    if (/^exterior:?$/i.test(raw)) { bullet = "exterior"; continue; }
+    if (/^interior:?$/i.test(raw)) { bullet = "interior"; continue; }
+
+    // Bullet items
+    if (/^[-•*]\s*/.test(raw)) {
+      const text = raw.replace(/^[-•*]\s*/, "").trim();
+      if (!text) continue;
+      const translated = translateLineItem(text);
+      if (!translated) continue;
+      if (bullet === "interior") out.interior.push({ label: translated, value: "" });
+      else out.exterior.push({ label: translated, value: "" });
+      continue;
+    }
+
+    // Key: value lines
+    const kvMatch = /^([A-Za-z][A-Za-z ]{1,40}?):\s*(.+)$/.exec(raw);
+    if (kvMatch) {
+      pushKeyValue(kvMatch[1], kvMatch[2]);
+      continue;
+    }
+
+    // Bare line — only keep if it's a known full-line translation (e.g. "Italian leather")
+    const lower = raw.toLowerCase();
+    if (LINE_TRANSLATIONS[lower] !== undefined) {
+      const t = LINE_TRANSLATIONS[lower];
+      if (!t) continue;
+      // Italian leather / Calf leather etc. → interior (lining-like) if Interior section active, else composition
+      if (bullet === "interior") out.interior.push({ label: t, value: "" });
+      else out.composition.push({ label: t, value: "" });
+    }
+  }
+
+  return out;
+}
+
+// ─── Mandarina accordion parser (page-level) ─────────────────────────────────
+
+interface AccordionBlock {
+  heading: string;
+  content: string;
+}
+
+function parseAccordions(pageHtml: string): AccordionBlock[] {
+  const blocks: AccordionBlock[] = [];
+  const detailsRe = /<details[^>]*>([\s\S]*?)<\/details>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = detailsRe.exec(pageHtml)) !== null) {
+    const inner = m[1];
+    const sumMatch = /<summary[^>]*>([\s\S]*?)<\/summary>/i.exec(inner);
+    const contentMatch = /<div[^>]*class="[^"]*accordion__content[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(inner);
+    if (!sumMatch || !contentMatch) continue;
+    blocks.push({
+      heading: clean(sumMatch[1]).toLowerCase(),
+      content: contentMatch[1],
+    });
+  }
+  return blocks;
+}
+
+function pickAccordion(blocks: AccordionBlock[], aliases: string[]): string | null {
+  for (const b of blocks) {
+    for (const alias of aliases) {
+      if (b.heading === alias.toLowerCase() || b.heading.includes(alias.toLowerCase())) {
+        return b.content;
+      }
+    }
+  }
+  return null;
+}
+
+// ─── Dimensions/Composition extractors (accordion content) ───────────────────
+
+function extractFromDimensionsAccordion(content: string): SpecItem[] {
+  const text = clean(content);
+  const items: SpecItem[] = [];
+  const dim = extractDimensionsCm(text);
+  const kg = extractWeightKg(text);
+  if (kg) items.push({ label: "משקל", value: kg });
+  if (dim) items.push({ label: "מידות", value: dim });
+  const volume = extractVolumeLiters(text);
+  if (volume) items.push({ label: "נפח", value: volume });
+  return items;
+}
+
+function extractFromCompositionAccordion(content: string): SpecItem[] {
+  const lines = splitLines(content);
+  const items: SpecItem[] = [];
+  for (const raw of lines) {
+    if (isJunkLine(raw)) continue;
+    const translated = translateValue(raw);
+    if (!translated) continue;
+    items.push({ label: translated, value: "" });
+  }
+  return items;
+}
+
+// ─── Color extraction from page HTML (Shopify variant pattern) ────────────────
 
 const COLOR_NAME_MAP: Record<string, string> = {
   black: "שחור", white: "לבן", red: "אדום", blue: "כחול", green: "ירוק",
@@ -190,16 +457,8 @@ const COLOR_NAME_MAP: Record<string, string> = {
   sage: "מרווה", coral: "אלמוג", rust: "חלודה", terracotta: "טרקוטה",
   mustard: "חרדל", olive: "זית", cobalt: "קובלט", turquoise: "טורקיז",
   lilac: "לילך", lavender: "לבנדר", rose: "ורד", copper: "נחושת",
-  bronze: "ברונזה", charcoal: "פחם",
+  bronze: "ברונזה", charcoal: "פחם", "dress blue": "כחול",
 };
-
-function translateColorName(name: string): string {
-  const key = name.trim().toLowerCase();
-  if (COLOR_NAME_MAP[key]) return COLOR_NAME_MAP[key];
-  const words = key.split(/\s+/);
-  const translated = words.map((w) => COLOR_NAME_MAP[w] ?? w).join(" ");
-  return translated !== key ? translated : name;
-}
 
 const COLOR_HEX_MAP: Record<string, string> = {
   black: "#1a1a1a", white: "#f5f5f5", red: "#cc2222", blue: "#1e4d9c",
@@ -214,6 +473,14 @@ const COLOR_HEX_MAP: Record<string, string> = {
   olive: "#6b7028", cobalt: "#0050a0", charcoal: "#3c3c3c",
 };
 
+function translateColorName(name: string): string {
+  const key = name.trim().toLowerCase();
+  if (COLOR_NAME_MAP[key]) return COLOR_NAME_MAP[key];
+  const words = key.split(/\s+/);
+  const translated = words.map((w) => COLOR_NAME_MAP[w] ?? w).join(" ");
+  return translated !== key ? translated : name;
+}
+
 function colorToHex(name: string): string | null {
   const key = name.trim().toLowerCase();
   if (COLOR_HEX_MAP[key]) return COLOR_HEX_MAP[key];
@@ -222,225 +489,6 @@ function colorToHex(name: string): string | null {
   }
   return null;
 }
-
-// ─── HTML helpers ─────────────────────────────────────────────────────────────
-
-function stripTags(html: string): string {
-  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-}
-
-function decodeHtmlEntities(text: string): string {
-  return text
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#039;/g, "'")
-    .replace(/&nbsp;/g, " ");
-}
-
-function clean(text: string): string {
-  return decodeHtmlEntities(stripTags(text)).trim();
-}
-
-// ─── Floating spec extraction (Size/Weight lines outside section headers) ────
-
-// Known spec labels that should be captured even without a section header above them
-const FLOATING_SPEC_LABEL_RE =
-  /\b(Size|Weight|Shoulder\s+Strap\s+Length|Strap\s+Length|Width|Height|Depth|Volume|Capacity|Dimensions)\s*:\s*([^\n<]{3,80})/gi;
-
-function extractFloatingSpecs(html: string): SpecSection | null {
-  // Replace <br> with newlines BEFORE stripping tags so they act as spec-line separators
-  const text = decodeHtmlEntities(
-    html.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, " ").replace(/[ \t]+/g, " ")
-  );
-  const items: SpecItem[] = [];
-  let m: RegExpExecArray | null;
-  const seen = new Set<string>();
-  FLOATING_SPEC_LABEL_RE.lastIndex = 0;
-  while ((m = FLOATING_SPEC_LABEL_RE.exec(text)) !== null) {
-    const labelRaw = m[1].trim();
-    const valueRaw = m[2].trim().replace(/\s*[–—]\s*.+$/, ""); // strip trailing dash-separated noise
-    const value = convertMeasurements(valueRaw);
-    if (!isValidSpecItem(value)) continue;
-    const labelKey = labelRaw.toLowerCase();
-    if (seen.has(labelKey)) continue;
-    seen.add(labelKey);
-    items.push({ label: translateItemLabel(labelRaw), value });
-  }
-  return items.length > 0 ? { heading: "מידות", items } : null;
-}
-
-// ─── Dimensions accordion in full page HTML ───────────────────────────────────
-
-function extractDimensionsAccordion(pageHtml: string): SpecSection | null {
-  // Mandarina Duck page has a "Dimensions" accordion separate from body_html
-  // Pattern: look for "Dimensions" heading within ~600 chars of dimension data
-  const accordionRe =
-    /(?:>|^)\s*Dimensions\s*(?:<[^>]+>|\s){0,20}([\s\S]{0,600}?)(?=<\/(?:details|div|section|article)|$)/i;
-  const m = accordionRe.exec(pageHtml);
-  if (!m) return null;
-
-  const block = m[1];
-  const items: SpecItem[] = [];
-
-  // Extract "NxNxN cm" measurements — supports European commas
-  const dimRe = /(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*cm\b/i;
-  const dimMatch = dimRe.exec(block);
-  if (dimMatch) {
-    const [a, b, c] = [dimMatch[1], dimMatch[2], dimMatch[3]].map(n => n.replace(",", "."));
-    items.push({ label: "מידות", value: `${a} × ${b} × ${c} ס"מ` });
-  }
-
-  // Extract weight in KG — European comma support
-  const kgRe = /(\d+(?:[.,]\d+)?)\s*(?:KG|Kg|kg)\b/i;
-  const kgMatch = kgRe.exec(block);
-  if (kgMatch) {
-    items.push({ label: "משקל", value: `${kgMatch[1].replace(",", ".")} ק"ג` });
-  }
-
-  return items.length > 0 ? { heading: "מידות", items } : null;
-}
-
-// ─── Spec extraction (scans HTML for whitelisted sections) ────────────────────
-
-function extractSpecsFromHtml(html: string): SpecSection[] {
-  const sections: SpecSection[] = [];
-  let match: RegExpExecArray | null;
-
-  // Pattern A: <strong>HEADING</strong><br>item<br>item (Mandarina Duck Shopify body_html style)
-  const strongBlockRegex =
-    /<(?:p|div)[^>]*>\s*<strong[^>]*>([^<]{2,60})<\/strong>(?:<br\s*\/?>|\n|\s)+([\s\S]*?)<\/(?:p|div)>/gi;
-  const strongSections = new Map<string, string[]>();
-  while ((match = strongBlockRegex.exec(html)) !== null) {
-    const heading = clean(match[1]);
-    if (!heading || !isAllowedSection(heading)) continue;
-    const lines = match[2]
-      .split(/<br\s*\/?>|<\/?li[^>]*>|<\/?p[^>]*>|\n/i)
-      .map((l) => convertMeasurements(clean(l)))
-      .filter(isValidSpecItem);
-    if (lines.length > 0) {
-      const existing = strongSections.get(heading) ?? [];
-      strongSections.set(heading, [...existing, ...lines].slice(0, 12));
-    }
-  }
-  for (const [heading, lines] of strongSections) {
-    const items = lines.map((line) => {
-      const colonIdx = line.indexOf(":");
-      if (colonIdx > 0 && colonIdx < 35) {
-        return {
-          label: translateItemLabel(line.slice(0, colonIdx).trim()),
-          value: line.slice(colonIdx + 1).trim(),
-        };
-      }
-      return { label: line, value: "" };
-    });
-    sections.push({ heading: translateSection(heading), items });
-  }
-  if (sections.length > 0) return sections;
-
-  // Pattern B: <h2>/<h3> heading followed by content
-  const headingBlockRegex =
-    /<h[23][^>]*>([^<]{2,60})<\/h[23]>\s*([\s\S]*?)(?=<h[23]|$)/gi;
-  while ((match = headingBlockRegex.exec(html)) !== null) {
-    const heading = clean(match[1]);
-    if (!heading || !isAllowedSection(heading)) continue;
-    const body = match[2];
-    const items: SpecItem[] = [];
-    // Try <li> items
-    const liRegex = /<li[^>]*>([\s\S]*?)<\/li>/gi;
-    let liMatch: RegExpExecArray | null;
-    while ((liMatch = liRegex.exec(body)) !== null) {
-      const text = convertMeasurements(clean(liMatch[1]));
-      if (!isValidSpecItem(text)) continue;
-      const colonIdx = text.indexOf(":");
-      if (colonIdx > 0 && colonIdx < 35) {
-        items.push({ label: translateItemLabel(text.slice(0, colonIdx).trim()), value: text.slice(colonIdx + 1).trim() });
-      } else {
-        items.push({ label: text, value: "" });
-      }
-    }
-    // Fallback: <br>-separated lines
-    if (items.length === 0) {
-      const lines = body.split(/<br\s*\/?>|\n/i).map((l) => convertMeasurements(clean(l))).filter(isValidSpecItem);
-      for (const line of lines) {
-        const colonIdx = line.indexOf(":");
-        if (colonIdx > 0 && colonIdx < 35) {
-          items.push({ label: translateItemLabel(line.slice(0, colonIdx).trim()), value: line.slice(colonIdx + 1).trim() });
-        } else {
-          items.push({ label: line, value: "" });
-        }
-      }
-    }
-    if (items.length > 0) {
-      sections.push({ heading: translateSection(heading), items: items.slice(0, 12) });
-    }
-  }
-
-  if (sections.length > 0) return sections;
-
-  // Pattern C: inline section headers "Exterior:<br>- item<br>- item"
-  // (Mandarina Duck Shopify body_html format)
-  {
-    const fragments = html.split(/<br\s*\/?>/gi);
-    let currentHeading: string | null = null;
-    const pendingItems: string[] = [];
-
-    const flushSection = () => {
-      if (!currentHeading || pendingItems.length === 0) { pendingItems.length = 0; return; }
-      const items: SpecItem[] = pendingItems
-        .map((rawLine) => {
-          const text = convertMeasurements(clean(rawLine.replace(/^[-•*]\s*/, "")));
-          if (!isValidSpecItem(text)) return null;
-          const colonIdx = text.indexOf(":");
-          if (colonIdx > 0 && colonIdx < 35) {
-            return { label: translateItemLabel(text.slice(0, colonIdx).trim()), value: text.slice(colonIdx + 1).trim() };
-          }
-          return { label: translateItemLabel(text), value: "" };
-        })
-        .filter((item): item is SpecItem => item !== null);
-      if (items.length > 0) sections.push({ heading: translateSection(currentHeading), items: items.slice(0, 12) });
-      pendingItems.length = 0;
-      currentHeading = null;
-    };
-
-    for (const fragment of fragments) {
-      const line = clean(fragment);
-      if (!line) continue;
-      const sectionMatch = line.match(/^([A-Za-z][A-Za-z\s]{1,30}?):\s*$/);
-      if (sectionMatch && isAllowedSection(sectionMatch[1].trim())) {
-        flushSection();
-        currentHeading = sectionMatch[1].trim();
-        continue;
-      }
-      if (currentHeading) pendingItems.push(line);
-    }
-    flushSection();
-  }
-
-  // Pattern D: scan body_html for floating spec lines (Size/Weight/Strap Length etc.)
-  // that appear before any section header and are missed by Patterns A–C.
-  // Deduplicate against every label already found in any section.
-  {
-    const floating = extractFloatingSpecs(html);
-    if (floating) {
-      const existingLabels = new Set(sections.flatMap(s => s.items.map(i => i.label)));
-      const newItems = floating.items.filter(item => !existingLabels.has(item.label));
-      if (newItems.length > 0) {
-        const dimSection = sections.find(s => s.heading === "מידות");
-        if (dimSection) {
-          dimSection.items.push(...newItems);
-        } else {
-          sections.push({ heading: "מידות", items: newItems });
-        }
-      }
-    }
-  }
-
-  return sections;
-}
-
-// ─── Color extraction from page HTML (Shopify variant pattern) ────────────────
 
 function extractColorsFromPageHtml(html: string): ColorSwatch[] {
   const swatches: ColorSwatch[] = [];
@@ -488,9 +536,7 @@ function buildShopifyJsonUrls(sourceUrl: string): string[] {
   try {
     const url = new URL(sourceUrl);
     const urls = new Set<string>();
-    // Variant 1: append .json to current path (preserves locale prefix)
     urls.add(`${url.origin}${url.pathname.replace(/\/$/, "")}.json`);
-    // Variant 2: /products/<handle>.json without locale
     const parts = url.pathname.split("/").filter(Boolean);
     const productsIdx = parts.lastIndexOf("products");
     if (productsIdx !== -1 && parts[productsIdx + 1]) {
@@ -520,8 +566,6 @@ async function tryShopifyProductData(sourceUrl: string): Promise<{ bodyHtml: str
       const data = (await res.json()) as { product?: ShopifyProduct };
       const product = data?.product;
       if (!product) continue;
-
-      // Extract colors from the Color option's full values list
       const colors: ColorSwatch[] = [];
       const colorOption = product.options?.find((o) => /colou?r/i.test(o?.name ?? ""));
       if (colorOption?.values?.length) {
@@ -542,110 +586,20 @@ async function tryShopifyProductData(sourceUrl: string): Promise<{ bodyHtml: str
   return { bodyHtml: null, colors: [] };
 }
 
-// Extract search keywords from a /products/<handle> URL
-function handleToKeywords(sourceUrl: string): string {
-  try {
-    const url = new URL(sourceUrl);
-    const parts = url.pathname.split("/").filter(Boolean);
-    const idx = parts.lastIndexOf("products");
-    if (idx === -1 || !parts[idx + 1]) return "";
-    const handle = parts[idx + 1];
-    const stop = new Set(["a", "an", "the", "and", "or", "for", "de", "of", "le", "la", "duck"]);
-    return handle
-      .split("-")
-      .filter((w) => w.length >= 2 && !stop.has(w.toLowerCase()))
-      .slice(0, 5)
-      .join(" ");
-  } catch {
-    return "";
+// ─── Main entry ──────────────────────────────────────────────────────────────
+
+const SECTION_ORDER = ["חיצוני", "פנימי", "הרכב", "מידות"];
+
+function dedupeItems(items: SpecItem[]): SpecItem[] {
+  const seen = new Set<string>();
+  const out: SpecItem[] = [];
+  for (const it of items) {
+    const key = `${it.label}|${it.value}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(it);
   }
-}
-
-interface SuggestProduct {
-  handle?: string;
-  url?: string;
-  title?: string;
-  body?: string;
-}
-
-// Shopify predictive-search fallback: when the stored sourceUrl returns 404,
-// search by keywords extracted from the handle and use the body from the best match.
-async function tryShopifySuggestFallback(sourceUrl: string): Promise<string | null> {
-  const keywords = handleToKeywords(sourceUrl);
-  if (!keywords) return null;
-  try {
-    const origin = new URL(sourceUrl).origin;
-    const suggestUrl =
-      `${origin}/search/suggest.json?q=${encodeURIComponent(keywords)}` +
-      `&resources[type]=product&resources[limit]=5`;
-    const res = await fetch(suggestUrl, {
-      headers: { ...DEFAULT_HEADERS, accept: "application/json" },
-      cache: "no-store",
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) return null;
-    const data = (await res.json()) as {
-      resources?: { results?: { products?: SuggestProduct[] } };
-    };
-    const products: SuggestProduct[] = data?.resources?.results?.products ?? [];
-    if (products.length === 0) return null;
-
-    // Score by keyword overlap with the stored handle
-    const handleWords = keywords.toLowerCase().split(/\s+/);
-    let best: SuggestProduct = products[0];
-    let bestScore = -1;
-    for (const p of products) {
-      const combined = `${p.handle ?? ""} ${p.title ?? ""}`.toLowerCase();
-      const score = handleWords.filter((w) => combined.includes(w)).length;
-      if (score > bestScore) { bestScore = score; best = p; }
-    }
-
-    // suggest body may be truncated; if we got a URL try fetching the full .json
-    if (best.url) {
-      try {
-        const fullJsonUrl = `${origin}${best.url.split("?")[0]}.json`;
-        const r = await fetch(fullJsonUrl, {
-          headers: { ...DEFAULT_HEADERS, accept: "application/json" },
-          cache: "no-store",
-          signal: AbortSignal.timeout(10000),
-        });
-        if (r.ok) {
-          const d = (await r.json()) as { product?: ShopifyProduct };
-          if (d?.product?.body_html) return d.product.body_html;
-        }
-      } catch { /* fall through to suggest body */ }
-    }
-
-    return best.body ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function extractDescriptionFromPage(pageHtml: string): string | null {
-  // Try JSON-LD Product schema
-  const jsonLdRegex = /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi;
-  let match: RegExpExecArray | null;
-  while ((match = jsonLdRegex.exec(pageHtml)) !== null) {
-    try {
-      const data = JSON.parse(match[1]) as Record<string, unknown>;
-      if (data["@type"] === "Product" && typeof data.description === "string" && data.description.length > 30) {
-        return data.description;
-      }
-    } catch {
-      continue;
-    }
-  }
-  const containerPatterns = [
-    /<div[^>]*itemprop="description"[^>]*>([\s\S]{20,5000}?)<\/div>/i,
-    /<div[^>]*class="[^"]*product[_-]?description[^"]*"[^>]*>([\s\S]{20,5000}?)<\/div>/i,
-    /<section[^>]*class="[^"]*product[_-]?description[^"]*"[^>]*>([\s\S]{20,5000}?)<\/section>/i,
-  ];
-  for (const pattern of containerPatterns) {
-    const m = pattern.exec(pageHtml);
-    if (m?.[1] && m[1].length > 30) return m[1];
-  }
-  return null;
+  return out;
 }
 
 export async function fetchProductDetails(sourceUrl: string): Promise<ProductDetails> {
@@ -653,47 +607,38 @@ export async function fetchProductDetails(sourceUrl: string): Promise<ProductDet
     return { specs: [], colors: [] };
   }
 
-  // Layer 1: Shopify .json endpoint (cleanest source)
-  const shopify = await tryShopifyProductData(sourceUrl);
+  const [shopify, pageHtml] = await Promise.all([
+    tryShopifyProductData(sourceUrl),
+    fetchHtml(sourceUrl).catch(() => ""),
+  ]);
 
-  // Layer 2: page HTML (for sites that don't expose .json or for fallback)
-  let pageHtml = "";
-  try {
-    pageHtml = await fetchHtml(sourceUrl);
-  } catch {
-    // Page fetch may fail; rely on Shopify data if available
-  }
+  const bodyHtml = shopify.bodyHtml ?? "";
+  const accordions = pageHtml ? parseAccordions(pageHtml) : [];
 
-  // Layer 3: if both Shopify .json and direct page failed (stale/wrong handle),
-  // fall back to Shopify predictive-search API using keywords from the stored handle.
-  let suggestBodyHtml: string | null = null;
-  if (!shopify.bodyHtml && !pageHtml) {
-    suggestBodyHtml = await tryShopifySuggestFallback(sourceUrl);
-  }
+  // Description accordion content is identical to body_html in practice;
+  // body_html is the cleaner source so prefer it.
+  const descBody = bodyHtml || pickAccordion(accordions, ["description"]) || "";
+  const body = descBody ? parseStructuredBody(descBody) : { exterior: [], interior: [], composition: [], dimensions: [] };
 
-  // body_html source priority:
-  //   Shopify .json body_html → suggest fallback → JSON-LD description → product-description container → full page
-  const bodyHtml = shopify.bodyHtml ?? suggestBodyHtml ?? extractDescriptionFromPage(pageHtml) ?? pageHtml;
-  const specs = bodyHtml ? extractSpecsFromHtml(bodyHtml) : [];
+  // Composition accordion (e.g. "100% Polycarbonate", "100% Polyester")
+  const compContent = pickAccordion(accordions, ["composition", "materials", "material"]);
+  if (compContent) body.composition.push(...extractFromCompositionAccordion(compContent));
 
-  // Layer 4: Mandarina Duck has a separate "Dimensions" accordion on the page
-  // that is NOT part of body_html. Extract it from the full page HTML and merge.
-  if (pageHtml) {
-    const accordionSection = extractDimensionsAccordion(pageHtml);
-    if (accordionSection) {
-      const existing = specs.find(s => s.heading === "מידות");
-      if (existing) {
-        const existingLabels = new Set(existing.items.map(i => i.label));
-        for (const item of accordionSection.items) {
-          if (!existingLabels.has(item.label)) existing.items.push(item);
-        }
-      } else {
-        specs.push(accordionSection);
-      }
-    }
-  }
+  // Dimensions accordion (e.g. "55x40x20 cm - ... - 2,4 KG / ...")
+  const dimContent = pickAccordion(accordions, ["dimensions", "measurements", "size"]);
+  if (dimContent) body.dimensions.push(...extractFromDimensionsAccordion(dimContent));
 
-  // colors: prefer Shopify .json (has all variants), fall back to page scan
+  const sectionItems: Record<string, SpecItem[]> = {
+    "חיצוני": dedupeItems(body.exterior),
+    "פנימי": dedupeItems(body.interior),
+    "הרכב": dedupeItems(body.composition),
+    "מידות": dedupeItems(body.dimensions),
+  };
+
+  const specs: SpecSection[] = SECTION_ORDER
+    .filter((h) => sectionItems[h].length > 0)
+    .map((h) => ({ heading: h, items: sectionItems[h] }));
+
   const colors = shopify.colors.length > 0 ? shopify.colors : extractColorsFromPageHtml(pageHtml);
 
   return { specs, colors };
