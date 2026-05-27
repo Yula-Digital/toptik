@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "MARKER=\"/tmp/mos_fired_${CLAUDE_SESSION_ID:-default}\"; if [ ! -f \"$MARKER\" ]; then touch \"$MARKER\"; echo 'SYSTEM: First prompt of this session. You MUST invoke the multiskill-optimum-saver skill (via the Skill tool, skill name \"multiskill-optimum-saver\") NOW before answering. Run all 5 steps (config -> complexity -> skills route -> MCPs route -> status panel). After the status panel, address the user request. This is mandatory.'; fi"
+            "command": "bash .claude/hooks/user-prompt-submit.sh"
           }
         ]
       }

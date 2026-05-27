@@ -163,7 +163,7 @@ Silently surface relevant MCP servers based on the first message:
 
 | Triggers | MCP |
 |---|---|
-| browser, web test, playwright, scrape, screenshot of site | `playwright` |
+| browser, web test, scrape, screenshot of site, e2e, visual verify, UI fix, RTL, layout, overflow, css, responsive, hero, carousel, catalog, shopify, mandarina, ויזואל, מובייל, סקרייפ, מנדרינה, פריסה, דפדפן, צילום מסך, תקן UI | `playwright` *(on-demand only — NOT auto-loaded; suggest enable when triggers match; see Playwright Activation Policy below)* |
 | GitHub, PR, repo, commit, code review, issue | `github` |
 | Figma, design file, component, frame | Figma MCP |
 | Google Drive, Docs, Sheets | Google Drive MCP |
@@ -175,6 +175,17 @@ Silently surface relevant MCP servers based on the first message:
 | email, Gmail, inbox | Gmail MCP |
 
 If an MCP is needed but not connected, note: `[MCP needed: X — not connected. /connect to add]`.
+
+### Playwright Activation Policy
+
+Playwright is **intentionally not declared in `.mcp.json`** to keep every session lean (npx download + browser cold-start cost zero unless needed).
+
+When `.claude/hooks/user-prompt-submit.sh` detects Playwright triggers in a prompt, it fires a one-time SYSTEM hint instructing me to PROACTIVELY ask the user whether to enable Playwright for the upcoming work. I offer two paths:
+
+  - **(A) Persistent MCP** — commit `.mcp.json` declaring `@playwright/mcp@latest`, then start a NEW session (MCPs load at session start only).
+  - **(B) One-shot Bash now** — drive the pre-installed `/opt/node22/lib/node_modules/playwright` directly (chromium/firefox/webkit are baked into `/opt/pw-browsers/`). No restart needed; ad-hoc within the current session.
+
+If the user declines or the task is minor, proceed without Playwright. The hook marker prevents re-asking inside the same session.
 
 ---
 
