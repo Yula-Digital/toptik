@@ -534,6 +534,17 @@ body {
   display: none;
 }
 
+.catalog-carousel .swiper {
+  padding-bottom: 24px;
+}
+
+.catalog-carousel {
+  --swiper-pagination-bottom: 4px;
+  --swiper-pagination-color: #3a2208;
+  --swiper-pagination-bullet-inactive-color: #3a2208;
+  --swiper-pagination-bullet-inactive-opacity: 0.3;
+}
+
 .catalog-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
