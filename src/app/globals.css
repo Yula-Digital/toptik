@@ -535,14 +535,14 @@ body {
 }
 
 .catalog-carousel .swiper {
-  padding-bottom: 24px;
+  padding-bottom: 32px;
 }
 
 .catalog-carousel {
-  --swiper-pagination-bottom: 4px;
+  --swiper-pagination-bottom: 8px;
   --swiper-pagination-color: #3a2208;
   --swiper-pagination-bullet-inactive-color: #3a2208;
-  --swiper-pagination-bullet-inactive-opacity: 0.3;
+  --swiper-pagination-bullet-inactive-opacity: 0.35;
 }
 
 .catalog-grid {

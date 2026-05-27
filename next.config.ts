@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
     ],
     localPatterns: [
       {
-        pathname: "/api/img-trim",
+        pathname: "/**",
       },
     ],
   },
