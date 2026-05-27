@@ -115,11 +115,22 @@ const LINE_TRANSLATIONS: Record<string, string> = {
 // bullet has a leading count of 1, plural otherwise. More specific patterns
 // must come before less specific ones.
 const NOUN_TRANSLATIONS: Array<[RegExp, string, string]> = [
-  [/external front pockets? with flap and zipper/gi, "כיס חיצוני קדמי עם דש ורוכסן", "כיסים חיצוניים קדמיים עם דש ורוכסן"],
+  // pocket variants — most specific first
+  [/external front pockets? with flap and zippers?/gi, "כיס חיצוני קדמי עם דש ורוכסן", "כיסים חיצוניים קדמיים עם דש ורוכסן"],
   [/external front pockets? with flap/gi, "כיס חיצוני קדמי עם דש", "כיסים חיצוניים קדמיים עם דש"],
+  [/external front pockets? with zippers?/gi, "כיס חיצוני קדמי עם רוכסן", "כיסים חיצוניים קדמיים עם רוכסן"],
   [/external front pockets?/gi, "כיס חיצוני קדמי", "כיסים חיצוניים קדמיים"],
-  [/internal applied phone pockets?/gi, "כיס טלפון פנימי", "כיסי טלפון פנימיים"],
-  [/internal phone pockets?/gi, "כיס טלפון פנימי", "כיסי טלפון פנימיים"],
+  [/front external pockets? with zippers?/gi, "כיס חיצוני קדמי עם רוכסן", "כיסים חיצוניים קדמיים עם רוכסן"],
+  [/front external pockets?/gi, "כיס חיצוני קדמי", "כיסים חיצוניים קדמיים"],
+  [/flat front external pockets? with zippers?/gi, "כיס חיצוני קדמי שטוח עם רוכסן", "כיסים חיצוניים קדמיים שטוחים עם רוכסן"],
+  [/side external pockets? with zippers?/gi, "כיס חיצוני בצד עם רוכסן", "כיסים חיצוניים בצד עם רוכסן"],
+  [/side external pockets?/gi, "כיס חיצוני בצד", "כיסים חיצוניים בצד"],
+  [/back internal pockets? with flap and zippers?/gi, "כיס פנימי אחורי עם דש ורוכסן", "כיסים פנימיים אחוריים עם דש ורוכסן"],
+  [/back internal pockets?/gi, "כיס פנימי אחורי", "כיסים פנימיים אחוריים"],
+  [/internal applied (?:cell |mobile )?phone pockets?/gi, "כיס טלפון פנימי", "כיסי טלפון פנימיים"],
+  [/applied internal (?:cell |mobile )?phone pockets?/gi, "כיס טלפון פנימי", "כיסי טלפון פנימיים"],
+  [/internal (?:cell |mobile )?phone pockets?/gi, "כיס טלפון פנימי", "כיסי טלפון פנימיים"],
+  [/internal pockets? with (?:flap and )?zippers?/gi, "כיס רוכסן פנימי", "כיסי רוכסן פנימיים"],
   [/internal zip pockets?/gi, "כיס רוכסן פנימי", "כיסי רוכסן פנימיים"],
   [/internal pockets?/gi, "כיס פנימי", "כיסים פנימיים"],
   [/front zip pockets?/gi, "כיס רוכסן קדמי", "כיסי רוכסן קדמיים"],
@@ -127,11 +138,12 @@ const NOUN_TRANSLATIONS: Array<[RegExp, string, string]> = [
   [/rear pockets? with velcro closure/gi, "כיס אחורי עם סגירת סקוץ׳", "כיסים אחוריים עם סגירת סקוץ׳"],
   [/rear pockets?/gi, "כיס אחורי", "כיסים אחוריים"],
   [/zip pockets?/gi, "כיס רוכסן", "כיסי רוכסן"],
-  [/phone pockets?/gi, "כיס טלפון", "כיסי טלפון"],
+  [/(?:cell |mobile )?phone pockets?/gi, "כיס טלפון", "כיסי טלפון"],
   [/front pockets?/gi, "כיס קדמי", "כיסים קדמיים"],
   [/back pockets?/gi, "כיס אחורי", "כיסים אחוריים"],
   [/external pockets?/gi, "כיס חיצוני", "כיסים חיצוניים"],
   [/pockets?/gi, "כיס", "כיסים"],
+  // strap / handle / accessory items
   [/adjustable straps? with buckle/gi, "רצועה מתכווננת עם אבזם", "רצועות מתכווננות עם אבזם"],
   [/adjustable straps?/gi, "רצועה מתכווננת", "רצועות מתכווננות"],
   [/top handles?/gi, "ידית עליונה", "ידיות עליונות"],
@@ -145,6 +157,7 @@ const NOUN_TRANSLATIONS: Array<[RegExp, string, string]> = [
 const KEY_TRANSLATIONS: Record<string, string> = {
   closure: "סגירה",
   "shoulder strap": "רצועת כתף",
+  "shoulder straps": "רצועות כתף",
   "shoulder strap length": "אורך רצועת כתף",
   strap: "רצועה",
   "strap length": "אורך רצועה",
@@ -271,7 +284,7 @@ function isJunkLine(line: string): boolean {
 
 // Lowercase keys whose values belong on the EXTERIOR side.
 const EXT_KEYS = new Set([
-  "closure", "shoulder strap", "shoulder strap length", "strap", "strap length",
+  "closure", "shoulder strap", "shoulder straps", "shoulder strap length", "strap", "strap length",
   "handles", "handle", "handle system", "lock", "accessories",
 ]);
 
@@ -306,6 +319,17 @@ function parseStructuredBody(html: string): ParsedBody {
     if (k === "shoulder strap length" || k === "strap length" || k === "length") {
       const len = extractLengthCm(trimmedValue);
       if (len) out.exterior.push({ label: translateKey(key), value: len });
+      return;
+    }
+
+    // "Shoulder Straps" with plural — extract length if embedded
+    if (k === "shoulder straps") {
+      const v = translateValue(trimmedValue);
+      out.exterior.push({ label: translateKey(key), value: v });
+      const len = extractLengthCm(trimmedValue);
+      if (len && !out.exterior.some((it) => it.label === "אורך רצועה" || it.label === "אורך רצועת כתף")) {
+        out.exterior.push({ label: "אורך רצועת כתף", value: len });
+      }
       return;
     }
 
@@ -423,7 +447,30 @@ function pickAccordion(blocks: AccordionBlock[], aliases: string[]): string | nu
 function extractFromDimensionsAccordion(content: string): SpecItem[] {
   const text = clean(content);
   const items: SpecItem[] = [];
-  const dim = extractDimensionsCm(text);
+
+  // Mandarina sometimes mis-labels cm/inch (e.g. "8,7x11,0x4,7 cm - 22x28x12 inc"
+  // for a crossbody where the bag is actually 22×28×12 cm). Compare the cm and
+  // inch triples — true cm value should be ~2.54× the inch value. If cm < inch,
+  // the labels are swapped and the inch values are the real centimeters.
+  const cmRe = /(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*cm\b/i;
+  const incRe = /(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(?:inc|inches?|in)\b/i;
+  const cmMatch = cmRe.exec(text);
+  const incMatch = incRe.exec(text);
+  let dim: string | null = null;
+  if (cmMatch && incMatch) {
+    const cmFirst = parseFloat(normalizeNum(cmMatch[1]));
+    const incFirst = parseFloat(normalizeNum(incMatch[1]));
+    const swap = cmFirst > 0 && incFirst > 0 && cmFirst < incFirst;
+    const src = swap ? incMatch : cmMatch;
+    dim = `${normalizeNum(src[1])} × ${normalizeNum(src[2])} × ${normalizeNum(src[3])} ס"מ`;
+  } else if (cmMatch) {
+    dim = `${normalizeNum(cmMatch[1])} × ${normalizeNum(cmMatch[2])} × ${normalizeNum(cmMatch[3])} ס"מ`;
+  } else if (incMatch) {
+    // Only inches present — convert
+    const toCm = (s: string) => Math.round(parseFloat(normalizeNum(s)) * 2.54 * 10) / 10;
+    dim = `${toCm(incMatch[1])} × ${toCm(incMatch[2])} × ${toCm(incMatch[3])} ס"מ`;
+  }
+
   const kg = extractWeightKg(text);
   if (kg) items.push({ label: "משקל", value: kg });
   if (dim) items.push({ label: "מידות", value: dim });
@@ -586,6 +633,62 @@ async function tryShopifyProductData(sourceUrl: string): Promise<{ bodyHtml: str
   return { bodyHtml: null, colors: [] };
 }
 
+// ─── Google Translate fallback (anything left in English) ────────────────────
+
+// Letters-only test: an item that still contains [a-zA-Z] after the dictionary
+// pass needs a runtime translation. We preserve common technical tokens
+// (TSA, K-RING, etc.) by skipping pure-acronym strings.
+function needsTranslation(text: string): boolean {
+  if (!/[a-zA-Z]/.test(text)) return false;
+  // Pure acronym / single uppercase token like "TSA" — keep as is.
+  if (/^[A-Z][A-Z0-9-]{1,6}$/.test(text.trim())) return false;
+  return true;
+}
+
+async function translateOne(text: string): Promise<string> {
+  try {
+    const url =
+      `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=he&dt=t&q=${encodeURIComponent(text)}`;
+    const res = await fetch(url, {
+      cache: "force-cache",
+      signal: AbortSignal.timeout(6000),
+      headers: { "user-agent": DEFAULT_HEADERS["user-agent"] },
+    });
+    if (!res.ok) return text;
+    const data = (await res.json()) as unknown;
+    if (!Array.isArray(data) || !Array.isArray(data[0])) return text;
+    const segs = data[0] as unknown[];
+    const out = segs
+      .map((s) => (Array.isArray(s) ? String(s[0] ?? "") : ""))
+      .join("")
+      .trim();
+    return out || text;
+  } catch {
+    return text;
+  }
+}
+
+async function batchTranslateSpecs(specs: SpecSection[]): Promise<void> {
+  const unique = new Set<string>();
+  for (const section of specs) {
+    for (const item of section.items) {
+      if (needsTranslation(item.label)) unique.add(item.label);
+      if (item.value && needsTranslation(item.value)) unique.add(item.value);
+    }
+  }
+  if (unique.size === 0) return;
+  const entries = [...unique];
+  const translations = await Promise.all(entries.map((s) => translateOne(s)));
+  const map = new Map<string, string>();
+  entries.forEach((src, i) => map.set(src, translations[i]));
+  for (const section of specs) {
+    for (const item of section.items) {
+      if (map.has(item.label)) item.label = map.get(item.label)!;
+      if (item.value && map.has(item.value)) item.value = map.get(item.value)!;
+    }
+  }
+}
+
 // ─── Main entry ──────────────────────────────────────────────────────────────
 
 const SECTION_ORDER = ["חיצוני", "פנימי", "הרכב", "מידות"];
@@ -638,6 +741,11 @@ export async function fetchProductDetails(sourceUrl: string): Promise<ProductDet
   const specs: SpecSection[] = SECTION_ORDER
     .filter((h) => sectionItems[h].length > 0)
     .map((h) => ({ heading: h, items: sectionItems[h] }));
+
+  // Final pass: any item still containing English (a phrase the dictionary
+  // doesn't cover) is sent through Google Translate so the modal is fully
+  // Hebrew. Cached at the fetch layer via force-cache.
+  await batchTranslateSpecs(specs);
 
   const colors = shopify.colors.length > 0 ? shopify.colors : extractColorsFromPageHtml(pageHtml);
 
