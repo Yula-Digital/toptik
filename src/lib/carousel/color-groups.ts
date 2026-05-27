@@ -76,7 +76,7 @@ export function buildItemColorGroups(items: CarouselItem[]): Map<string, ColorSw
         hex: COLOR_HEX[m.colorWord!] ?? null,
         swatchUrl: null,
       }));
-    if (swatches.length < 2) continue;
+    if (swatches.length < 1) continue;
     for (const { id } of members) {
       result.set(id, swatches);
     }
