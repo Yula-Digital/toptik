@@ -59,6 +59,23 @@ export async function GET(req: NextRequest) {
       const option1Values = new Set<string>();
       while ((m = option1Regex.exec(html)) !== null) option1Values.add(m[1]);
       result.allOption1Values = [...option1Values];
+
+      // Accordion blocks: capture all <details>...<summary>HEADING</summary>...<div class="accordion__content rte">CONTENT</div>...</details>
+      const accordions: Array<{ heading: string; content: string }> = [];
+      const detailsRegex = /<details[^>]*>([\s\S]*?)<\/details>/gi;
+      let dm: RegExpExecArray | null;
+      while ((dm = detailsRegex.exec(html)) !== null) {
+        const block = dm[1];
+        const sumMatch = /<summary[^>]*>([\s\S]*?)<\/summary>/i.exec(block);
+        const contentMatch = /<div[^>]*class="[^"]*accordion__content[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(block);
+        if (sumMatch && contentMatch) {
+          accordions.push({
+            heading: sumMatch[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 80),
+            content: contentMatch[1].slice(0, 1500),
+          });
+        }
+      }
+      result.accordions = accordions;
     }
   } catch (err) {
     result.pageError = (err as Error).message;
@@ -82,6 +99,7 @@ export async function GET(req: NextRequest) {
         const data = await r.json();
         result.shopifyHasBodyHtml = !!data?.product?.body_html;
         result.shopifyOptionsCount = data?.product?.options?.length ?? 0;
+        result.shopifyBodyHtml = data?.product?.body_html?.slice(0, 3000) ?? null;
       }
     }
   } catch (err) {
