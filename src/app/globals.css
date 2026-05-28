@@ -396,6 +396,27 @@ body {
   .m-bb-cat-3 { right: 176px; width: 44px; }
 }
 
+/* ─── Calibrated mobile placement — landing-page CTAs ───
+   Values dialed in per device width via /mobile-tuner.html. translate/scale
+   compose on top of the absolute base layout above (no neighbour reflow), so
+   the rendered result matches the tuned look exactly. Ranges are mutually
+   exclusive: ≤374 / 375–413 / 414–767. */
+@media (max-width: 374px) {
+  .m-wa-label    { translate: 0 5px; }
+  .m-wa-icon     { translate: -10px 0; scale: 1.42; }
+  .m-catalog-btn { translate: 15px 62px; scale: 1.28; }
+}
+@media (min-width: 375px) and (max-width: 413px) {
+  .m-wa-label    { translate: 28px 5px; }
+  .m-wa-icon     { translate: -27px -7px; scale: 1.27; }
+  .m-catalog-btn { translate: 31px 87px; scale: 1.27; }
+}
+@media (min-width: 414px) and (max-width: 767px) {
+  .m-wa-label    { translate: 55px 0; }
+  .m-wa-icon     { translate: -49px -5px; scale: 1.41; }
+  .m-catalog-btn { translate: 49px 110px; scale: 1.22; }
+}
+
 /* ─────── MOBILE LANDSCAPE (phones turned sideways) ───────
    Compress vertical sizing - hero height limited, bars thinner. */
 @media (max-width: 932px) and (orientation: landscape) and (max-height: 500px) {
