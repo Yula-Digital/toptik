@@ -7,6 +7,7 @@ import type { ColorSwatch } from "@/lib/catalog-source/product-details";
 import { extractColorWord, COLOR_HEBREW } from "@/lib/carousel/color-groups";
 import { trimmedProductSrc } from "@/lib/carousel/trim-src";
 import { nextImageSrcset, nextImageUrl } from "@/lib/carousel/next-image";
+import { Rotate360Icon } from "@/components/carousel/icons";
 
 // The modal <Image> renders at this `sizes`, with next/image's default quality (75).
 const MODAL_IMAGE_SIZES = "(max-width: 767px) 90vw, 55vw";
@@ -158,8 +159,8 @@ export function ProductModal({
                   sizes="(max-width: 767px) 90vw, 55vw"
                   className="product-modal-image"
                 />
-                <div className="product-modal-cycle-btn" aria-label="הנחיית דפדוף זוויות">
-                  לזוויות נוספות דפדפו<span className="cycle-in-image">{" "}בתמונה</span>
+                <div className="product-modal-cycle-btn product-modal-cycle-btn--icon" aria-label="לזוויות נוספות דפדפו">
+                  <Rotate360Icon className="product-modal-cycle-icon" />
                 </div>
 
                 {/* side arrows — inside image frame, pointing outward */}

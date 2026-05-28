@@ -2163,3 +2163,40 @@ body {
     -webkit-line-clamp: 4;
   }
 }
+
+/* ─── 360° icon buttons (catalog CTA + modal hint) ───
+   Strip the old text-pill look; keep the element's positioning/centering and any
+   calibrated translate/scale. currentColor drives the inline SVG. */
+.catalog-card-cta--icon {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  width: auto;
+  height: auto;
+  min-height: 0;
+  gap: 0;
+  color: #5a3a17;
+}
+.catalog-card-cta--icon .catalog-card-cta-icon {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+.product-modal-cycle-btn--icon {
+  background: transparent;
+  border: 0;
+  padding: 0;
+  min-height: 0;
+  max-width: none;
+  color: #5a3a17;
+}
+.product-modal-cycle-icon {
+  display: block;
+  width: 58px;
+  height: auto;
+  color: #5a3a17;
+}
+@media (max-width: 767px) {
+  .catalog-card-cta--icon .catalog-card-cta-icon { width: 30px; height: 30px; }
+  .product-modal-cycle-icon { width: 46px; }
+}

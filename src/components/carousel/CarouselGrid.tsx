@@ -5,7 +5,7 @@ import Image from "next/image";
 import { A11y, Autoplay, Keyboard, Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 import type { Swiper as SwiperType } from "swiper";
-import magnifierIcon from "../../../images/images_from_mandarina/magnifaier_icon.svg";
+import { Zoom360Icon } from "@/components/carousel/icons";
 import { CarouselItem } from "@/lib/carousel/types";
 import type { ColorSwatch } from "@/lib/catalog-source/product-details";
 import { buildItemColorGroups, extractColorWord, COLOR_HEBREW } from "@/lib/carousel/color-groups";
@@ -193,15 +193,14 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }:
 
                       {/* top: view angles */}
                       <button
-                        className="catalog-card-cta"
+                        className="catalog-card-cta catalog-card-cta--icon"
                         onMouseEnter={(e) => { e.stopPropagation(); preloadAngleImages(item); }}
                         onFocus={() => preloadAngleImages(item)}
                         onTouchStart={(e) => e.stopPropagation()}
                         onClick={(e) => { e.stopPropagation(); onOpenItem(item); }}
                         aria-label={`הגדלה וזוויות נוספות עבור ${item.title}`}
                       >
-                        <Image src={magnifierIcon} alt="" aria-hidden="true" className="catalog-card-cta-icon" />
-                        <span>להגדלה וזוויות נוספות</span>
+                        <Zoom360Icon className="catalog-card-cta-icon" />
                       </button>
 
                       {/* bottom: color swatches */}
