@@ -417,6 +417,33 @@ body {
   .m-catalog-btn { translate: 49px 110px; scale: 1.22; }
 }
 
+/* ─── Calibrated mobile placement — catalog card ───  (via /mobile-tuner.html)
+   NOTE: .catalog-card-cta currently lives inside .catalog-card-image-wrap whose
+   overflow:hidden is LOCKED (AGENTS.md). Large downward moves of the CTA get
+   clipped — the proper fix is to move it to card level (done with the icon swap). */
+@media (max-width: 374px) {
+  .catalog-card            { translate: 2px 0; scale: 1.04; }
+  .catalog-card-image-wrap { translate: 0 3px; scale: 1.01; }
+  .catalog-card-body       { translate: 0 -29px; scale: 1.01; }
+  .catalog-card-cta        { translate: -14px 99px; scale: 0.80; }
+  .catalog-card-colors     { translate: 0 -99px; }
+  .catalog-card-tech-btn   { translate: 0 38px; }
+}
+@media (min-width: 375px) and (max-width: 413px) {
+  .catalog-card            { translate: 2px 1px; scale: 1.05; }
+  .catalog-card-body       { translate: 0 -31px; }
+  .catalog-card-cta        { translate: -14px 114px; scale: 0.83; }
+  .catalog-card-colors     { translate: 0 -112px; }
+  .catalog-card-tech-btn   { translate: 0 52px; }
+}
+@media (min-width: 414px) and (max-width: 767px) {
+  .catalog-card            { translate: 3px 0; scale: 1.04; }
+  .catalog-card-body       { translate: 0 -32px; }
+  .catalog-card-cta        { translate: -9px 125px; scale: 0.89; }
+  .catalog-card-colors     { translate: 0 -123px; }
+  .catalog-card-tech-btn   { translate: 0 49px; }
+}
+
 /* ─────── MOBILE LANDSCAPE (phones turned sideways) ───────
    Compress vertical sizing - hero height limited, bars thinner. */
 @media (max-width: 932px) and (orientation: landscape) and (max-height: 500px) {
