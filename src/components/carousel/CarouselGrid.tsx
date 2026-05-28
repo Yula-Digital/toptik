@@ -200,7 +200,7 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }:
                         aria-label={`הגדלה וזוויות נוספות עבור ${item.title}`}
                       >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src="/zoom-360.png" alt="" aria-hidden="true" className="catalog-card-cta-icon" />
+                        <img src="/magnifier.png" alt="" aria-hidden="true" className="catalog-card-cta-icon" />
                       </button>
 
                       {/* bottom: color swatches */}

@@ -160,7 +160,7 @@ export function ProductModal({
                 />
                 <div className="product-modal-cycle-btn product-modal-cycle-btn--icon" aria-label="לזוויות נוספות דפדפו">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/rotate-360.png" alt="" aria-hidden="true" className="product-modal-cycle-icon" />
+                  <img src="/360.png" alt="" aria-hidden="true" className="product-modal-cycle-icon" />
                 </div>
 
                 {/* side arrows — inside image frame, pointing outward */}
