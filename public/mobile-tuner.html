@@ -158,8 +158,38 @@ let zoom = 0.62;
 
 const $ = (id) => document.getElementById(id);
 
-function getVal(view, dev, key) {
-  return state[view][dev][key] || (state[view][dev][key] = DEFAULT());
+// A value lives in state ONLY after the user edits that element. Untouched
+// elements are left exactly as the live site renders them (non-destructive).
+function getVal(view, dev, key) { return state[view][dev][key]; }
+function setVal(view, dev, key, v) { state[view][dev][key] = v; }
+
+// Read an element's CURRENT translate/scale from the live page so the sliders
+// start at the real baseline (including any CSS already shipped). Every drag is
+// then a continuous, true delta — not a jump from zero.
+function parseTranslate(t) {
+  if (!t || t === "none") return { x: 0, y: 0 };
+  const p = t.split(" ");
+  return { x: parseFloat(p[0]) || 0, y: parseFloat(p[1]) || 0 };
+}
+function parseScale(s) {
+  if (!s || s === "none") return 1;
+  return parseFloat(s.split(" ")[0]) || 1;
+}
+function readBaseline(view, dev, sel) {
+  const fr = document.getElementById(`fr-${view}-${dev}`);
+  if (!fr) return { s: 1, x: 0, y: 0 };
+  let doc; try { doc = fr.contentDocument; } catch { return { s: 1, x: 0, y: 0 }; }
+  const n = doc && doc.querySelector(sel);
+  if (!n) return { s: 1, x: 0, y: 0 };
+  const cs = getComputedStyle(n);
+  const t = parseTranslate(cs.translate);
+  return { s: parseScale(cs.scale), x: Math.round(t.x), y: Math.round(t.y) };
+}
+function clearEl(doc, sel) {
+  if (!doc) return;
+  doc.querySelectorAll(sel).forEach((n) => {
+    ["translate", "scale", "outline", "z-index", "position", "transition"].forEach((p) => n.style.removeProperty(p));
+  });
 }
 
 // Inject a one-time calibration stylesheet that frees the known clipping
@@ -173,31 +203,24 @@ function injectCalibCss(doc) {
     ".catalog-card-image-wrap,.catalog-card-body,.catalog-card,.catalog-card-visual," +
     ".catalog-grid,.catalog-carousel,.swiper,.swiper-wrapper,.swiper-slide," +
     ".product-modal,.product-modal-content,.product-modal-gallery,.product-modal-gallery-center," +
-    ".product-modal-image-wrap,.m-layer,.m-topbar,.m-topbar-actions,.stage,.page" +
+    ".product-modal-image-wrap" +
     "{overflow:visible !important;}";
   doc.head.appendChild(s);
 }
 
+// Only ever called for user-edited elements. Applies absolute translate/scale
+// via the independent props (compose with any base transform), keeps the
+// element on top, and outlines it.
 function applyEl(doc, sel, val) {
   if (!doc) return;
-  const active = (val.x !== 0 || val.y !== 0 || val.s !== 1);
   doc.querySelectorAll(sel).forEach((n) => {
-    // Use independent translate/scale props so we compose with — not clobber —
-    // any existing transform the element relies on for its base layout.
     n.style.setProperty("translate", `${val.x}px ${val.y}px`, "important");
     n.style.setProperty("scale", String(val.s), "important");
     n.style.setProperty("transition", "translate .05s, scale .05s", "important");
-    n.style.setProperty("outline", active ? "2px dashed rgba(60,160,240,.9)" : "none", "important");
+    n.style.setProperty("outline", "2px dashed rgba(60,160,240,.9)", "important");
     n.style.setProperty("outline-offset", "1px", "important");
-    // Keep a moved element on the TOP layer so it isn't swallowed by neighbours
-    // or the cream background. z-index needs a positioned element.
-    if (active) {
-      if (getComputedStyle(n).position === "static") n.style.setProperty("position", "relative", "important");
-      n.style.setProperty("z-index", "99999", "important");
-    } else {
-      n.style.removeProperty("z-index");
-      n.style.removeProperty("position");
-    }
+    if (getComputedStyle(n).position === "static") n.style.setProperty("position", "relative", "important");
+    n.style.setProperty("z-index", "99999", "important");
   });
 }
 
@@ -208,7 +231,11 @@ function applyAll(view, dev) {
   try { doc = fr.contentDocument; } catch { return; }
   if (!doc) return;
   injectCalibCss(doc);
-  for (const el of VIEWS[view].elements) applyEl(doc, el.sel, getVal(view, dev, el.key));
+  for (const el of VIEWS[view].elements) {
+    const val = getVal(view, dev, el.key);
+    if (val) applyEl(doc, el.sel, val);   // user-edited → apply
+    else clearEl(doc, el.sel);            // untouched → leave the real site exactly as shipped
+  }
 }
 
 function frameReady(view, dev, iframe) {
@@ -250,6 +277,7 @@ function buildFrames() {
     dev.className = "device";
     const cap = document.createElement("div");
     cap.className = "cap";
+    cap.dir = "ltr";
     cap.innerHTML = `<b>${d.label.split("·")[0].trim()}</b> ${d.label.includes("·") ? "· "+d.label.split("·")[1].trim() : ""}`;
     const screen = document.createElement("div");
     screen.className = "screen" + (d.id === activeDevice ? " active" : "");
@@ -269,7 +297,7 @@ function buildFrames() {
     iframe.onload = () => frameReady(activeView, d.id, iframe);
 
     const badge = document.createElement("div");
-    badge.className = "badge"; badge.textContent = `${d.w}×${d.h}`;
+    badge.className = "badge"; badge.dir = "ltr"; badge.textContent = `${d.w}×${d.h}`;
     const loading = document.createElement("div");
     loading.className = "loading"; loading.textContent = "טוען…";
     loading.style.transform = `scale(${zoom})`; loading.style.transformOrigin = "top left";
@@ -319,17 +347,20 @@ function buildEls() {
 
 function refreshActiveUI() {
   $("activeDev").textContent = DEVICES.find(d=>d.id===activeDevice).label.split("·")[0].trim();
-  const v = getVal(activeView, activeDevice, activeEl);
+  const el = VIEWS[activeView].elements.find(e=>e.key===activeEl);
+  // Show the user's edit if any, otherwise initialise from the element's real
+  // current position on the live page — so adjustments start where it actually is.
+  const v = getVal(activeView, activeDevice, activeEl) || readBaseline(activeView, activeDevice, el.sel);
   $("sS").value = v.s; $("sX").value = v.x; $("sY").value = v.y;
   $("vS").textContent = v.s.toFixed(2); $("vX").textContent = v.x+"px"; $("vY").textContent = v.y+"px";
   markActiveFrames();
 }
 
 function onSlider() {
-  const v = getVal(activeView, activeDevice, activeEl);
-  v.s = parseFloat($("sS").value); v.x = parseInt($("sX").value,10); v.y = parseInt($("sY").value,10);
-  $("vS").textContent = v.s.toFixed(2); $("vX").textContent = v.x+"px"; $("vY").textContent = v.y+"px";
   const el = VIEWS[activeView].elements.find(e=>e.key===activeEl);
+  const v = { s: parseFloat($("sS").value), x: parseInt($("sX").value,10), y: parseInt($("sY").value,10) };
+  setVal(activeView, activeDevice, activeEl, v);   // becomes a user-edited (absolute) value
+  $("vS").textContent = v.s.toFixed(2); $("vX").textContent = v.x+"px"; $("vY").textContent = v.y+"px";
   const fr = document.getElementById(`fr-${activeView}-${activeDevice}`);
   if (fr) { try { applyEl(fr.contentDocument, el.sel, v); } catch {} }
   updateOut();
@@ -350,19 +381,18 @@ function updateOut() {
   $("out").value = lines.length ? lines.join("\n") : "(אין שינויים עדיין)";
 }
 
-function resetEl() { state[activeView][activeDevice][activeEl] = DEFAULT(); reApplyActiveFrame(); refreshActiveUI(); updateOut(); }
-function resetDev() { state[activeView][activeDevice] = {}; reApplyActiveFrame(true); refreshActiveUI(); updateOut(); }
-function resetAll() { for (const v in VIEWS) for (const d of DEVICES) state[v][d.id] = {}; reApplyActiveFrame(true); refreshActiveUI(); updateOut(); }
-
-function reApplyActiveFrame(clearStyles) {
+function resetEl() {
+  delete state[activeView][activeDevice][activeEl];
+  const el = VIEWS[activeView].elements.find(e=>e.key===activeEl);
   const fr = document.getElementById(`fr-${activeView}-${activeDevice}`);
-  if (!fr) return; let doc; try { doc = fr.contentDocument; } catch { return; }
-  if (clearStyles && doc) {
-    for (const el of VIEWS[activeView].elements)
-      doc.querySelectorAll(el.sel).forEach(n => { n.style.removeProperty("translate"); n.style.removeProperty("scale"); n.style.removeProperty("outline"); n.style.removeProperty("z-index"); n.style.removeProperty("position"); });
-  }
-  applyAll(activeView, activeDevice);
+  if (fr) { try { clearEl(fr.contentDocument, el.sel); } catch {} }
+  refreshActiveUI(); updateOut();
 }
+function resetDev() { state[activeView][activeDevice] = {}; reApplyActiveFrame(); refreshActiveUI(); updateOut(); }
+function resetAll() { for (const v in VIEWS) for (const d of DEVICES) state[v][d.id] = {}; reApplyActiveFrame(); refreshActiveUI(); updateOut(); }
+
+// applyAll now clears untouched elements itself, so this just re-syncs the frame.
+function reApplyActiveFrame() { applyAll(activeView, activeDevice); }
 
 // ---- wire up ----
 ["sS","sX","sY"].forEach(id => $(id).addEventListener("input", onSlider));
