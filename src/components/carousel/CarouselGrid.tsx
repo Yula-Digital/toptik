@@ -10,6 +10,10 @@ import { CarouselItem } from "@/lib/carousel/types";
 import type { ColorSwatch } from "@/lib/catalog-source/product-details";
 import { buildItemColorGroups, extractColorWord, COLOR_HEBREW } from "@/lib/carousel/color-groups";
 import { trimmedProductSrc } from "@/lib/carousel/trim-src";
+import { nextImageSrcset } from "@/lib/carousel/next-image";
+
+// Matches ProductModal's <Image sizes>; used to pre-warm the modal-size image on mobile.
+const MODAL_IMAGE_SIZES = "(max-width: 767px) 90vw, 55vw";
 
 import "swiper/css";
 import "swiper/css/navigation";
@@ -22,12 +26,29 @@ type CarouselGridProps = {
   onOpenTechSpecs: (item: CarouselItem) => void;
 };
 
+// Warm a card's angle images when the user signals open-intent (hover/touch).
+// MOBILE: preload the exact modal-size resource (responsive imagesrcset matching
+// ProductModal) so opening the product is instant — and far lighter than pulling
+// the full-resolution trim onto a phone. DESKTOP: unchanged full-res trim warm.
 function preloadAngleImages(item: CarouselItem) {
   if (typeof window === "undefined") return;
+  const isMobile = window.matchMedia("(max-width: 767px)").matches;
   item.angles.forEach((angle) => {
-    const image = new window.Image();
-    image.decoding = "async";
-    image.src = trimmedProductSrc(angle.imagePath);
+    const src = trimmedProductSrc(angle.imagePath);
+    if (isMobile) {
+      const link = document.createElement("link");
+      link.rel = "preload";
+      link.as = "image";
+      link.setAttribute("imagesrcset", nextImageSrcset(src));
+      link.setAttribute("imagesizes", MODAL_IMAGE_SIZES);
+      link.setAttribute("fetchpriority", "low");
+      document.head.appendChild(link);
+      setTimeout(() => link.remove(), 30000);
+    } else {
+      const image = new window.Image();
+      image.decoding = "async";
+      image.src = src;
+    }
   });
 }
 
