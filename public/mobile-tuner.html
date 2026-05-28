@@ -124,11 +124,13 @@ const VIEWS = {
   catalog: {
     label:"קטלוג", url:"/carousel", waitFor:".catalog-card",
     elements:[
-      { key:"card",   label:"קונטיינר המוצר כולו",        sel:".catalog-card" },
-      { key:"cta",    label:"כפתור “להגדלה וזוויות נוספות”", sel:".catalog-card-cta" },
-      { key:"colors", label:"פס אפשרויות הצבעים",         sel:".catalog-card-colors" },
-      { key:"texts",  label:"קונטיינר הטקסטים",           sel:".catalog-card-main" },
-      { key:"tech",   label:"כפתור נתונים טכניים",         sel:".catalog-card-tech-btn" },
+      { key:"card",    label:"כרטיס המוצר כולו",                    sel:".catalog-card" },
+      { key:"imgbox",  label:"ריבוע התמונה (עטוף — תמונה+כפתור+צבעים)", sel:".catalog-card-image-wrap" },
+      { key:"textbox", label:"ריבוע הטקסטים הלבן (עטוף)",            sel:".catalog-card-body" },
+      { key:"cta",     label:"כפתור “להגדלה וזוויות נוספות”",        sel:".catalog-card-cta" },
+      { key:"colors",  label:"פס אפשרויות הצבעים",                  sel:".catalog-card-colors" },
+      { key:"texts",   label:"כותרת + תיאור (טקסט בלבד)",            sel:".catalog-card-main" },
+      { key:"tech",    label:"כפתור נתונים טכניים",                  sel:".catalog-card-tech-btn" },
     ],
   },
   modal: {
@@ -159,16 +161,42 @@ function getVal(view, dev, key) {
   return state[view][dev][key] || (state[view][dev][key] = DEFAULT());
 }
 
+// Inject a one-time calibration stylesheet that frees the known clipping
+// containers (overflow:hidden) so an element dragged into a gap / over a
+// neighbour stays VISIBLE instead of being swallowed. Tool-only visual aid.
+function injectCalibCss(doc) {
+  if (!doc || !doc.head || doc.getElementById("__calib_css")) return;
+  const s = doc.createElement("style");
+  s.id = "__calib_css";
+  s.textContent =
+    ".catalog-card-image-wrap,.catalog-card-body,.catalog-card,.catalog-card-visual," +
+    ".catalog-grid,.catalog-carousel,.swiper,.swiper-wrapper,.swiper-slide," +
+    ".product-modal,.product-modal-content,.product-modal-gallery,.product-modal-gallery-center," +
+    ".product-modal-image-wrap,.m-layer,.m-topbar,.m-topbar-actions,.stage,.page" +
+    "{overflow:visible !important;}";
+  doc.head.appendChild(s);
+}
+
 function applyEl(doc, sel, val) {
   if (!doc) return;
+  const active = (val.x !== 0 || val.y !== 0 || val.s !== 1);
   doc.querySelectorAll(sel).forEach((n) => {
     // Use independent translate/scale props so we compose with — not clobber —
     // any existing transform the element relies on for its base layout.
     n.style.setProperty("translate", `${val.x}px ${val.y}px`, "important");
     n.style.setProperty("scale", String(val.s), "important");
     n.style.setProperty("transition", "translate .05s, scale .05s", "important");
-    n.style.setProperty("outline", (val.x||val.y||val.s!==1) ? "2px dashed rgba(60,160,240,.9)" : "none", "important");
+    n.style.setProperty("outline", active ? "2px dashed rgba(60,160,240,.9)" : "none", "important");
     n.style.setProperty("outline-offset", "1px", "important");
+    // Keep a moved element on the TOP layer so it isn't swallowed by neighbours
+    // or the cream background. z-index needs a positioned element.
+    if (active) {
+      if (getComputedStyle(n).position === "static") n.style.setProperty("position", "relative", "important");
+      n.style.setProperty("z-index", "99999", "important");
+    } else {
+      n.style.removeProperty("z-index");
+      n.style.removeProperty("position");
+    }
   });
 }
 
@@ -178,6 +206,7 @@ function applyAll(view, dev) {
   let doc;
   try { doc = fr.contentDocument; } catch { return; }
   if (!doc) return;
+  injectCalibCss(doc);
   for (const el of VIEWS[view].elements) applyEl(doc, el.sel, getVal(view, dev, el.key));
 }
 
@@ -329,7 +358,7 @@ function reApplyActiveFrame(clearStyles) {
   if (!fr) return; let doc; try { doc = fr.contentDocument; } catch { return; }
   if (clearStyles && doc) {
     for (const el of VIEWS[activeView].elements)
-      doc.querySelectorAll(el.sel).forEach(n => { n.style.removeProperty("translate"); n.style.removeProperty("scale"); n.style.removeProperty("outline"); });
+      doc.querySelectorAll(el.sel).forEach(n => { n.style.removeProperty("translate"); n.style.removeProperty("scale"); n.style.removeProperty("outline"); n.style.removeProperty("z-index"); n.style.removeProperty("position"); });
   }
   applyAll(activeView, activeDevice);
 }
