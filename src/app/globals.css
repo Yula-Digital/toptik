@@ -1953,6 +1953,9 @@ body {
     font-weight: 700;
   }
 
+  /* Mobile shortens the hint to "לזוויות נוספות דפדפו" (drops "בתמונה"). */
+  .cycle-in-image { display: none; }
+
   .product-modal-angle {
     position: absolute;
     left: 20px;

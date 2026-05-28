@@ -159,7 +159,7 @@ export function ProductModal({
                   className="product-modal-image"
                 />
                 <div className="product-modal-cycle-btn" aria-label="הנחיית דפדוף זוויות">
-                  לזוויות נוספות דפדפו בתמונה
+                  לזוויות נוספות דפדפו<span className="cycle-in-image">{" "}בתמונה</span>
                 </div>
 
                 {/* side arrows — inside image frame, pointing outward */}
