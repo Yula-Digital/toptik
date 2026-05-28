@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TopTik · כלי כיול רספונסיבי למובייל</title>
+<style>
+  :root { --panel: 320px; --bg:#0f1115; --bg2:#171a21; --line:#272c36; --ink:#e8ecf3; --ink2:#9aa3b2; --accent:#f0a13c; --accent2:#3ca0f0; }
+  * { box-sizing: border-box; }
+  html,body { margin:0; height:100%; font-family: -apple-system, "Segoe UI", Rubik, Arial, sans-serif; background:var(--bg); color:var(--ink); }
+  body { display:flex; }
+
+  /* ---- Control panel ---- */
+  .panel { width:var(--panel); flex:0 0 var(--panel); height:100vh; overflow-y:auto; background:var(--bg2); border-inline-start:1px solid var(--line); padding:14px; }
+  .panel h1 { font-size:15px; margin:0 0 2px; }
+  .panel .sub { font-size:11px; color:var(--ink2); margin:0 0 12px; line-height:1.5; }
+  .group { border:1px solid var(--line); border-radius:10px; padding:10px; margin-bottom:12px; }
+  .group > .gt { font-size:11px; color:var(--ink2); text-transform:uppercase; letter-spacing:.06em; margin-bottom:8px; }
+
+  .tabs { display:flex; gap:6px; margin-bottom:12px; }
+  .tab { flex:1; padding:8px 4px; font-size:12px; font-weight:700; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--ink); cursor:pointer; }
+  .tab.active { background:var(--accent); color:#1a1206; border-color:var(--accent); }
+
+  .ellist { display:flex; flex-direction:column; gap:6px; }
+  .el { text-align:start; padding:8px 10px; font-size:13px; border-radius:8px; border:1px solid var(--line); background:transparent; color:var(--ink); cursor:pointer; }
+  .el.active { border-color:var(--accent2); background:#11233a; }
+  .el small { display:block; color:var(--ink2); font-size:10px; margin-top:2px; }
+
+  .ctrl { margin:10px 0; }
+  .ctrl label { display:flex; justify-content:space-between; font-size:12px; margin-bottom:4px; color:var(--ink2); }
+  .ctrl label b { color:var(--ink); font-variant-numeric: tabular-nums; }
+  .ctrl input[type=range] { width:100%; accent-color:var(--accent); }
+  .row { display:flex; gap:6px; }
+  .row button { flex:1; padding:7px; font-size:11px; border-radius:7px; border:1px solid var(--line); background:transparent; color:var(--ink); cursor:pointer; }
+  .row button:hover { border-color:var(--accent); }
+
+  textarea { width:100%; height:150px; background:#0b0d11; color:#bfe3ff; border:1px solid var(--line); border-radius:8px; font:11px/1.45 ui-monospace, Menlo, monospace; padding:8px; resize:vertical; }
+  .copybtn { width:100%; margin-top:6px; padding:8px; font-weight:700; border-radius:8px; border:0; background:var(--accent2); color:#04121f; cursor:pointer; }
+  .hint { font-size:10.5px; color:var(--ink2); line-height:1.5; }
+
+  /* ---- Stage ---- */
+  .stage { flex:1; height:100vh; overflow:auto; padding:18px; }
+  .stage-head { display:flex; align-items:center; gap:14px; margin-bottom:14px; flex-wrap:wrap; }
+  .stage-head .zoom { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink2); }
+  .frames { display:flex; gap:22px; align-items:flex-start; }
+  .device { display:flex; flex-direction:column; align-items:center; }
+  .device .cap { font-size:12px; color:var(--ink2); margin-bottom:6px; }
+  .device .cap b { color:var(--ink); }
+  .screen { position:relative; border:2px solid var(--line); border-radius:18px; background:#000; overflow:hidden; transform-origin: top center; cursor:pointer; }
+  .screen.active { border-color:var(--accent); box-shadow:0 0 0 3px rgba(240,161,60,.25); }
+  .screen iframe { border:0; display:block; background:#fdf8ee; }
+  .screen .badge { position:absolute; top:6px; inset-inline-start:6px; z-index:5; background:rgba(0,0,0,.6); color:#fff; font-size:10px; padding:2px 6px; border-radius:6px; pointer-events:none; }
+  .loading { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; color:#777; font-size:12px; background:#fdf8ee; }
+</style>
+</head>
+<body>
+  <aside class="panel">
+    <h1>כלי כיול רספונסיבי</h1>
+    <p class="sub">בחרו תצוגה, לחצו על מסך כדי להפעיל אותו, בחרו אלמנט, והזיזו/הגדילו עם הסליידרים. הערכים נשמרים לכל גודל מסך בנפרד ומיוצאים למטה.</p>
+
+    <div class="tabs" id="tabs"></div>
+
+    <div class="group">
+      <div class="gt">אלמנט לעריכה</div>
+      <div class="ellist" id="ellist"></div>
+    </div>
+
+    <div class="group">
+      <div class="gt">שליטה · מסך פעיל: <b id="activeDev">—</b></div>
+      <div class="ctrl">
+        <label>גודל (scale) <b id="vS">1.00</b></label>
+        <input type="range" id="sS" min="0.2" max="2.5" step="0.01" value="1" />
+      </div>
+      <div class="ctrl">
+        <label>הזזה אופקית X <b id="vX">0px</b></label>
+        <input type="range" id="sX" min="-300" max="300" step="1" value="0" />
+      </div>
+      <div class="ctrl">
+        <label>הזזה אנכית Y <b id="vY">0px</b></label>
+        <input type="range" id="sY" min="-300" max="300" step="1" value="0" />
+      </div>
+      <div class="row">
+        <button id="rstEl">אפס אלמנט</button>
+        <button id="rstDev">אפס מסך</button>
+        <button id="rstAll">אפס הכל</button>
+      </div>
+    </div>
+
+    <div class="group">
+      <div class="gt">ייצוא ערכים</div>
+      <textarea id="out" readonly></textarea>
+      <button class="copybtn" id="copy">העתק ערכים</button>
+      <p class="hint">העתיקו ושלחו לי את הטקסט הזה — אהפוך אותו ל-CSS רספונסיבי קבוע באתר.</p>
+    </div>
+  </aside>
+
+  <main class="stage">
+    <div class="stage-head">
+      <div class="zoom">זום תצוגה
+        <input type="range" id="zoom" min="0.4" max="1" step="0.05" value="0.62" />
+        <b id="zoomv">62%</b>
+      </div>
+      <div class="hint">המסכים מציגים את האתר החי בגדלי מובייל אמיתיים. הזום הוא ויזואלי בלבד — לא משפיע על הערכים.</div>
+    </div>
+    <div class="frames" id="frames"></div>
+  </main>
+
+<script>
+const DEVICES = [
+  { id:"360", w:360, h:780, label:"360×780" },
+  { id:"390", w:390, h:844, label:"390×844 · iPhone" },
+  { id:"414", w:414, h:896, label:"414×896" },
+];
+
+const VIEWS = {
+  landing: {
+    label:"עמוד כניסה", url:"/", waitFor:".m-catalog-btn",
+    elements:[
+      { key:"wa-label", label:"טקסט “צ׳וטטו עימנו”", sel:".m-wa-label" },
+      { key:"wa-icon",  label:"אייקון וואטסאפ",       sel:".m-wa-icon" },
+      { key:"enter",    label:"כפתור “כניסה לגלריה”", sel:".m-catalog-btn" },
+    ],
+  },
+  catalog: {
+    label:"קטלוג", url:"/carousel", waitFor:".catalog-card",
+    elements:[
+      { key:"card",   label:"קונטיינר המוצר כולו",        sel:".catalog-card" },
+      { key:"cta",    label:"כפתור “להגדלה וזוויות נוספות”", sel:".catalog-card-cta" },
+      { key:"colors", label:"פס אפשרויות הצבעים",         sel:".catalog-card-colors" },
+      { key:"texts",  label:"קונטיינר הטקסטים",           sel:".catalog-card-main" },
+      { key:"tech",   label:"כפתור נתונים טכניים",         sel:".catalog-card-tech-btn" },
+    ],
+  },
+  modal: {
+    label:"מודאל מוצר", url:"/carousel", waitFor:".catalog-card-image-wrap", openModal:true,
+    elements:[
+      { key:"m-image",  label:"תמונת המוצר",          sel:".product-modal-image-wrap" },
+      { key:"m-colors", label:"פס צבעים",             sel:".product-modal-colors" },
+      { key:"m-texts",  label:"קונטיינר הטקסטים",     sel:".product-modal-meta" },
+      { key:"m-dots",   label:"נקודות דפדוף",          sel:".product-modal-slider" },
+      { key:"m-tech",   label:"כפתור נתונים טכניים",   sel:".product-modal-tech-btn" },
+    ],
+  },
+};
+
+const DEFAULT = () => ({ s:1, x:0, y:0 });
+// state[view][deviceId][elKey] = {s,x,y}
+const state = {};
+for (const v in VIEWS) { state[v] = {}; for (const d of DEVICES) state[v][d.id] = {}; }
+
+let activeView = "landing";
+let activeDevice = "390";
+let activeEl = VIEWS.landing.elements[0].key;
+let zoom = 0.62;
+
+const $ = (id) => document.getElementById(id);
+
+function getVal(view, dev, key) {
+  return state[view][dev][key] || (state[view][dev][key] = DEFAULT());
+}
+
+function applyEl(doc, sel, val) {
+  if (!doc) return;
+  doc.querySelectorAll(sel).forEach((n) => {
+    // Use independent translate/scale props so we compose with — not clobber —
+    // any existing transform the element relies on for its base layout.
+    n.style.setProperty("translate", `${val.x}px ${val.y}px`, "important");
+    n.style.setProperty("scale", String(val.s), "important");
+    n.style.setProperty("transition", "translate .05s, scale .05s", "important");
+    n.style.setProperty("outline", (val.x||val.y||val.s!==1) ? "2px dashed rgba(60,160,240,.9)" : "none", "important");
+    n.style.setProperty("outline-offset", "1px", "important");
+  });
+}
+
+function applyAll(view, dev) {
+  const fr = document.getElementById(`fr-${view}-${dev}`);
+  if (!fr) return;
+  let doc;
+  try { doc = fr.contentDocument; } catch { return; }
+  if (!doc) return;
+  for (const el of VIEWS[view].elements) applyEl(doc, el.sel, getVal(view, dev, el.key));
+}
+
+function frameReady(view, dev, iframe) {
+  const cfg = VIEWS[view];
+  let doc;
+  try { doc = iframe.contentDocument; } catch { return; }
+  const overlay = iframe.parentElement.querySelector(".loading");
+  let tries = 0;
+  const poll = setInterval(() => {
+    tries++;
+    let target = null;
+    try { target = doc.querySelector(cfg.waitFor); } catch {}
+    if (target) {
+      clearInterval(poll);
+      if (cfg.openModal) {
+        try { target.click(); } catch {}
+        let t2 = 0;
+        const poll2 = setInterval(() => {
+          t2++;
+          let modal = null;
+          try { modal = doc.querySelector(".product-modal-image-wrap"); } catch {}
+          if (modal) { clearInterval(poll2); if (overlay) overlay.remove(); applyAll(view, dev); }
+          else if (t2 > 40) { clearInterval(poll2); if (overlay) overlay.remove(); }
+        }, 150);
+      } else {
+        if (overlay) overlay.remove();
+        applyAll(view, dev);
+      }
+    } else if (tries > 60) { clearInterval(poll); if (overlay) overlay.remove(); }
+  }, 200);
+}
+
+function buildFrames() {
+  const wrap = $("frames");
+  wrap.innerHTML = "";
+  const cfg = VIEWS[activeView];
+  for (const d of DEVICES) {
+    const dev = document.createElement("div");
+    dev.className = "device";
+    const cap = document.createElement("div");
+    cap.className = "cap";
+    cap.innerHTML = `<b>${d.label.split("·")[0].trim()}</b> ${d.label.includes("·") ? "· "+d.label.split("·")[1].trim() : ""}`;
+    const screen = document.createElement("div");
+    screen.className = "screen" + (d.id === activeDevice ? " active" : "");
+    screen.id = `screen-${d.id}`;
+    screen.style.width = (d.w * zoom) + "px";
+    screen.style.height = (d.h * zoom) + "px";
+    screen.onclick = () => { activeDevice = d.id; refreshActiveUI(); markActiveFrames(); };
+
+    const iframe = document.createElement("iframe");
+    iframe.id = `fr-${activeView}-${d.id}`;
+    iframe.src = cfg.url;
+    iframe.width = d.w; iframe.height = d.h;
+    iframe.style.width = d.w + "px";
+    iframe.style.height = d.h + "px";
+    iframe.style.transform = `scale(${zoom})`;
+    iframe.style.transformOrigin = "top left";
+    iframe.onload = () => frameReady(activeView, d.id, iframe);
+
+    const badge = document.createElement("div");
+    badge.className = "badge"; badge.textContent = `${d.w}×${d.h}`;
+    const loading = document.createElement("div");
+    loading.className = "loading"; loading.textContent = "טוען…";
+    loading.style.transform = `scale(${zoom})`; loading.style.transformOrigin = "top left";
+    loading.style.width = d.w+"px"; loading.style.height = d.h+"px";
+
+    screen.appendChild(iframe);
+    screen.appendChild(badge);
+    screen.appendChild(loading);
+    dev.appendChild(cap);
+    dev.appendChild(screen);
+    wrap.appendChild(dev);
+  }
+}
+
+function markActiveFrames() {
+  for (const d of DEVICES) {
+    const s = document.getElementById(`screen-${d.id}`);
+    if (s) s.classList.toggle("active", d.id === activeDevice);
+  }
+}
+
+function buildTabs() {
+  const t = $("tabs"); t.innerHTML = "";
+  for (const v in VIEWS) {
+    const b = document.createElement("button");
+    b.className = "tab" + (v === activeView ? " active" : "");
+    b.textContent = VIEWS[v].label;
+    b.onclick = () => {
+      activeView = v;
+      activeEl = VIEWS[v].elements[0].key;
+      buildTabs(); buildEls(); buildFrames(); refreshActiveUI();
+    };
+    t.appendChild(b);
+  }
+}
+
+function buildEls() {
+  const list = $("ellist"); list.innerHTML = "";
+  for (const el of VIEWS[activeView].elements) {
+    const b = document.createElement("button");
+    b.className = "el" + (el.key === activeEl ? " active" : "");
+    b.innerHTML = `${el.label}<small>${el.sel}</small>`;
+    b.onclick = () => { activeEl = el.key; buildEls(); refreshActiveUI(); };
+    list.appendChild(b);
+  }
+}
+
+function refreshActiveUI() {
+  $("activeDev").textContent = DEVICES.find(d=>d.id===activeDevice).label.split("·")[0].trim();
+  const v = getVal(activeView, activeDevice, activeEl);
+  $("sS").value = v.s; $("sX").value = v.x; $("sY").value = v.y;
+  $("vS").textContent = v.s.toFixed(2); $("vX").textContent = v.x+"px"; $("vY").textContent = v.y+"px";
+  markActiveFrames();
+}
+
+function onSlider() {
+  const v = getVal(activeView, activeDevice, activeEl);
+  v.s = parseFloat($("sS").value); v.x = parseInt($("sX").value,10); v.y = parseInt($("sY").value,10);
+  $("vS").textContent = v.s.toFixed(2); $("vX").textContent = v.x+"px"; $("vY").textContent = v.y+"px";
+  const el = VIEWS[activeView].elements.find(e=>e.key===activeEl);
+  const fr = document.getElementById(`fr-${activeView}-${activeDevice}`);
+  if (fr) { try { applyEl(fr.contentDocument, el.sel, v); } catch {} }
+  updateOut();
+}
+
+function updateOut() {
+  const lines = [];
+  for (const v in VIEWS) {
+    for (const d of DEVICES) {
+      for (const el of VIEWS[v].elements) {
+        const val = state[v][d.id][el.key];
+        if (!val) continue;
+        if (val.s===1 && val.x===0 && val.y===0) continue;
+        lines.push(`[${VIEWS[v].label} | ${d.w}px] ${el.label} (${el.sel}) -> scale:${val.s.toFixed(2)} x:${val.x}px y:${val.y}px`);
+      }
+    }
+  }
+  $("out").value = lines.length ? lines.join("\n") : "(אין שינויים עדיין)";
+}
+
+function resetEl() { state[activeView][activeDevice][activeEl] = DEFAULT(); reApplyActiveFrame(); refreshActiveUI(); updateOut(); }
+function resetDev() { state[activeView][activeDevice] = {}; reApplyActiveFrame(true); refreshActiveUI(); updateOut(); }
+function resetAll() { for (const v in VIEWS) for (const d of DEVICES) state[v][d.id] = {}; reApplyActiveFrame(true); refreshActiveUI(); updateOut(); }
+
+function reApplyActiveFrame(clearStyles) {
+  const fr = document.getElementById(`fr-${activeView}-${activeDevice}`);
+  if (!fr) return; let doc; try { doc = fr.contentDocument; } catch { return; }
+  if (clearStyles && doc) {
+    for (const el of VIEWS[activeView].elements)
+      doc.querySelectorAll(el.sel).forEach(n => { n.style.removeProperty("translate"); n.style.removeProperty("scale"); n.style.removeProperty("outline"); });
+  }
+  applyAll(activeView, activeDevice);
+}
+
+// ---- wire up ----
+["sS","sX","sY"].forEach(id => $(id).addEventListener("input", onSlider));
+$("rstEl").onclick = resetEl;
+$("rstDev").onclick = resetDev;
+$("rstAll").onclick = resetAll;
+$("copy").onclick = () => { $("out").select(); document.execCommand("copy"); $("copy").textContent="הועתק ✓"; setTimeout(()=>$("copy").textContent="העתק ערכים",1200); };
+$("zoom").addEventListener("input", () => { zoom = parseFloat($("zoom").value); $("zoomv").textContent = Math.round(zoom*100)+"%"; buildFrames(); markActiveFrames(); });
+
+buildTabs(); buildEls(); buildFrames(); refreshActiveUI(); updateOut();
+</script>
+</body>
+</html>
