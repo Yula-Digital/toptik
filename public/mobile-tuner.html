@@ -217,8 +217,6 @@ function applyEl(doc, sel, val) {
     n.style.setProperty("translate", `${val.x}px ${val.y}px`, "important");
     n.style.setProperty("scale", String(val.s), "important");
     n.style.setProperty("transition", "translate .05s, scale .05s", "important");
-    n.style.setProperty("outline", "2px dashed rgba(60,160,240,.9)", "important");
-    n.style.setProperty("outline-offset", "1px", "important");
     if (getComputedStyle(n).position === "static") n.style.setProperty("position", "relative", "important");
     n.style.setProperty("z-index", "99999", "important");
   });
@@ -238,6 +236,18 @@ function applyAll(view, dev) {
   }
 }
 
+// In the tuner, freeze the product carousel's autoplay so slides don't shift
+// while calibrating. Same-origin: Swiper stores its instance on the .swiper element.
+function stopCarousel(doc) {
+  if (!doc) return;
+  try {
+    doc.querySelectorAll(".swiper").forEach((el) => {
+      const sw = el.swiper;
+      if (sw && sw.autoplay && sw.autoplay.stop) sw.autoplay.stop();
+    });
+  } catch {}
+}
+
 function frameReady(view, dev, iframe) {
   const cfg = VIEWS[view];
   let doc;
@@ -250,6 +260,8 @@ function frameReady(view, dev, iframe) {
     try { target = doc.querySelector(cfg.waitFor); } catch {}
     if (target) {
       clearInterval(poll);
+      stopCarousel(doc);
+      setTimeout(() => stopCarousel(doc), 800);
       if (cfg.openModal) {
         try { target.click(); } catch {}
         let t2 = 0;
