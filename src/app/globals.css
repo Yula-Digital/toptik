@@ -428,6 +428,8 @@ body {
   .catalog-card-cta        { translate: -39px 10px; scale: 1.83; }
   .catalog-card-colors     { translate: -3px 2px; scale: 0.86; }
   .catalog-card-tech-btn   { translate: 0 5px; }
+  .carousel-nav-prev       { translate: 13px -20px; scale: 0.79; }
+  .carousel-nav-next       { translate: -8px -19px; scale: 0.79; }
 }
 @media (min-width: 375px) and (max-width: 413px) {
   .catalog-card            { translate: 2px 1px; scale: 1.05; }
@@ -435,6 +437,8 @@ body {
   .catalog-card-cta        { translate: -40px 12px; scale: 2.07; }
   .catalog-card-colors     { translate: -3px 1px; scale: 0.88; }
   .catalog-card-tech-btn   { translate: 0 18px; }
+  .carousel-nav-prev       { translate: 13px -22px; scale: 0.78; }
+  .carousel-nav-next       { translate: -8px -19px; scale: 0.81; }
 }
 @media (min-width: 414px) and (max-width: 767px) {
   .catalog-card            { translate: 3px 0; scale: 1.04; }
@@ -442,6 +446,8 @@ body {
   .catalog-card-cta        { translate: -44px 13px; scale: 2.13; }
   .catalog-card-colors     { translate: -2px 0; scale: 0.90; }
   .catalog-card-tech-btn   { translate: 0 21px; }
+  .carousel-nav-prev       { translate: 15px -21px; scale: 0.84; }
+  .carousel-nav-next       { translate: -10px -21px; scale: 0.84; }
 }
 
 /* ─── Calibrated mobile placement — product modal ───  (via /mobile-tuner.html)
