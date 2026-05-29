@@ -361,8 +361,8 @@ function extractProductFromPage(
     title: productBlock?.name?.trim() || extractTitle(html),
     description:
       productBlock?.description?.trim()
-        ? stripHtml(productBlock.description)
-        : extractDescription(html),
+        ? stripHtml(productBlock.description).slice(0, 300) || null
+        : null,
     imageUrls: uniqueImageUrls(mergedImages).slice(0, MAX_IMPORTED_IMAGES),
     sourceUrl: productUrl,
   };
