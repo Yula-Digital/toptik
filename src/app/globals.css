@@ -453,8 +453,8 @@ body {
   .product-modal-colors      { translate: 8px 49px;   scale: 0.86; }
   .product-modal-description { translate: 0 -32px; }
   .product-modal-slider      { translate: -2px -222px; }
-  .product-modal-angle       { translate: -11px -111px; scale: 0.74; }
-  .product-modal-tech-btn    { translate: 0 4px;       scale: 0.95; }
+  .product-modal-angle       { translate: -11px -130px; scale: 0.79; }
+  .product-modal-tech-btn    { translate: 0 4px;        scale: 0.95; }
 }
 @media (min-width: 375px) and (max-width: 413px) {
   .product-modal-image-wrap  { translate: 0 7px;      scale: 1.07; }
@@ -462,7 +462,7 @@ body {
   .product-modal-colors      { translate: 9px 44px; }
   .product-modal-description { translate: 0 -17px; }
   .product-modal-slider      { translate: 2px -222px; }
-  .product-modal-angle       { translate: 0 -162px;   scale: 0.75; }
+  .product-modal-angle       { translate: 0 -188px;   scale: 0.75; }
   .product-modal-tech-btn    { translate: 0 2px;       scale: 0.98; }
 }
 @media (min-width: 414px) and (max-width: 767px) {
@@ -471,7 +471,7 @@ body {
   .product-modal-colors      { translate: 5px 42px; }
   .product-modal-description { translate: 0 -3px; }
   .product-modal-slider      { translate: 0 -221px; }
-  .product-modal-angle       { translate: 5px -198px; scale: 0.76; }
+  .product-modal-angle       { translate: 5px -219px; scale: 0.76; }
   .product-modal-tech-btn    { translate: 0 1px; }
 }
 
