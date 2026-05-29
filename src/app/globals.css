@@ -444,6 +444,34 @@ body {
   .catalog-card-tech-btn   { translate: 0 21px; }
 }
 
+/* ─── Calibrated mobile placement — product modal ───  (via /mobile-tuner.html)
+   translate/scale compose with each element's base position (top/bottom/transform).
+   Nothing later sets these independent props, so the early declaration wins. */
+@media (max-width: 374px) {
+  .product-modal-image-wrap { translate: 0 9px;     scale: 1.09; }
+  .product-modal-cycle-btn  { translate: 67px 1px; }
+  .product-modal-colors     { translate: 8px 49px;  scale: 0.86; }
+  .product-modal-description{ translate: 0 -32px; }
+  .product-modal-slider     { translate: -2px -222px; }
+  .product-modal-tech-btn   { translate: 0 -1px;    scale: 0.95; }
+}
+@media (min-width: 375px) and (max-width: 413px) {
+  .product-modal-image-wrap { translate: 0 7px;     scale: 1.07; }
+  .product-modal-cycle-btn  { translate: 69px -1px; scale: 1.03; }
+  .product-modal-colors     { translate: 9px 44px; }
+  .product-modal-description{ translate: 0 -31px; }
+  .product-modal-slider     { translate: 2px -222px; }
+  .product-modal-tech-btn   { translate: 0 -39px;   scale: 0.98; }
+}
+@media (min-width: 414px) and (max-width: 767px) {
+  .product-modal-image-wrap { translate: 2px 7px;   scale: 1.06; }
+  .product-modal-cycle-btn  { translate: 69px 0;    scale: 1.07; }
+  .product-modal-colors     { translate: 5px 42px; }
+  .product-modal-description{ translate: 0 -29px; }
+  .product-modal-slider     { translate: 0 -221px; }
+  .product-modal-tech-btn   { translate: 0 -49px; }
+}
+
 /* ─────── MOBILE LANDSCAPE (phones turned sideways) ───────
    Compress vertical sizing - hero height limited, bars thinner. */
 @media (max-width: 932px) and (orientation: landscape) and (max-height: 500px) {
