@@ -42,6 +42,9 @@
   .stage { flex:1; min-width:0; height:100vh; overflow:auto; padding:18px; }
   .stage-head { display:flex; align-items:center; gap:14px; margin-bottom:14px; flex-wrap:wrap; }
   .stage-head .zoom { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--ink2); }
+  .stage-head .vpmode { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink2); }
+  .vpbtn { padding:5px 9px; font-size:11px; font-weight:700; border-radius:7px; border:1px solid var(--line); background:transparent; color:var(--ink); cursor:pointer; }
+  .vpbtn.active { background:var(--accent); color:#1a1206; border-color:var(--accent); }
   .frames { display:flex; gap:22px; align-items:flex-start; }
   .device { display:flex; flex-direction:column; align-items:center; }
   .device .cap { font-size:12px; color:var(--ink2); margin-bottom:6px; }
@@ -100,17 +103,26 @@
         <input type="range" id="zoom" min="0.4" max="1" step="0.05" value="0.62" />
         <b id="zoomv">62%</b>
       </div>
-      <div class="hint">המסכים מציגים את האתר החי בגדלי מובייל אמיתיים. הזום הוא ויזואלי בלבד — לא משפיע על הערכים.</div>
+      <div class="vpmode">מצב מסך:
+        <button id="vpLoad" class="vpbtn active" title="גובה viewport בטעינה — סרגל הכתובת גלוי (המצב הגרוע)">טעינה · סרגל גלוי</button>
+        <button id="vpFull" class="vpbtn" title="גובה viewport אחרי גלילה — סרגל הכתובת מוסתר">גלילה · סרגל מוסתר</button>
+      </div>
+      <div class="hint">המסכים מציגים את האתר החי בגבהים ריאליים. ב"טעינה" סרגל הכתובת גלוי (גובה נמוך) — כך שזה משקף מה שרואים כשפותחים את הדף בטלפון. הזום ויזואלי בלבד.</div>
     </div>
     <div class="frames" id="frames"></div>
   </main>
 
 <script>
+// Each device has two real heights: hLoad = browser UI visible (small/dynamic
+// viewport on first load — the worst case where fixed-px elements overlap lower
+// content), hFull = after scroll when the URL bar hides (large viewport).
 const DEVICES = [
-  { id:"360", w:360, h:780, label:"360×780" },
-  { id:"390", w:390, h:844, label:"390×844 · iPhone" },
-  { id:"414", w:414, h:896, label:"414×896" },
+  { id:"360", w:360, hLoad:640, hFull:780, label:"360 · Android" },
+  { id:"390", w:390, hLoad:704, hFull:844, label:"390 · iPhone" },
+  { id:"414", w:414, hLoad:756, hFull:896, label:"414 · iPhone+" },
 ];
+let vpMode = "load"; // "load" (URL bar visible) | "full" (scrolled)
+function devH(d){ return vpMode === "load" ? d.hLoad : d.hFull; }
 
 const VIEWS = {
   landing: {
@@ -414,6 +426,9 @@ $("rstDev").onclick = resetDev;
 $("rstAll").onclick = resetAll;
 $("copy").onclick = () => { $("out").select(); document.execCommand("copy"); $("copy").textContent="הועתק ✓"; setTimeout(()=>$("copy").textContent="העתק ערכים",1200); };
 $("zoom").addEventListener("input", () => { zoom = parseFloat($("zoom").value); $("zoomv").textContent = Math.round(zoom*100)+"%"; buildFrames(); markActiveFrames(); });
+function setVpMode(m){ vpMode = m; $("vpLoad").classList.toggle("active", m==="load"); $("vpFull").classList.toggle("active", m==="full"); buildFrames(); markActiveFrames(); }
+$("vpLoad").onclick = () => setVpMode("load");
+$("vpFull").onclick = () => setVpMode("full");
 
 buildTabs(); buildEls(); buildFrames(); refreshActiveUI(); updateOut();
 </script>
