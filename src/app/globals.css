@@ -404,17 +404,17 @@ body {
 @media (max-width: 374px) {
   .m-wa-label    { translate: 0 5px; scale: 1.04; }
   .m-wa-icon     { translate: -10px -3px; scale: 1.51; }
-  .m-catalog-btn { top: 29dvh; translate: 15px 0; scale: 1.28; }
+  .m-catalog-btn { top: 29dvh; translate: 15px -17px; scale: 1.28; }
 }
 @media (min-width: 375px) and (max-width: 413px) {
   .m-wa-label    { translate: 31px 5px; }
   .m-wa-icon     { translate: -27px -7px; scale: 1.37; }
-  .m-catalog-btn { top: 29.7dvh; translate: 31px 0; scale: 1.27; }
+  .m-catalog-btn { top: 29.7dvh; translate: 31px -25px; scale: 1.27; }
 }
 @media (min-width: 414px) and (max-width: 767px) {
   .m-wa-label    { translate: 55px 5px; }
   .m-wa-icon     { translate: -49px -5px; scale: 1.51; }
-  .m-catalog-btn { top: 30dvh; translate: 49px 0; scale: 1.22; }
+  .m-catalog-btn { top: 30dvh; translate: 49px -21px; scale: 1.22; }
 }
 
 /* ─── Calibrated mobile placement — catalog card ───  (via /mobile-tuner.html)
