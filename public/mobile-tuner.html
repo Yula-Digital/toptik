@@ -308,25 +308,25 @@ function buildFrames() {
     screen.className = "screen" + (d.id === activeDevice ? " active" : "");
     screen.id = `screen-${d.id}`;
     screen.style.width = (d.w * zoom) + "px";
-    screen.style.height = (d.h * zoom) + "px";
+    screen.style.height = (devH(d) * zoom) + "px";
     screen.onclick = () => { activeDevice = d.id; refreshActiveUI(); markActiveFrames(); };
 
     const iframe = document.createElement("iframe");
     iframe.id = `fr-${activeView}-${d.id}`;
     iframe.src = cfg.url;
-    iframe.width = d.w; iframe.height = d.h;
+    iframe.width = d.w; iframe.height = devH(d);
     iframe.style.width = d.w + "px";
-    iframe.style.height = d.h + "px";
+    iframe.style.height = devH(d) + "px";
     iframe.style.transform = `scale(${zoom})`;
     iframe.style.transformOrigin = "top left";
     iframe.onload = () => frameReady(activeView, d.id, iframe);
 
     const badge = document.createElement("div");
-    badge.className = "badge"; badge.dir = "ltr"; badge.textContent = `${d.w}×${d.h}`;
+    badge.className = "badge"; badge.dir = "ltr"; badge.textContent = `${d.w}×${devH(d)}`;
     const loading = document.createElement("div");
     loading.className = "loading"; loading.textContent = "טוען…";
     loading.style.transform = `scale(${zoom})`; loading.style.transformOrigin = "top left";
-    loading.style.width = d.w+"px"; loading.style.height = d.h+"px";
+    loading.style.width = d.w+"px"; loading.style.height = devH(d)+"px";
 
     screen.appendChild(iframe);
     screen.appendChild(badge);
