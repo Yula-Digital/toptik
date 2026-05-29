@@ -425,20 +425,23 @@ body {
   .catalog-card            { translate: 2px 0; scale: 1.04; }
   .catalog-card-image-wrap { translate: 0 3px; scale: 1.01; }
   .catalog-card-body       { translate: 0 -29px; scale: 1.01; }
-  .catalog-card-colors     { translate: 0 -99px; }
-  .catalog-card-tech-btn   { translate: 0 38px; }
+  .catalog-card-cta        { translate: -39px 10px; scale: 1.83; }
+  .catalog-card-colors     { translate: -3px 2px; scale: 0.86; }
+  .catalog-card-tech-btn   { translate: 0 5px; }
 }
 @media (min-width: 375px) and (max-width: 413px) {
   .catalog-card            { translate: 2px 1px; scale: 1.05; }
   .catalog-card-body       { translate: 0 -31px; }
-  .catalog-card-colors     { translate: 0 -112px; }
-  .catalog-card-tech-btn   { translate: 0 52px; }
+  .catalog-card-cta        { translate: -40px 12px; scale: 2.07; }
+  .catalog-card-colors     { translate: -3px 1px; scale: 0.88; }
+  .catalog-card-tech-btn   { translate: 0 18px; }
 }
 @media (min-width: 414px) and (max-width: 767px) {
   .catalog-card            { translate: 3px 0; scale: 1.04; }
   .catalog-card-body       { translate: 0 -32px; }
-  .catalog-card-colors     { translate: 0 -123px; }
-  .catalog-card-tech-btn   { translate: 0 49px; }
+  .catalog-card-cta        { translate: -44px 13px; scale: 2.13; }
+  .catalog-card-colors     { translate: -2px 0; scale: 0.90; }
+  .catalog-card-tech-btn   { translate: 0 21px; }
 }
 
 /* ─────── MOBILE LANDSCAPE (phones turned sideways) ───────
