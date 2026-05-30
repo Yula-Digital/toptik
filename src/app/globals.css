@@ -2588,12 +2588,13 @@ body {
 .store-nav-btn:active { transform: scale(0.96); }
 
 .store-nav-btn--google {
-  background: #4285f4;
-  color: #fff;
+  background: #2a1606;
+  color: #f1e5d3;
 }
 .store-nav-btn--waze {
-  background: #05c8f7;
-  color: #1a1a1a;
+  background: transparent;
+  color: #2a1606;
+  border: 1.5px solid #2a1606;
 }
 
 @media (max-width: 640px) {
