@@ -2,11 +2,11 @@ import Image from "next/image";
 import homePageImage from "../../images/images_from_mandarina/Home_page.png";
 import MobileLayer from "./MobileLayer";
 import { HomeToCarouselCta } from "@/components/carousel/HomeToCarouselCta";
+import { InfoMenu } from "@/components/InfoMenu";
 import { isCarouselEnabled } from "@/lib/carousel/feature-flag";
 
 const navItems = [
   { href: "#deals", label: "מבצעים" },
-  { href: "#about", label: "אודותינו" },
   { href: "#stores", label: "סניפים" },
 ];
 
@@ -85,6 +85,7 @@ export default function Home() {
                 {item.label}
               </a>
             ))}
+            <InfoMenu variant="desktop" />
           </nav>
 
           <div className="cta-actions">

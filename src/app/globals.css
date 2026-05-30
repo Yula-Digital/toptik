@@ -177,11 +177,12 @@ body {
     border-bottom: 1px solid rgba(31, 39, 49, 0.06);
   }
   .m-menu.is-open {
-    max-height: 360px;
+    max-height: calc(100dvh - 80px);
     padding-top: 14px;
     padding-bottom: 22px;
     opacity: 1;
     pointer-events: auto;
+    overflow-y: auto;
   }
   .m-menu nav {
     display: flex;
@@ -2243,4 +2244,232 @@ body {
 @media (max-width: 767px) {
   .catalog-card-cta--icon .catalog-card-cta-icon { width: 30px; height: 30px; }
   .product-modal-cycle-icon { width: 46px; }
+}
+
+/* ─────── Info menu links + modal (legal/about/privacy/accessibility) ─────── */
+
+/* Desktop: nav link styled to match existing navbar anchors */
+.navbar-info-link {
+  font-family: var(--font-assistant), var(--font-rubik), sans-serif;
+  font-size: clamp(13px, 1.15vw, 16px);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  padding: 6px 2px;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s ease;
+}
+.navbar-info-link::after {
+  content: "";
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 1px;
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: center;
+  transition: transform 0.25s ease;
+}
+.navbar-info-link:hover { color: #8a6a2d; }
+.navbar-info-link:hover::after { transform: scaleX(1); }
+
+/* Mobile: button styled like the existing burger-menu anchors */
+.m-menu-info-link {
+  font-family: var(--font-assistant), var(--font-rubik), sans-serif;
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  text-align: start;
+  padding: 14px 8px;
+  border-radius: 8px;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  width: 100%;
+}
+.m-menu-info-link:active { background: rgba(31, 39, 49, 0.06); }
+
+/* Modal backdrop + container */
+.info-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 22, 6, 0.55);
+  backdrop-filter: blur(6px) saturate(1.05);
+  -webkit-backdrop-filter: blur(6px) saturate(1.05);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  animation: info-modal-fade 0.18s ease-out;
+}
+@keyframes info-modal-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.info-modal {
+  background: #fdf8ee;
+  color: #2a1606;
+  width: min(720px, 100%);
+  max-height: 88vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  border-radius: 14px;
+  padding: 40px 44px 36px;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.12);
+  position: relative;
+  font-family: var(--font-assistant), var(--font-rubik), sans-serif;
+  line-height: 1.75;
+  font-size: 16px;
+  scrollbar-color: rgba(58, 34, 8, 0.4) transparent;
+}
+.info-modal::-webkit-scrollbar { width: 10px; }
+.info-modal::-webkit-scrollbar-thumb {
+  background: rgba(58, 34, 8, 0.3);
+  border-radius: 8px;
+}
+
+.info-modal-close {
+  position: absolute;
+  top: 12px;
+  inset-inline-start: 14px;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: 0;
+  color: #3a2208;
+  font-size: 20px;
+  font-weight: 400;
+  cursor: pointer;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease;
+  line-height: 1;
+}
+.info-modal-close:hover {
+  background: rgba(58, 34, 8, 0.1);
+  color: #2a1606;
+}
+
+.info-modal-title {
+  font-family: var(--font-italiana), var(--font-assistant), serif;
+  font-size: 30px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  margin: 0 0 6px;
+  padding-inline-end: 48px;
+  color: #2a1606;
+  line-height: 1.2;
+}
+
+.info-modal-body {
+  color: #3a2208;
+}
+
+.info-modal-body h2 {
+  font-family: var(--font-assistant), sans-serif;
+  font-size: 18px;
+  font-weight: 700;
+  color: #2a1606;
+  margin: 28px 0 10px;
+  letter-spacing: 0.01em;
+  border-bottom: 1px solid rgba(58, 34, 8, 0.18);
+  padding-bottom: 6px;
+}
+.info-modal-body h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #2a1606;
+  margin: 18px 0 6px;
+}
+.info-modal-body p {
+  margin: 0 0 12px;
+}
+.info-modal-body p.info-modal-lede {
+  margin: 0 0 18px;
+  padding: 14px 16px;
+  background: rgba(58, 34, 8, 0.06);
+  border-inline-start: 3px solid #5a3a0c;
+  border-radius: 6px;
+  font-size: 15px;
+}
+.info-modal-body ul,
+.info-modal-body ol {
+  padding-inline-start: 0;
+  padding-inline-end: 26px;
+  margin: 8px 0 16px;
+}
+.info-modal-body ul { list-style: disc; }
+.info-modal-body ol { list-style: decimal; }
+.info-modal-body li {
+  margin-bottom: 8px;
+}
+.info-modal-body a {
+  color: #5a3a0c;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-word;
+}
+.info-modal-body a:hover { color: #8a6a2d; }
+.info-modal-body strong { color: #2a1606; font-weight: 700; }
+.info-modal-body em { font-style: italic; color: #2a1606; }
+
+.info-modal-table-wrap {
+  overflow-x: auto;
+  margin: 12px 0 18px;
+  border-radius: 8px;
+  border: 1px solid rgba(58, 34, 8, 0.2);
+}
+.info-modal-body table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  background: rgba(58, 34, 8, 0.02);
+}
+.info-modal-body th,
+.info-modal-body td {
+  padding: 8px 10px;
+  text-align: center;
+  border-bottom: 1px solid rgba(58, 34, 8, 0.15);
+  border-inline-end: 1px solid rgba(58, 34, 8, 0.1);
+}
+.info-modal-body th:last-child,
+.info-modal-body td:last-child { border-inline-end: 0; }
+.info-modal-body tr:last-child td { border-bottom: 0; }
+.info-modal-body th {
+  background: rgba(58, 34, 8, 0.1);
+  font-weight: 700;
+  color: #2a1606;
+  font-size: 12.5px;
+}
+.info-modal-body td:first-child {
+  text-align: start;
+  font-weight: 600;
+  color: #2a1606;
+}
+
+/* Mobile sizing — keep the modal usable on small screens */
+@media (max-width: 640px) {
+  .info-modal-backdrop { padding: 12px; }
+  .info-modal {
+    padding: 30px 20px 24px;
+    border-radius: 12px;
+    font-size: 15px;
+    max-height: 92vh;
+  }
+  .info-modal-title { font-size: 24px; padding-inline-end: 42px; }
+  .info-modal-body h2 { font-size: 16px; margin-top: 22px; }
+  .info-modal-body h3 { font-size: 15px; }
+  .info-modal-body p.info-modal-lede { font-size: 14px; padding: 12px 14px; }
+  .info-modal-body table { font-size: 12px; }
+  .info-modal-body th,
+  .info-modal-body td { padding: 6px 8px; }
 }

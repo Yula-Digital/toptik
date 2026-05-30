@@ -4,12 +4,12 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import catalogButton from "../../images/cataloge_bottun.svg";
+import { InfoMenu } from "@/components/InfoMenu";
 
 const catalogButtonUrl = typeof catalogButton === "string" ? catalogButton : catalogButton.src;
 
 const navItems = [
   { href: "#deals", label: "מבצעים" },
-  { href: "#about", label: "אודותינו" },
   { href: "#stores", label: "סניפים" },
 ];
 
@@ -115,6 +115,7 @@ export default function MobileLayer({ isCarouselEnabled = true }: MobileLayerPro
               {item.label}
             </a>
           ))}
+          <InfoMenu variant="mobile" onItemSelect={() => setOpen(false)} />
         </nav>
       </div>
 
