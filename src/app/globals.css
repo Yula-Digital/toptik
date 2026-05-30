@@ -1405,6 +1405,76 @@ body {
   background: #f8f1e6;
   color: var(--ink);
   padding: 18px;
+  position: relative;
+}
+
+/* Invisible touch zone in the top-left corner — secret entrance */
+.admin-secret-zone {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  cursor: default;
+  z-index: 100;
+}
+.admin-secret-zone:focus-visible {
+  outline: 2px dashed rgba(31, 39, 49, 0.25);
+  outline-offset: -2px;
+}
+
+.admin-secret-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(31, 22, 6, 0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.admin-secret-modal {
+  background: #fdfaf4;
+  border: 1px solid rgba(31, 39, 49, 0.18);
+  border-radius: 12px;
+  padding: 22px;
+  width: min(360px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.25);
+}
+.admin-secret-modal input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(31, 39, 49, 0.28);
+  border-radius: 8px;
+  font-size: 16px;
+  background: #fff;
+  color: #1f2731;
+  direction: ltr;
+}
+.admin-secret-modal button {
+  background: #1f2731;
+  color: #fff;
+  border: 0;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.admin-secret-modal button:hover { background: #2a3340; }
+.admin-secret-status {
+  font-size: 13px;
+  color: #8f2c2c;
+  text-align: center;
 }
 
 .admin-header {

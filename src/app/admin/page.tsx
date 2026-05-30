@@ -45,6 +45,7 @@ export default function AdminPage() {
     message: string;
   } | null>(null);
   const [importPreviews, setImportPreviews] = useState<ImportPreview[]>([]);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   function resolveErrorMessage(error: unknown, fallback: string) {
     if (error instanceof Error && error.message) return error.message;
@@ -490,33 +491,65 @@ export default function AdminPage() {
 
   return (
     <main className="admin-page">
-      <header className="admin-header">
-        <h1>TOPTIK Admin</h1>
-        <Link href="/" className="admin-back-link">
-          חזרה לבית
-        </Link>
-      </header>
-
-      <section className="admin-auth">
-        <label>
-          Admin Token
-          <input
-            type="password"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="הזן ADMIN_PANEL_TOKEN"
+      {!authReady && (
+        <>
+          <button
+            type="button"
+            className="admin-secret-zone"
+            aria-label="כניסת אדמין"
+            onClick={() => setShowLoginPrompt(true)}
           />
-        </label>
-        <button
-          onClick={() => {
-            window.localStorage.setItem(STORAGE_KEY, token);
-            loadData(token);
-          }}
-        >
-          התחבר
-        </button>
-        <div className="admin-status">{status}</div>
-      </section>
+          {showLoginPrompt && (
+            <div
+              className="admin-secret-backdrop"
+              role="dialog"
+              aria-modal="true"
+              onClick={() => setShowLoginPrompt(false)}
+            >
+              <div
+                className="admin-secret-modal"
+                onClick={(e) => e.stopPropagation()}
+                dir="rtl"
+              >
+                <input
+                  type="password"
+                  value={token}
+                  autoFocus
+                  onChange={(e) => setToken(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      window.localStorage.setItem(STORAGE_KEY, token);
+                      loadData(token);
+                    }
+                  }}
+                  placeholder="סיסמה"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    window.localStorage.setItem(STORAGE_KEY, token);
+                    loadData(token);
+                  }}
+                >
+                  כניסה
+                </button>
+                {status && status !== "מחובר" && (
+                  <div className="admin-secret-status">{status}</div>
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {authReady && (
+        <header className="admin-header">
+          <h1>TOPTIK Admin</h1>
+          <Link href="/" className="admin-back-link">
+            חזרה לבית
+          </Link>
+        </header>
+      )}
 
       {authReady && (
         <>
