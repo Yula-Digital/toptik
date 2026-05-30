@@ -150,14 +150,16 @@ export function ProductModal({
                   if (event.key === "Enter" || event.key === " ") onNextAngle();
                 }}
               >
-                <Image
-                  src={trimmedProductSrc(activeAngle?.imagePath ?? "")}
-                  alt={`${item.title} - ${activeAngle?.angleKey ?? "view"}`}
-                  width={1600}
-                  height={1600}
-                  sizes="(max-width: 767px) 90vw, 55vw"
-                  className="product-modal-image"
-                />
+                {(activeAngle?.imagePath || item.coverImagePath) && (
+                  <Image
+                    src={trimmedProductSrc(activeAngle?.imagePath || item.coverImagePath)}
+                    alt={`${item.title} - ${activeAngle?.angleKey ?? "view"}`}
+                    width={1600}
+                    height={1600}
+                    sizes="(max-width: 767px) 90vw, 55vw"
+                    className="product-modal-image"
+                  />
+                )}
                 <div className="product-modal-cycle-btn product-modal-cycle-btn--icon" aria-label="לזוויות נוספות דפדפו">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src="/360.png" alt="" aria-hidden="true" className="product-modal-cycle-icon" />
