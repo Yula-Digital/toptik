@@ -404,17 +404,23 @@ body {
 @media (max-width: 374px) {
   .m-wa-label    { translate: 0 5px; scale: 1.04; }
   .m-wa-icon     { translate: -10px -3px; scale: 1.51; }
-  .m-catalog-btn { top: 29dvh; translate: 15px -17px; scale: 1.28; }
+  .m-catalog-btn { top: 29dvh; translate: 92px 294px; scale: 0.91; }
+  .m-bb-toptik-img    { translate: -5px 4px; }
+  .m-bb-mandarina-img { translate: -5px -2px; }
 }
 @media (min-width: 375px) and (max-width: 413px) {
   .m-wa-label    { translate: 31px 5px; }
   .m-wa-icon     { translate: -27px -7px; scale: 1.37; }
-  .m-catalog-btn { top: 29.7dvh; translate: 31px -25px; scale: 1.27; }
+  .m-catalog-btn { top: 29.7dvh; translate: 109px 331px; scale: 0.98; }
+  .m-bb-toptik-img    { translate: -25px 0; scale: 1.04; }
+  .m-bb-mandarina-img { translate: -27px -6px; }
 }
 @media (min-width: 414px) and (max-width: 767px) {
   .m-wa-label    { translate: 55px 5px; }
   .m-wa-icon     { translate: -49px -5px; scale: 1.51; }
-  .m-catalog-btn { top: 30dvh; translate: 49px -21px; scale: 1.22; }
+  .m-catalog-btn { top: 30dvh; translate: 117px 344px; scale: 0.94; }
+  .m-bb-toptik-img    { translate: -29px 3px; }
+  .m-bb-mandarina-img { translate: -26px -1px; }
 }
 
 /* ─── Calibrated mobile placement — catalog card ───  (via /mobile-tuner.html)
