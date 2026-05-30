@@ -14,11 +14,8 @@ type Props = {
 
 export function InfoMenu({ variant, onItemSelect }: Props) {
   const [openId, setOpenId] = useState<DocId | null>(null);
-  const [mounted, setMounted] = useState(false);
 
   const close = useCallback(() => setOpenId(null), []);
-
-  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!openId) return;
@@ -46,7 +43,7 @@ export function InfoMenu({ variant, onItemSelect }: Props) {
   // transform / backdrop-filter / overflow:hidden — those would otherwise
   // re-root position:fixed and clip the modal mid-content.
   const modal =
-    openId && mounted
+    openId && typeof document !== "undefined"
       ? createPortal(
           <div
             className="info-modal-backdrop"

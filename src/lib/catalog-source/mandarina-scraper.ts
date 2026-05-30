@@ -318,12 +318,6 @@ function extractTitle(html: string) {
   return "Mandarina Duck Product";
 }
 
-function extractDescription(html: string) {
-  const metaMatch = html.match(/<meta[^>]*name="description"[^>]*content="([^"]+)"/i);
-  if (metaMatch?.[1]) return metaMatch[1].trim();
-  return null;
-}
-
 function extractProductFromPage(
   catalogNumber: string,
   productUrl: string,
