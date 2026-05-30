@@ -7,7 +7,6 @@ import { isCarouselEnabled } from "@/lib/carousel/feature-flag";
 
 const navItems = [
   { href: "#deals", label: "מבצעים" },
-  { href: "#stores", label: "סניפים" },
 ];
 
 const bbCategories = [

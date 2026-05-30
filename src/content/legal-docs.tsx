@@ -3,11 +3,102 @@
 
 import type { ReactNode } from "react";
 
-export type DocId = "accessibility" | "terms" | "privacy" | "about";
+export type DocId = "stores" | "accessibility" | "terms" | "privacy" | "about";
 
-export const DOC_ORDER: DocId[] = ["accessibility", "terms", "privacy", "about"];
+export const DOC_ORDER: DocId[] = ["stores", "accessibility", "terms", "privacy", "about"];
 
 type Doc = { title: string; body: ReactNode };
+
+const storesData = [
+  {
+    id: "tlv-weizmann",
+    name: "תל אביב — מרכז ויצמן",
+    address: "מרכז ויצמן, צמוד לבית חולים איכילוב, תל אביב",
+    phone: "03-6958888",
+    phoneRaw: "036958888",
+    hours: "א׳–ה׳: 10:00–19:00 · ו׳: 10:00–14:00 · שבת: סגור",
+    mapQuery: "מרכז ויצמן תל אביב",
+  },
+  {
+    id: "tlv-gan-hair",
+    name: "גן העיר — אבן גבירול",
+    address: "רח׳ אבן גבירול 71, צמוד לבנק לאומי, תל אביב",
+    phone: "03-5097701",
+    phoneRaw: "035097701",
+    hours: "א׳–ה׳: 10:00–19:00 · ו׳: 10:00–14:00 · שבת: סגור",
+    mapQuery: "אבן גבירול 71 תל אביב",
+  },
+  {
+    id: "ramat-aviv",
+    name: "שוסטר רמת אביב ג׳",
+    address: "אבא אחימאיר 15, רמת אביב ג׳, תל אביב",
+    phone: "03-6415689",
+    phoneRaw: "036415689",
+    hours: "א׳–ה׳: 10:00–19:00 · ו׳: 10:00–14:00 · שבת: סגור",
+    mapQuery: "אבא אחימאיר 15 תל אביב",
+  },
+  {
+    id: "netanya",
+    name: "נתניה — ביג סיטי פולג",
+    address: "גיבורי ישראל 5, קומה 2, נתניה",
+    phone: "09-8855594",
+    phoneRaw: "098855594",
+    hours: "א׳–ה׳: 10:00–21:00 · ו׳: 10:00–15:00 · שבת: 10:00–21:00",
+    mapQuery: "גיבורי ישראל 5 נתניה ביג סיטי",
+  },
+];
+
+const StoresBody = (
+  <>
+    {storesData.map((store) => (
+      <div key={store.id} className="store-card">
+        <div className="store-card-map">
+          <iframe
+            src={`https://maps.google.com/maps?q=${encodeURIComponent(store.mapQuery)}&output=embed&hl=he&z=16`}
+            title={`מפה: ${store.name}`}
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+          />
+        </div>
+        <div className="store-card-info">
+          <h2 className="store-card-name">{store.name}</h2>
+          <address className="store-card-address">{store.address}</address>
+          <a href={`tel:${store.phoneRaw}`} className="store-card-phone">
+            {store.phone}
+          </a>
+          <div className="store-card-hours">
+            <strong>שעות פתיחה</strong>
+            <span>{store.hours}</span>
+          </div>
+          <div className="store-nav-btns">
+            <a
+              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.mapQuery)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="store-nav-btn store-nav-btn--google"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5S10.62 6.5 12 6.5s2.5 1.12 2.5 2.5S13.38 11.5 12 11.5z"/>
+              </svg>
+              נווט עם Google
+            </a>
+            <a
+              href={`https://waze.com/ul?q=${encodeURIComponent(store.mapQuery)}&navigate=yes`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="store-nav-btn store-nav-btn--waze"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 2L4.5 20.29l.71.71L12 18l6.79 3 .71-.71z"/>
+              </svg>
+              נווט עם Waze
+            </a>
+          </div>
+        </div>
+      </div>
+    ))}
+  </>
+);
 
 const AccessibilityBody = (
   <>
@@ -486,6 +577,7 @@ const AboutBody = (
 );
 
 export const DOCS: Record<DocId, Doc> = {
+  stores: { title: "סניפים", body: StoresBody },
   accessibility: { title: "נגישות בחנויות", body: AccessibilityBody },
   terms: { title: "תקנון", body: TermsBody },
   privacy: { title: "מדיניות פרטיות", body: PrivacyBody },

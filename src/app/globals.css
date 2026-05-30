@@ -2482,3 +2482,128 @@ body {
   .info-modal-body th,
   .info-modal-body td { padding: 6px 8px; }
 }
+
+/* ─────── Stores modal — branch cards ─────── */
+.store-card {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 18px 22px;
+  background: rgba(42, 22, 6, 0.04);
+  border: 1px solid rgba(58, 34, 8, 0.14);
+  border-radius: 12px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+.store-card:last-child { margin-bottom: 0; }
+
+.store-card-map {
+  border-radius: 8px;
+  overflow: hidden;
+  height: 190px;
+  flex-shrink: 0;
+}
+.store-card-map iframe {
+  width: 100%;
+  height: 100%;
+  border: none;
+  display: block;
+}
+
+.store-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.store-card-name {
+  font-family: var(--font-italiana), serif;
+  font-size: 20px;
+  color: #2a1606;
+  margin: 0 0 3px;
+  line-height: 1.2;
+  font-weight: 400;
+}
+
+.store-card-address {
+  font-style: normal;
+  color: #3a2208;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.store-card-phone {
+  color: #5a3a0c;
+  font-weight: 700;
+  font-size: 15px;
+  text-decoration: none;
+  direction: ltr;
+  display: inline-block;
+  align-self: flex-start;
+}
+.store-card-phone:hover { text-decoration: underline; }
+
+.store-card-hours {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+  color: #4a2e0a;
+  background: rgba(42, 22, 6, 0.07);
+  border-radius: 6px;
+  padding: 7px 10px;
+  margin-top: 2px;
+  line-height: 1.55;
+}
+.store-card-hours strong {
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #2a1606;
+}
+
+.store-nav-btns {
+  display: flex;
+  gap: 8px;
+  margin-top: auto;
+  padding-top: 10px;
+  flex-wrap: wrap;
+}
+
+.store-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 15px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--font-assistant), sans-serif;
+  text-decoration: none;
+  transition: opacity 0.18s, transform 0.1s;
+  white-space: nowrap;
+  line-height: 1;
+}
+.store-nav-btn:hover { opacity: 0.85; }
+.store-nav-btn:active { transform: scale(0.96); }
+
+.store-nav-btn--google {
+  background: #4285f4;
+  color: #fff;
+}
+.store-nav-btn--waze {
+  background: #05c8f7;
+  color: #1a1a1a;
+}
+
+@media (max-width: 640px) {
+  .store-card {
+    grid-template-columns: 1fr;
+    gap: 14px;
+    padding: 14px;
+    margin-bottom: 14px;
+  }
+  .store-card-map { height: 190px; }
+  .store-card-name { font-size: 18px; }
+  .store-nav-btn { font-size: 12px; padding: 7px 12px; }
+}

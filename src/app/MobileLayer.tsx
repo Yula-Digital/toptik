@@ -10,7 +10,6 @@ const catalogButtonUrl = typeof catalogButton === "string" ? catalogButton : cat
 
 const navItems = [
   { href: "#deals", label: "מבצעים" },
-  { href: "#stores", label: "סניפים" },
 ];
 
 const categories = [
