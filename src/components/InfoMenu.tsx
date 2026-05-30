@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useCallback, useState } from "react";
+import { createPortal } from "react-dom";
 import { DOCS, DOC_ORDER, type DocId } from "@/content/legal-docs";
 
 type Variant = "desktop" | "mobile";
@@ -13,8 +14,11 @@ type Props = {
 
 export function InfoMenu({ variant, onItemSelect }: Props) {
   const [openId, setOpenId] = useState<DocId | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   const close = useCallback(() => setOpenId(null), []);
+
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
     if (!openId) return;
@@ -38,6 +42,40 @@ export function InfoMenu({ variant, onItemSelect }: Props) {
   const linkClass =
     variant === "mobile" ? "m-menu-info-link" : "navbar-info-link";
 
+  // Portal the modal to <body> so it escapes any ancestor with
+  // transform / backdrop-filter / overflow:hidden — those would otherwise
+  // re-root position:fixed and clip the modal mid-content.
+  const modal =
+    openId && mounted
+      ? createPortal(
+          <div
+            className="info-modal-backdrop"
+            role="dialog"
+            aria-modal="true"
+            aria-label={DOCS[openId].title}
+            onClick={close}
+          >
+            <div
+              className="info-modal"
+              dir="rtl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <button
+                type="button"
+                className="info-modal-close"
+                onClick={close}
+                aria-label="סגור"
+              >
+                ✕
+              </button>
+              <h1 className="info-modal-title">{DOCS[openId].title}</h1>
+              <div className="info-modal-body">{DOCS[openId].body}</div>
+            </div>
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <>
       {DOC_ORDER.map((id) => (
@@ -50,33 +88,7 @@ export function InfoMenu({ variant, onItemSelect }: Props) {
           {DOCS[id].title}
         </button>
       ))}
-
-      {openId && (
-        <div
-          className="info-modal-backdrop"
-          role="dialog"
-          aria-modal="true"
-          aria-label={DOCS[openId].title}
-          onClick={close}
-        >
-          <div
-            className="info-modal"
-            dir="rtl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              type="button"
-              className="info-modal-close"
-              onClick={close}
-              aria-label="סגור"
-            >
-              ✕
-            </button>
-            <h1 className="info-modal-title">{DOCS[openId].title}</h1>
-            <div className="info-modal-body">{DOCS[openId].body}</div>
-          </div>
-        </div>
-      )}
+      {modal}
     </>
   );
 }
