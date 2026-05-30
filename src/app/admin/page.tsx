@@ -31,8 +31,6 @@ export default function AdminPage() {
   const [payload, setPayload] = useState<CarouselPayload>(fallbackCarouselPayload);
   const [status, setStatus] = useState<string>("טוען...");
   const [isSaving, setIsSaving] = useState(false);
-  const [catalogNumber, setCatalogNumber] = useState("");
-  const [isImporting, setIsImporting] = useState(false);
   const [batchCatalogInputs, setBatchCatalogInputs] = useState<string[]>(
     Array.from({ length: BATCH_IMPORT_INITIAL }, () => ""),
   );
@@ -271,58 +269,6 @@ export default function AdminPage() {
     }
   }
 
-  async function onImportByCatalog() {
-    if (!catalogNumber.trim()) {
-      setStatus("יש להזין מספר קטלוגי");
-      setImportFeedback({
-        tone: "error",
-        message: "יש להזין מספר קטלוגי ליבוא.",
-      });
-      return;
-    }
-
-    try {
-      setIsImporting(true);
-      setStatus("מייבא מוצר לפי מספר קטלוגי...");
-      setImportFeedback({
-        tone: "info",
-        message: "מתבצע ייבוא, נא להמתין...",
-      });
-      const data = await importCatalogNumberFromSource(catalogNumber);
-
-      setPayload((current) => {
-        return upsertImportedItem(current, data).next;
-      });
-
-      setStatus(
-        `ייבוא הושלם: ${data.source.catalogNumber} עם ${data.source.importedImages} תמונות. לחץ "שמור הכל" לקיבוע.`,
-      );
-      setImportFeedback({
-        tone: "success",
-        message: `הייבוא הצליח: ${data.source.catalogNumber} (${data.source.importedImages} תמונות). עכשיו לחץ שמור הכל.`,
-      });
-      setImportPreviews((current) => [
-        {
-          id: crypto.randomUUID(),
-          title: data.item.title,
-          coverImagePath: data.item.coverImagePath,
-          catalogNumber: data.source.catalogNumber,
-        },
-        ...current,
-      ].slice(0, 8));
-      setCatalogNumber("");
-    } catch (error) {
-      const message = resolveErrorMessage(error, "שגיאת ייבוא לפי מספר קטלוגי");
-      setStatus(message);
-      setImportFeedback({
-        tone: "error",
-        message,
-      });
-    } finally {
-      setIsImporting(false);
-    }
-  }
-
   async function onBatchImportAndSave() {
     const normalizedRows = batchCatalogInputs.map((value, index) => ({
       index,
@@ -500,7 +446,7 @@ export default function AdminPage() {
           <section className="admin-batch-import">
             <div className="admin-items-head">
               <h2>ייבוא מרובה לפי מק״טים</h2>
-              <button onClick={onBatchImportAndSave} disabled={isBatchImporting || isSaving || isImporting}>
+              <button onClick={onBatchImportAndSave} disabled={isBatchImporting || isSaving}>
                 {isBatchImporting ? "מייבא ושומר..." : "ייבא ושמור הכל"}
               </button>
             </div>
@@ -620,56 +566,32 @@ export default function AdminPage() {
             </label>
           </section>
 
-          <section className="admin-import">
-            <h2>ייבוא אוטומטי מ-Mandarina Duck</h2>
-            <div className="admin-import-prompt">הכנס מספר קטלוגי ליבוא</div>
-            <div className="admin-import-row">
-              <label className="admin-import-field">
-                <span>מספר קטלוגי</span>
-                <input
-                  value={catalogNumber}
-                  onChange={(e) => setCatalogNumber(e.target.value)}
-                  placeholder="הכנס מספר קטלוגי ליבוא"
-                />
-              </label>
-              <div className="admin-import-actions">
-                <button onClick={onImportByCatalog} disabled={isImporting || isSaving || isBatchImporting}>
-                  {isImporting ? "מייבא..." : "ייבא לפי מספר קטלוגי"}
-                </button>
-                <button className="admin-save-inline-btn" onClick={onSave} disabled={isSaving || isImporting || isBatchImporting}>
-                  {isSaving ? "שומר..." : "שמור הכל"}
-                </button>
-              </div>
+          {importFeedback && (
+            <div className={`admin-import-feedback admin-import-feedback-${importFeedback.tone}`}>
+              {importFeedback.message}
             </div>
-            <p className="admin-import-note">
-              דוגמה: <span dir="ltr">QMT32A74</span>. אחרי הייבוא לחץ &#34;שמור הכל&#34; כדי לקבע.
-            </p>
-            {importFeedback && (
-              <div className={`admin-import-feedback admin-import-feedback-${importFeedback.tone}`}>
-                {importFeedback.message}
-              </div>
-            )}
-            {importPreviews.length > 0 && (
-              <div className="admin-import-preview-list" aria-label="מוצרים שיובאו בהצלחה">
-                {importPreviews.map((preview) => (
-                  <div key={preview.id} className="admin-import-preview-item">
-                    {/* preview thumb helps identify imported product quickly */}
-                    <Image
-                      src={preview.coverImagePath}
-                      alt={preview.title}
-                      width={52}
-                      height={52}
-                      className="admin-import-preview-image"
-                    />
-                    <div className="admin-import-preview-meta">
-                      <div className="admin-import-preview-catalog">{preview.catalogNumber}</div>
-                      <div className="admin-import-preview-title">{preview.title}</div>
-                    </div>
+          )}
+
+          {importPreviews.length > 0 && (
+            <div className="admin-import-preview-list" aria-label="מוצרים שיובאו בהצלחה">
+              {importPreviews.map((preview) => (
+                <div key={preview.id} className="admin-import-preview-item">
+                  <Image
+                    src={preview.coverImagePath}
+                    alt={preview.title}
+                    width={52}
+                    height={52}
+                    className="admin-import-preview-image"
+                    unoptimized
+                  />
+                  <div className="admin-import-preview-meta">
+                    <div className="admin-import-preview-catalog">{preview.catalogNumber}</div>
+                    <div className="admin-import-preview-title">{preview.title}</div>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
+                </div>
+              ))}
+            </div>
+          )}
 
           <section className="admin-items">
             <div className="admin-items-head">
@@ -696,6 +618,13 @@ export default function AdminPage() {
                   }}
                 >
                   תיקון תמונות חסרות
+                </button>
+                <button
+                  className="admin-save-inline-btn"
+                  onClick={onSave}
+                  disabled={isSaving || isBatchImporting}
+                >
+                  {isSaving ? "שומר..." : "שמור הכל"}
                 </button>
                 <button onClick={addItem}>הוסף מוצר</button>
               </div>

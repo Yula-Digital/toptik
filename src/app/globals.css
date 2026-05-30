@@ -556,11 +556,12 @@ body {
   font-weight: 600;
 }
 
-/* Invisible touch zone in the top-right (RTL start) corner — secret admin entrance */
+/* Invisible touch zone in the top-left corner — secret admin entrance.
+   Desktop only — hidden on mobile so it never interferes with edge gestures. */
 .carousel-admin-secret-zone {
   position: fixed;
   top: 0;
-  right: 0;
+  left: 0;
   width: 36px;
   height: 36px;
   background: transparent;
@@ -569,6 +570,9 @@ body {
 .carousel-admin-secret-zone:focus-visible {
   outline: 2px dashed rgba(31, 39, 49, 0.25);
   outline-offset: -2px;
+}
+@media (max-width: 767px) {
+  .carousel-admin-secret-zone { display: none; }
 }
 
 .carousel-page-body {
