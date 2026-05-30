@@ -6,6 +6,10 @@ import { CarouselItem } from "@/lib/carousel/types";
 import type { ColorSwatch } from "@/lib/catalog-source/product-details";
 import { extractColorWord, COLOR_HEBREW } from "@/lib/carousel/color-groups";
 import { trimmedProductSrc } from "@/lib/carousel/trim-src";
+import { nextImageSrcset, nextImageUrl } from "@/lib/carousel/next-image";
+
+// The modal <Image> renders at this `sizes`, with next/image's default quality (75).
+const MODAL_IMAGE_SIZES = "(max-width: 767px) 90vw, 55vw";
 
 type ProductModalProps = {
   item: CarouselItem | null;
@@ -18,6 +22,58 @@ type ProductModalProps = {
   onOpenTechSpecs: (item: CarouselItem) => void;
 };
 
+// Preload every angle so switching inside the modal is instant.
+//
+// MOBILE: a responsive preload (imagesrcset + imagesizes identical to the modal
+// <Image>) resolves to the SAME /_next/image URL the browser renders, so it is a
+// real cache hit instead of a wasted parallel fetch at the wrong width/quality.
+// The active angle + its neighbours warm first; the long tail is deferred to idle
+// so a multi-angle product doesn't fire a request burst on a slow mobile network.
+//
+// DESKTOP: unchanged from the web-verified behaviour (single fixed w=1080 link).
+function preloadAngleImages(item: CarouselItem, activeIndex: number) {
+  if (typeof window === "undefined") return;
+  const angleCount = item.angles.length;
+  if (angleCount === 0) return;
+  const isMobile = window.matchMedia("(max-width: 767px)").matches;
+
+  // Visit order: active first, then nearest neighbours, then the rest.
+  const order = [...item.angles.keys()].sort((a, b) => {
+    const da = Math.min((a - activeIndex + angleCount) % angleCount, (activeIndex - a + angleCount) % angleCount);
+    const db = Math.min((b - activeIndex + angleCount) % angleCount, (activeIndex - b + angleCount) % angleCount);
+    return da - db;
+  });
+
+  const created: HTMLLinkElement[] = [];
+  const addPreload = (src: string, eager: boolean) => {
+    const link = document.createElement("link");
+    link.rel = "preload";
+    link.as = "image";
+    if (isMobile) {
+      link.setAttribute("imagesrcset", nextImageSrcset(src));
+      link.setAttribute("imagesizes", MODAL_IMAGE_SIZES);
+    } else {
+      link.href = nextImageUrl(src, 1080, 85);
+    }
+    link.setAttribute("fetchpriority", eager ? "high" : "low");
+    document.head.appendChild(link);
+    created.push(link);
+  };
+
+  const scheduleIdle =
+    (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback ??
+    ((cb: () => void) => window.setTimeout(cb, 300));
+
+  order.forEach((angleIdx, position) => {
+    const src = trimmedProductSrc(item.angles[angleIdx].imagePath);
+    const eager = position <= 2; // active + immediate neighbours
+    if (isMobile && !eager) scheduleIdle(() => addPreload(src, false));
+    else addPreload(src, eager);
+  });
+
+  window.setTimeout(() => created.forEach((link) => link.remove()), 30000);
+}
+
 export function ProductModal({
   item,
   activeAngleIndex,
@@ -29,6 +85,17 @@ export function ProductModal({
   onOpenTechSpecs,
 }: ProductModalProps) {
   const touchStartX = useRef<number | null>(null);
+  const warmedItemId = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!item) {
+      warmedItemId.current = null;
+      return;
+    }
+    if (warmedItemId.current === item.id) return;
+    warmedItemId.current = item.id;
+    preloadAngleImages(item, activeAngleIndex);
+  }, [item, activeAngleIndex]);
 
   useEffect(() => {
     if (!item) return;
