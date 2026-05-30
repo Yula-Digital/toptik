@@ -546,8 +546,7 @@ body {
   gap: 10px;
 }
 
-.carousel-back-link,
-.carousel-admin-link {
+.carousel-back-link {
   text-decoration: none;
   color: var(--ink);
   border: 1px solid rgba(31, 39, 49, 0.2);
@@ -555,6 +554,21 @@ body {
   padding: 8px 12px;
   background: rgba(255, 255, 255, 0.7);
   font-weight: 600;
+}
+
+/* Invisible touch zone in the top-right (RTL start) corner — secret admin entrance */
+.carousel-admin-secret-zone {
+  position: fixed;
+  top: 0;
+  right: 0;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  z-index: 100;
+}
+.carousel-admin-secret-zone:focus-visible {
+  outline: 2px dashed rgba(31, 39, 49, 0.25);
+  outline-offset: -2px;
 }
 
 .carousel-page-body {
@@ -2017,10 +2031,6 @@ body {
 
   .carousel-header-actions {
     gap: 6px;
-  }
-
-  .carousel-admin-link {
-    display: none;
   }
 
   .carousel-back-link {

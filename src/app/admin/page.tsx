@@ -730,7 +730,31 @@ export default function AdminPage() {
           <section className="admin-items">
             <div className="admin-items-head">
               <h2>מוצרים</h2>
-              <button onClick={addItem}>הוסף מוצר</button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (!confirm("להריץ תיקון תמונות חסרות? (פעולה חד-פעמית)")) return;
+                    try {
+                      const res = await fetch("/api/admin/backfill-thumbs", {
+                        method: "POST",
+                        headers: { "x-admin-token": token },
+                      });
+                      const data = await res.json();
+                      if (!res.ok) {
+                        alert("שגיאה: " + (data?.error || res.status));
+                        return;
+                      }
+                      alert(`עודכנו ${data.updated} מתוך ${data.totalItems} מוצרים. רענן את הדף.`);
+                    } catch (err) {
+                      alert("שגיאה: " + (err as Error).message);
+                    }
+                  }}
+                >
+                  תיקון תמונות חסרות
+                </button>
+                <button onClick={addItem}>הוסף מוצר</button>
+              </div>
             </div>
 
             {sortedItems.map((item) => {

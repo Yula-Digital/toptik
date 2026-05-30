@@ -137,14 +137,16 @@ export default function CarouselPageClient() {
 
   return (
     <main className="carousel-page" style={carouselSurfaceStyle}>
+      <Link
+        href="/admin"
+        className="carousel-admin-secret-zone"
+        aria-label="כניסת אדמין"
+      />
       <header className="carousel-header">
         <h1>קטלוג TOPTIK</h1>
         <div className="carousel-header-actions">
           <Link className="carousel-back-link" href="/">
             חזרה לדף הבית
-          </Link>
-          <Link className="carousel-admin-link" href="/admin">
-            אדמין
           </Link>
         </div>
       </header>
