@@ -7,7 +7,7 @@ import { CarouselPayload, TransitionMode } from "@/lib/carousel/types";
 import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
 
 const STORAGE_KEY = "toptik_admin_token";
-const BATCH_IMPORT_SIZE = 25;
+const BATCH_IMPORT_SIZE = 80;
 type ImportFeedbackTone = "info" | "success" | "error";
 type ImportPreview = {
   id: string;
@@ -527,7 +527,7 @@ export default function AdminPage() {
               </button>
             </div>
             <p className="admin-import-note">
-              הכנס עד 25 מק״טים. המערכת תשלוף ממנדרינה, תיצור/תעדכן מוצרים, ותשמור הכל בפעולה אחת.
+              הכנס עד 80 מק״טים. המערכת תשלוף ממנדרינה, תיצור/תעדכן מוצרים, ותשמור הכל בפעולה אחת.
             </p>
             <div className="admin-batch-grid">
               {batchCatalogInputs.map((value, index) => {
