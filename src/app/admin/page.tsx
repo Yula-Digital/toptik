@@ -705,6 +705,20 @@ export default function AdminPage() {
               return (
                 <article key={item.id} className="admin-item-card">
                   <div className="admin-item-head">
+                    {item.coverImagePath ? (
+                      <Image
+                        src={item.coverImagePath}
+                        alt={item.title}
+                        width={64}
+                        height={64}
+                        className="admin-item-thumb"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="admin-item-thumb admin-item-thumb-empty" aria-hidden>
+                        ?
+                      </div>
+                    )}
                     <h3>{item.title}</h3>
                     <button className="admin-danger-btn" onClick={() => removeItem(item.id)}>
                       מחק מוצר
