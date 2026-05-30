@@ -404,7 +404,7 @@ body {
 @media (max-width: 374px) {
   .m-wa-label    { translate: 0 5px; scale: 1.04; }
   .m-wa-icon     { translate: -10px -3px; scale: 1.51; }
-  .m-catalog-btn { top: 29dvh; translate: 92px 294px; scale: 0.91; }
+  .m-catalog-btn { top: 29dvh; translate: 92px 300px; scale: 0.91; }
   .m-bb-toptik-img    { translate: -5px 4px; }
   .m-bb-mandarina-img { translate: -5px -2px; }
 }
@@ -418,7 +418,7 @@ body {
 @media (min-width: 414px) and (max-width: 767px) {
   .m-wa-label    { translate: 55px 5px; }
   .m-wa-icon     { translate: -49px -5px; scale: 1.51; }
-  .m-catalog-btn { top: 30dvh; translate: 117px 344px; scale: 0.94; }
+  .m-catalog-btn { top: 30dvh; translate: 131px 358px; scale: 0.94; }
   .m-bb-toptik-img    { translate: -29px 3px; }
   .m-bb-mandarina-img { translate: -26px -1px; }
 }
