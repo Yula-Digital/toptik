@@ -7,7 +7,8 @@ import { CarouselPayload, TransitionMode } from "@/lib/carousel/types";
 import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
 
 const STORAGE_KEY = "toptik_admin_token";
-const BATCH_IMPORT_SIZE = 80;
+const BATCH_IMPORT_INITIAL = 5;
+const BATCH_IMPORT_INCREMENT = 5;
 type ImportFeedbackTone = "info" | "success" | "error";
 type ImportPreview = {
   id: string;
@@ -33,7 +34,7 @@ export default function AdminPage() {
   const [catalogNumber, setCatalogNumber] = useState("");
   const [isImporting, setIsImporting] = useState(false);
   const [batchCatalogInputs, setBatchCatalogInputs] = useState<string[]>(
-    Array.from({ length: BATCH_IMPORT_SIZE }, () => ""),
+    Array.from({ length: BATCH_IMPORT_INITIAL }, () => ""),
   );
   const [batchImportStatuses, setBatchImportStatuses] = useState<Record<number, BatchImportStatus>>({});
   const [isBatchImporting, setIsBatchImporting] = useState(false);
@@ -527,7 +528,7 @@ export default function AdminPage() {
               </button>
             </div>
             <p className="admin-import-note">
-              הכנס עד 80 מק״טים. המערכת תשלוף ממנדרינה, תיצור/תעדכן מוצרים, ותשמור הכל בפעולה אחת.
+              הכנס מק״טים ולחץ &quot;ייבא ושמור הכל&quot;. אפשר להוסיף עוד שדות בלחיצה. המערכת תשלוף ממנדרינה, תיצור/תעדכן מוצרים, ותשמור הכל בפעולה אחת.
             </p>
             <div className="admin-batch-grid">
               {batchCatalogInputs.map((value, index) => {
@@ -557,6 +558,51 @@ export default function AdminPage() {
                   </label>
                 );
               })}
+            </div>
+            <div className="admin-batch-actions">
+              <button
+                type="button"
+                className="admin-batch-add"
+                onClick={() =>
+                  setBatchCatalogInputs((current) => [
+                    ...current,
+                    ...Array.from({ length: BATCH_IMPORT_INCREMENT }, () => ""),
+                  ])
+                }
+                disabled={isBatchImporting}
+              >
+                + הוסף {BATCH_IMPORT_INCREMENT} שדות
+              </button>
+              {batchCatalogInputs.length > BATCH_IMPORT_INITIAL && (
+                <button
+                  type="button"
+                  className="admin-batch-remove"
+                  onClick={() => {
+                    setBatchCatalogInputs((current) => {
+                      const trimmed = current.slice(0, -BATCH_IMPORT_INCREMENT);
+                      return trimmed.length < BATCH_IMPORT_INITIAL
+                        ? Array.from({ length: BATCH_IMPORT_INITIAL }, (_, i) => current[i] ?? "")
+                        : trimmed;
+                    });
+                    setBatchImportStatuses((current) => {
+                      const next: typeof current = {};
+                      const newLen = Math.max(
+                        BATCH_IMPORT_INITIAL,
+                        batchCatalogInputs.length - BATCH_IMPORT_INCREMENT,
+                      );
+                      for (const key of Object.keys(current)) {
+                        const idx = Number(key);
+                        if (idx < newLen) next[idx] = current[idx];
+                      }
+                      return next;
+                    });
+                  }}
+                  disabled={isBatchImporting}
+                >
+                  − הסר {BATCH_IMPORT_INCREMENT} שדות
+                </button>
+              )}
+              <span className="admin-batch-count">סך שדות: {batchCatalogInputs.length}</span>
             </div>
           </section>
 
