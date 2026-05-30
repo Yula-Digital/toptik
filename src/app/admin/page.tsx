@@ -38,8 +38,6 @@ export default function AdminPage() {
   );
   const [batchImportStatuses, setBatchImportStatuses] = useState<Record<number, BatchImportStatus>>({});
   const [isBatchImporting, setIsBatchImporting] = useState(false);
-  const [itemCatalogInputs, setItemCatalogInputs] = useState<Record<string, string>>({});
-  const [itemImportingMap, setItemImportingMap] = useState<Record<string, boolean>>({});
   const [importFeedback, setImportFeedback] = useState<{
     tone: ImportFeedbackTone;
     message: string;
@@ -322,60 +320,6 @@ export default function AdminPage() {
       });
     } finally {
       setIsImporting(false);
-    }
-  }
-
-  async function onImportIntoExistingItem(itemId: string) {
-    const itemCatalogNumber = (itemCatalogInputs[itemId] || "").trim();
-    if (!itemCatalogNumber) {
-      setStatus("יש להזין מספר קטלוגי ליבוא למוצר");
-      setImportFeedback({
-        tone: "error",
-        message: "יש להזין מספר קטלוגי ליבוא למוצר זה.",
-      });
-      return;
-    }
-
-    try {
-      setItemImportingMap((current) => ({ ...current, [itemId]: true }));
-      setStatus(`מייבא למוצר קיים: ${itemCatalogNumber}...`);
-      setImportFeedback({
-        tone: "info",
-        message: `מתבצע ייבוא למוצר קיים (${itemCatalogNumber})...`,
-      });
-
-      const data = await importCatalogNumberFromSource(itemCatalogNumber, itemId);
-
-      setPayload((current) => {
-        return upsertImportedItem(current, data, itemId).next;
-      });
-
-      setItemCatalogInputs((current) => ({ ...current, [itemId]: "" }));
-      setStatus(
-        `ייבוא למוצר קיים הושלם: ${data.source.catalogNumber} עם ${data.source.importedImages} תמונות. לחץ "שמור הכל".`,
-      );
-      setImportFeedback({
-        tone: "success",
-        message: `עודכן מוצר קיים (${data.source.catalogNumber}) עם ${data.source.importedImages} תמונות. לחץ שמור הכל.`,
-      });
-      setImportPreviews((current) => [
-        {
-          id: crypto.randomUUID(),
-          title: data.item.title,
-          coverImagePath: data.item.coverImagePath,
-          catalogNumber: data.source.catalogNumber,
-        },
-        ...current,
-      ].slice(0, 8));
-    } catch (error) {
-      const message = resolveErrorMessage(error, "שגיאת ייבוא למוצר קיים");
-      setStatus(message);
-      setImportFeedback({
-        tone: "error",
-        message,
-      });
-    } finally {
-      setItemImportingMap((current) => ({ ...current, [itemId]: false }));
     }
   }
 
@@ -812,8 +756,10 @@ export default function AdminPage() {
                         onChange={(e) => updateItemField(itemIndex, "displayOrder", Number(e.target.value))}
                       />
                     </label>
-                    <label className="checkbox-line">
-                      פעיל
+                    <label className={`checkbox-line admin-active-toggle ${item.isActive ? "is-active" : "is-inactive"}`}>
+                      <span className="admin-active-label">
+                        {item.isActive ? "פעיל" : "לא פעיל"}
+                      </span>
                       <input
                         type="checkbox"
                         checked={item.isActive}
@@ -859,28 +805,6 @@ export default function AdminPage() {
                         }}
                       />
                     </label>
-                    <div className="admin-item-import">
-                      <label>
-                        הכנס מספר קטלוגי ליבוא למוצר זה
-                        <input
-                          value={itemCatalogInputs[item.id] || ""}
-                          onChange={(e) =>
-                            setItemCatalogInputs((current) => ({
-                              ...current,
-                              [item.id]: e.target.value,
-                            }))
-                          }
-                          placeholder="מספר קטלוגי למוצר זה"
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => onImportIntoExistingItem(item.id)}
-                        disabled={Boolean(itemImportingMap[item.id] || isImporting || isSaving || isBatchImporting)}
-                      >
-                        {itemImportingMap[item.id] ? "מייבא..." : "ייבא למוצר זה"}
-                      </button>
-                    </div>
                   </div>
 
                   <p className="admin-import-note">

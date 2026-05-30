@@ -1838,17 +1838,12 @@ body {
   gap: 10px;
 }
 
-.admin-item-import {
-  grid-column: 1 / -1;
-  display: grid;
-  grid-template-columns: minmax(240px, 1fr) auto;
-  gap: 8px;
-  align-items: end;
-  border: 1px dashed rgba(31, 39, 49, 0.18);
-  border-radius: 10px;
-  padding: 10px;
-  background: #fff;
+.admin-active-toggle .admin-active-label {
+  font-weight: 800;
+  font-size: 15px;
 }
+.admin-active-toggle.is-active .admin-active-label { color: #1f7a3a; }
+.admin-active-toggle.is-inactive .admin-active-label { color: #b03030; }
 
 .admin-angle-row {
   display: grid;
@@ -2296,9 +2291,6 @@ body {
     width: 100%;
   }
 
-  .admin-item-import {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 360px) {
