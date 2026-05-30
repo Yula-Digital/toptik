@@ -598,28 +598,6 @@ export default function AdminPage() {
               <h2>מוצרים</h2>
               <div style={{ display: "flex", gap: 8 }}>
                 <button
-                  type="button"
-                  onClick={async () => {
-                    if (!confirm("להריץ תיקון תמונות חסרות? (פעולה חד-פעמית)")) return;
-                    try {
-                      const res = await fetch("/api/admin/backfill-thumbs", {
-                        method: "POST",
-                        headers: { "x-admin-token": token },
-                      });
-                      const data = await res.json();
-                      if (!res.ok) {
-                        alert("שגיאה: " + (data?.error || res.status));
-                        return;
-                      }
-                      alert(`עודכנו ${data.updated} מתוך ${data.totalItems} מוצרים. רענן את הדף.`);
-                    } catch (err) {
-                      alert("שגיאה: " + (err as Error).message);
-                    }
-                  }}
-                >
-                  תיקון תמונות חסרות
-                </button>
-                <button
                   className="admin-save-inline-btn"
                   onClick={onSave}
                   disabled={isSaving || isBatchImporting}
