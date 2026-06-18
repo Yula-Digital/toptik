@@ -1,121 +1,103 @@
 # העברת דף הנחיתה לדומיין toptik.co.il — Runbook
 
-> מסמך תפעולי לחיתוך הדומיין מ‑`*.vercel.app` אל `toptik.co.il`, כולל גיבוי, אימות, rollback ותהליך לשינויים עתידיים.
-> נכתב: 2026-06-18. נכתב כחלק מתהליך מסודר — לא לאלתר. כל ערך טכני מובא בבלוק קוד להעתקה ישירה.
+> מסמך תפעולי לחיתוך הדומיין מ‑Shopify/`*.vercel.app` אל דף הנחיתה ב‑Vercel, כולל גיבוי, אימות, rollback ותהליך לשינויים עתידיים.
+> נכתב: 2026-06-18. **ערכים מאומתים** מול מסכי internic + Vercel בפועל. כל ערך טכני בבלוק קוד להעתקה ישירה.
 
 ---
 
-## 0. מצב נוכחי (snapshot)
+## 0. מצב נוכחי (snapshot מאומת)
 
 | פריט | ערך |
 |---|---|
-| פרויקט Vercel | `toptik` |
-| Project ID | `prj_7LROyMek3LBhb16a9e4A4EyJNhJy` |
-| Team | `rordan-ais-projects` (`team_OOyctgp7Iroyd2ONA9sy9XJL`) |
-| Framework | Next.js (Node 24) |
-| Production deployment | `dpl_48TV4UV2rz9BfYp68mXX5coxXwqF` (READY) |
+| פרויקט Vercel | `toptik` · `prj_7LROyMek3LBhb16a9e4A4EyJNhJy` |
+| Team | `rordan-ais-projects` · `team_OOyctgp7Iroyd2ONA9sy9XJL` |
 | Production commit | `fdd23f0` (branch `master`) |
-| דומיינים מחוברים כיום | `toptik-iota.vercel.app`, `toptik-rordan-ais-projects.vercel.app`, `toptik-git-master-...` |
-| דומיין יעד | `toptik.co.il` (שורש ראשי) + `www.toptik.co.il` (redirect לשורש) |
-| רשם/ניהול DNS | internic — `https://portal.internic.co.il` |
-| שיטת חיתוך | רשומות A/CNAME (ה‑DNS נשאר ב‑internic; **לא** מעבירים nameservers) |
+| Production deployment | `dpl_48TV4UV2rz9BfYp68mXX5coxXwqF` (READY) — יעד ה‑rollback |
+| דומיין יעד | `toptik.co.il` (שורש, ראשי) + `www.toptik.co.il` (redirect לשורש) |
+| ניהול DNS | internic / sitesdepot — `https://portal.internic.co.il` (zone 7144) |
+| Nameservers (לא נוגעים) | `ns1.sitesdepot.com` / `ns2.sitesdepot.com` |
+| שיטה | רשומות A/CNAME (אין שינוי nameservers) |
+| **החלטה** | **דף הנחיתה מחליף את חנות Shopify על הדומיין.** החנות נשארת חיה ב‑`*.myshopify.com`. |
+
+**שירותים חיים על הדומיין שאסור לפגוע בהם:**
+- **אימייל Google Workspace** — `MX` → ASPMX.L.GOOGLE.COM (+ALT), ו‑`TXT` SPF (`v=spf1 ... include:spf.google.com ~all`).
+- **אימות דוא"ל Shopify** — `lul._domainkey`, `lul2._domainkey`, `lul3._domainkey`, `mailerlul` (CNAME ל‑myshopify), ו‑`dmarc` TXT.
+- מאחר שהאימייל וה‑Shopify כבר עובדים מתוך ה‑zone הזה, ההאצלה (delegation) כבר מצביעה ל‑sitesdepot → **עריכות כאן סמכותיות; אין צורך בשינוי nameservers.**
 
 ## נקודת גיבוי / rollback anchor
 
-- **Git tag:** `backup/pre-domain-migration-2026-06-18` → מצביע על `fdd23f0`.
-- **Vercel rollback:** Instant Rollback אל deployment `dpl_48TV4UV2rz9BfYp68mXX5coxXwqF`.
-- חיבור הדומיין ב‑Vercel וניתוקו הם פעולות מיידיות והפיכות; שינוי ה‑DNS הפיך תוך דקות אם משאירים TTL נמוך (ראה שלב 0).
+- **קוד:** commit `fdd23f0` קיים על `origin/master` (עמיד). tag מקומי `backup/pre-domain-migration-2026-06-18` (לא נדחף — ה‑proxy חוסם tags; לא נדרש).
+- **Vercel:** Instant Rollback אל `dpl_48TV4UV2rz9BfYp68mXX5coxXwqF`.
+- **DNS:** צילום מסך של ה‑zone לפני השינוי = בסיס ההחזרה.
 
 ---
 
-## 0.5 גיבוי DNS — לפני שנוגעים (חובה)
+## 1. צד Vercel — חיבור + כיוון
 
-לפני כל שינוי ב‑internic, גבה את מצב האזור (zone) הנוכחי של `toptik.co.il`:
+הדומיין כבר נוסף (מצב Invalid Configuration עד שה‑DNS יתוקן). הגדרות נדרשות ב‑Settings → Domains:
 
-1. היכנס ל‑`https://portal.internic.co.il` → ניהול הדומיין `toptik.co.il` → אזור ה‑DNS.
-2. **צלם מסך / ייצא את כל הרשומות הקיימות:** `A`, `AAAA`, `CNAME`, `MX`, `TXT` (כולל SPF/DKIM/DMARC), `NS`, `SRV`. שמור את הצילום בצד.
-3. שים לב במיוחד ל‑**MX ול‑TXT של דוא"ל** — בשיטת A/CNAME אנחנו **לא נוגעים בהם בכלל**. הגיבוי הזה הוא רשת הביטחון ל‑rollback.
-4. אם לשורש (`@`) כבר יש רשומת `A` קיימת (אתר ישן / דף חניה) — הורד את ה‑TTL שלה ל‑`300` שניות ושמור, **לפני** יום החיתוך, כדי שהמעבר יהיה מהיר והפיך.
-
----
-
-## 1. צד Vercel — חיבור הדומיין (מבצע: משתמש מחובר / Claude‑for‑Chrome)
-
-> ב‑MCP של Vercel **אין** כלי להוספת דומיין — לכן זה נעשה בדשבורד. הערכים המדויקים שמסך "Add Domain" מציג הם **המקור הסמכותי**; אם הם שונים ממה שכאן — לך לפי המסך.
-
-1. Vercel → Team `rordan-ais-projects` → Project **toptik** → **Settings → Domains**.
-2. **Add Domain** → הקלד `toptik.co.il` → Add.
-3. הוסף גם `www.toptik.co.il`.
-4. הגדר את `toptik.co.il` כ‑**Primary**, ואת `www.toptik.co.il` כ‑**Redirect to `toptik.co.il`** (308).
-5. Vercel יציג עכשיו את הרשומות שצריך להגדיר ב‑DNS. רשום מה שהוא מציג (זה מה שמכניסים בשלב 2). בדרך כלל:
-   - לשורש: רשומת `A` לכתובת ה‑IP של Vercel.
-   - ל‑`www`: רשומת `CNAME` ל‑`cname.vercel-dns.com`.
-   - אם מופיע **TXT אימות** (`_vercel`) — רשום גם אותו.
+1. `toptik.co.il` = **Primary**.
+2. `www.toptik.co.il` = **Redirect to `toptik.co.il`** (308).
+   - ⚠️ כברירת מחדל זה נוסף הפוך (`toptik.co.il` → 308 → `www`) — צריך **להפוך** לכיוון הנ"ל.
+3. ערכי ה‑DNS שמסך Vercel מציג הם הסמכותיים. נכון להיום:
+   - שורש: `A` → `216.150.1.1` (חדש; הישנים `76.76.21.21` / `cname.vercel-dns.com` עדיין עובדים).
 
 ---
 
-## 2. צד internic — רשומות ה‑DNS (מבצע: משתמש מחובר / Claude‑for‑Chrome)
+## 2. צד internic — בדיוק 2 רשומות אתר
 
-ב‑`portal.internic.co.il` → אזור ה‑DNS של `toptik.co.il`, הוסף/ערוך **רק** את הרשומות הבאות. **אל תיגע ב‑MX, SPF/DKIM/DMARC או רשומות קיימות אחרות.**
+ב‑zone של `toptik.co.il`. **קודם צלם את כל הרשומות** (גיבוי). ואז:
 
 ```
-# שורש (apex) — toptik.co.il
-Type:  A
-Host:  @            (או ריק / "toptik.co.il" לפי הטופס ב-internic)
-Value: 216.198.79.1     ← השתמש בערך שמסך "Add Domain" של Vercel מציג
-TTL:   300
+① www — מסיר את Shopify (ערוך רשומה קיימת):
+     www.toptik.co.il   CNAME   shops.myshopify.com.    ← הערך הישן
+   שנה ל:
+     www.toptik.co.il   CNAME   cname.vercel-dns.com.   TTL 300
 
-# www — מפנה לשורש דרך Vercel
-Type:  CNAME
-Host:  www
-Value: cname.vercel-dns.com.
-TTL:   300
+② שורש (apex):
+   • אם קיימת A על @ / toptik.co.il → ערוך ל:  216.150.1.1
+   • אם אין → הוסף:   @   A   216.150.1.1   TTL 300
+   (לא מתנגש עם MX/SPF על השורש — האימייל לא נפגע)
 
-# (רק אם Vercel ביקש אימות בעלות)
-Type:  TXT
-Host:  _vercel
-Value: <הערך ש-Vercel הציג>
-TTL:   300
+③ TXT _vercel — רק אם Vercel ביקש אימות בעלות (לא הופיע במסך → כנראה לא נדרש)
 ```
 
-הערות:
-- **שורש לא יכול להיות CNAME** (חוק DNS) — לכן השורש הוא `A`. לכן גם בחרנו "שורש ראשי".
-- אם internic לא מאפשר `CNAME` על `www` מסיבה כלשהי — אפשר חלופית `A` עם אותו IP של השורש (פחות אידאלי, אך עובד).
-- TTL `300` (5 דק') = חיתוך והחזרה מהירים.
+🛑 **אל תיגע:** `NS` · `lul._domainkey` · `lul2._domainkey` · `lul3._domainkey` · `mailerlul` · `ftp` · `dmarc` (TXT) · `TXT` SPF על השורש · `MX` של Google.
+
+> ל‑www הישן TTL 3600 → התפשטות מלאה עד ~שעה. חיפושים לא‑מטמון עוברים מיד.
 
 ---
 
-## 3. אימות (מבצע: Claude Code מצד Vercel + משתמש מצד DNS)
+## 3. אימות
 
-1. **מצד Vercel (אני):** דרך ה‑API לבדוק שהדומיין מופיע ומאומת (`get_project` → `toptik.co.il` ב‑`domains[]`, מצב Valid Configuration).
-2. **התפשטות DNS (אתה):**
+1. **Vercel (אני, דרך API):** הדומיין עובר ל‑Valid Configuration; `get_project` יציג את `toptik.co.il` ב‑`domains[]`.
+2. **DNS (אתה):**
    ```bash
-   dig toptik.co.il +short          # מצופה: 216.198.79.1
-   dig www.toptik.co.il +short      # מצופה: cname.vercel-dns.com.
+   dig toptik.co.il +short        # 216.150.1.1
+   dig www.toptik.co.il +short    # cname.vercel-dns.com.
    ```
-   או דרך `https://www.whatsmydns.net` למספר מיקומים.
-3. **HTTPS:** Vercel מנפיק תעודת SSL אוטומטית תוך דקות מרגע שה‑DNS תקין. ודא ש‑`https://toptik.co.il` נטען וש‑`https://www.toptik.co.il` עושה redirect לשורש.
-4. **בדיקה ויזואלית:** פתח את `https://toptik.co.il` ואת `/carousel` ובדוק שהכול נטען (תמונות, קרוסלה).
+   או `https://www.whatsmydns.net`.
+3. **HTTPS:** SSL מונפק אוטומטית תוך דקות. ודא ש‑`https://toptik.co.il` נטען, וש‑`https://www.toptik.co.il` עושה redirect לשורש.
+4. **ויזואלי:** `https://toptik.co.il` + `/carousel` — תמונות וקרוסלה נטענות.
 
 ---
 
-## 4. Rollback (אם משהו משתבש)
+## 4. Rollback
 
 | תקלה | פעולה |
 |---|---|
-| האתר לא נטען בדומיין | ודא שרשומת ה‑`A`/`CNAME` תואמת בדיוק למה ש‑Vercel מציג; המתן להתפשטות (TTL 300). |
-| צריך לבטל לגמרי | מחק את רשומות ה‑`A`/`CNAME`/`TXT` שהוספנו ב‑internic והחזר מהצילום (שלב 0.5). תוך ~5 דק' חוזרים למצב הקודם. |
-| בעיה באתר עצמו (קוד) | Vercel → Deployments → **Instant Rollback** אל `dpl_48TV4UV2rz9BfYp68mXX5coxXwqF`, או בנה מחדש מ‑tag `backup/pre-domain-migration-2026-06-18`. |
-| דוא"ל הפסיק לעבוד | סימן שנגעו ב‑MX — החזר את רשומות ה‑MX מהצילום. (בשיטת A/CNAME זה לא אמור לקרות.) |
+| לבטל את החיתוך לגמרי | החזר `www` ל‑`CNAME shops.myshopify.com.` והסר/החזר את ה‑`A` של השורש מהצילום. ~5 דק' (TTL 300). |
+| בעיה בקוד האתר | Vercel → Deployments → **Instant Rollback** ל‑`dpl_48TV4UV2rz9BfYp68mXX5coxXwqF`, או build מ‑tag הגיבוי. |
+| אימייל הפסיק | סימן שנגעו ב‑MX/SPF/DKIM — החזר מהצילום. (בשיטה הזו לא אמור לקרות.) |
 
 ---
 
 ## 5. תהליך לשינויים עתידיים (commit + build + גיבוי)
 
-מאחר שהאתר מתארח ב‑Vercel ומתפרסם אוטומטית מ‑`master`, זרימת העבודה לכל שינוי:
+האתר ב‑Vercel מתפרסם אוטומטית מ‑`master`. **אתה עובד ישירות מול git** — Vercel רק מריץ את מה שאתה דוחף. אין כניסה ל‑Vercel לעבודה שוטפת.
 
 1. עבוד על feature branch (`claude/...`).
-2. `npm run verify` — lint + build, חייב לעבור (שער האיכות; משקף את CI).
+2. `npm run verify` — lint + build (שער האיכות; חייב לעבור).
 3. ff‑merge ל‑master ודחיפה:
    ```bash
    git checkout master
@@ -123,13 +105,8 @@ TTL:   300
    git push origin master
    git checkout <feature-branch>
    ```
-4. Vercel בונה אוטומטית מ‑`master` (~90 שׁנ') ומפרסם ל‑`https://toptik.co.il`.
-5. **גיבוי גרסה:** תייג כל שחרור משמעותי ודחוף את ה‑tags:
-   ```bash
-   git tag -a "backup/<YYYY-MM-DD>-<desc>" -m "<תיאור>"
-   git push origin --tags
-   ```
-6. **rollback מהיר:** Vercel → Deployments → Instant Rollback ל‑deployment קודם, או build מחדש מ‑tag.
-7. גיבוי bundle מלא (Windows/PowerShell בלבד): `npm run backup:bundle`.
+4. Vercel בונה אוטומטית מ‑`master` (~90 שׁנ') → `https://toptik.co.il`.
+5. **גיבוי גרסה:** `git tag -a "backup/<YYYY-MM-DD>-<desc>" -m "..."` (ה‑tags לא נדחפים דרך ה‑proxy של סביבת הענן; דחוף מקומית/דרך GitHub אם צריך עותק מרוחק).
+6. **rollback מהיר:** Vercel → Deployments → Instant Rollback.
 
-> אסור לדחוף ל‑`master` קוד שלא עבר קודם feature → verify. תמיד: feature → ff‑merge → push master.
+> אסור לדחוף ל‑`master` קוד שלא עבר feature → verify. תמיד: feature → ff‑merge → push master.
