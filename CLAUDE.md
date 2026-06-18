@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Operational rules — deployment workflow, post-Figma-export cleanup, and the **locked carousel-image CSS** — live in AGENTS.md and are authoritative. Read them before any deploy or visual change.
 
+**Live domain:** the site serves **`toptik.co.il`** (custom domain since 2026-06-18; `www` → 308 → apex), hosted on Vercel and auto-deployed from `master`. DNS is managed at internic → sitesdepot (apex `A` → Vercel, `www` `CNAME` → Vercel); Google Workspace email (MX/SPF) and Shopify email records are intentionally left untouched. The full cutover record, exact DNS values, verification, and rollback anchors are in **`docs/DOMAIN-MIGRATION.md`** — read it before touching DNS or the domain.
+
 @AGENTS.md
 
 ## Commands
