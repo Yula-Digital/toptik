@@ -18,6 +18,11 @@ export const MANDARINA_COLOR_CODES: Record<string, { he: string; hex: string }> 
   "05J": { he: "צהוב", hex: "#f0c040" }, // duck yellow
   A92: { he: "מוארה", hex: "#6b6f76" }, // moire
   A93: { he: "דיווה", hex: "#a52828" }, // diva
+  "651": { he: "שחור", hex: "#1a1a1a" }, // black
+  "07X": { he: "כחול עמוק", hex: "#1c3a6e" }, // deep blue
+  "02F": { he: "אמרלד", hex: "#2e7d52" }, // emerald
+  "24N": { he: "פנינה", hex: "#eae6da" }, // pearl
+  A82: { he: "אגוז פקאן", hex: "#8a5a3b" }, // pecan nut
 };
 
 // Resolve a Hebrew name + swatch hex from the colour code (preferred, global)

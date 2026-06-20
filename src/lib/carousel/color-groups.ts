@@ -14,6 +14,8 @@ export const COLOR_HEX: Record<string, string> = {
   cobalt: "#0050a0", charcoal: "#3c3c3c", graphite: "#555555",
   lunar: "#b8b8c0", oil: "#3d4a1e", aqua: "#00b2b2", petrol: "#1c4f5e",
   midnight: "#191970", vanilla: "#f3e5ab", forest: "#2d5a2d",
+  emerald: "#2e7d52", pearl: "#eae6da", pecan: "#8a5a3b",
+  "pecan nut": "#8a5a3b", "deep blue": "#1c3a6e", "dress blue": "#1a2d5a",
 };
 
 export const COLOR_HEBREW: Record<string, string> = {
@@ -28,6 +30,8 @@ export const COLOR_HEBREW: Record<string, string> = {
   cobalt: "קובלט", charcoal: "פחם", graphite: "גרפיט",
   lunar: "לונר", oil: "אויל", aqua: "אקווה", petrol: "פטרול",
   midnight: "חצות", "dress blue": "כחול",
+  emerald: "אמרלד", pearl: "פנינה", pecan: "פקאן",
+  "pecan nut": "אגוז פקאן", "deep blue": "כחול עמוק",
 };
 
 const COLOR_WORDS = new Set(Object.keys(COLOR_HEX));
@@ -41,9 +45,14 @@ function normalizeForFamily(title: string): string {
     .trim();
 }
 
+// Multi-word colours must be matched before single tokens (longest-first).
+const MULTI_WORD_COLORS = ["dress blue", "deep blue", "pecan nut", "rose gold", "light blue"];
+
 export function extractColorWord(title: string): string | null {
   const t = normalizeForFamily(title);
-  if (t.includes("dress blue")) return "dress blue";
+  for (const phrase of MULTI_WORD_COLORS) {
+    if (t.includes(phrase)) return phrase;
+  }
   for (const token of t.split(/\s+/)) {
     if (COLOR_WORDS.has(token)) return token;
   }

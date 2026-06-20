@@ -460,6 +460,15 @@ function colorCodeFromHandle(handle: string): string | null {
   return tail.slice(-3).toUpperCase();
 }
 
+// The handle's colour word(s) sit between the product-type words and the trailing
+// "<model><colour>" token — e.g. "md20-briefcase-deep-blue-qmc0107x". Dropping the
+// last segment leaves a phrase that extractColorWord can scan for the colour.
+function colorTextFromHandle(handle: string): string {
+  const segments = handle.split("-");
+  segments.pop();
+  return segments.join(" ");
+}
+
 // Fallback model token from a catalog number like "P10QMC01-465-TU".
 function modelTokenFromCatalog(catalogNumber: string): string | null {
   const head = (catalogNumber.toUpperCase().split(/[-_/]/)[0] ?? "").replace(/^P\d+/, "");
@@ -528,7 +537,7 @@ export async function enumerateColorVariants(primary: ColorEnumerationInput): Pr
         const cover = extractImageUrlsFromProductPage(html, "")[0];
         if (!cover) return null;
         return {
-          colorWord: extractColorWord(title),
+          colorWord: extractColorWord(title) ?? extractColorWord(colorTextFromHandle(handle)),
           colorCode: colorCodeFromHandle(handle),
           title,
           catalogNumber: catalogNumber || null,

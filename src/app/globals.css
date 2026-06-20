@@ -971,6 +971,7 @@ body {
 
 .catalog-card-color-dot.is-actionable {
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .catalog-card-color-dot.is-actionable:hover {
@@ -1298,6 +1299,7 @@ body {
 
 .product-modal-color-dot.is-actionable {
   cursor: pointer;
+  pointer-events: auto;
 }
 
 .product-modal-color-dot.is-actionable:hover {
