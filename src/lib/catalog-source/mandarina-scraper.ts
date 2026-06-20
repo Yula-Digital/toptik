@@ -563,3 +563,15 @@ export async function scrapeColorVariantsByCatalog(
   const variants = await enumerateColorVariants(primary);
   return { primary, modelToken: deriveModelToken(primary), variants };
 }
+
+// Lightweight discovery for diagnostics: derive the model token straight from the
+// catalog number and run only the /search step (one request, no per-page fetch),
+// so it returns fast. Returns the sibling colour product handles of the model.
+export async function discoverColorSiblingsByCatalog(
+  catalogNumber: string,
+): Promise<{ modelToken: string | null; handles: string[] }> {
+  const modelToken = modelTokenFromCatalog(catalogNumber.toUpperCase());
+  if (!modelToken) return { modelToken: null, handles: [] };
+  const handles = await fetchVariantHandlesByModel(modelToken);
+  return { modelToken, handles };
+}
