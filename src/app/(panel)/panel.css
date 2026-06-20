@@ -743,6 +743,9 @@
   .admin-brand-tag {
     display: none;
   }
+  .admin-field-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 /* Real brand logo (transparent PNG) in the top bar + auth cards */
@@ -771,6 +774,184 @@
   opacity: 0.6;
   cursor: not-allowed;
   pointer-events: none;
+}
+
+/* Vault launcher tile is a <button> — normalize to match the link tiles */
+button.admin-tile {
+  font: inherit;
+  text-align: inherit;
+  width: 100%;
+  cursor: pointer;
+}
+.admin-tile--vault .admin-tile-icon {
+  color: var(--p-sage-strong);
+}
+
+/* ---------- Modal (vault step-up + password vault) ---------- */
+.admin-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(40, 32, 22, 0.42);
+  backdrop-filter: blur(4px);
+  animation: admin-fade 0.16s ease;
+}
+.admin-modal {
+  width: 100%;
+  max-width: 560px;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--p-surface);
+  border: 1px solid var(--p-line);
+  border-radius: 20px;
+  box-shadow: var(--p-shadow-lg);
+  overflow: hidden;
+}
+.admin-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--p-line);
+}
+.admin-modal-title {
+  font-family: var(--font-rubik), sans-serif;
+  font-weight: 700;
+  font-size: 18px;
+  margin: 0;
+}
+.admin-modal-body {
+  padding: 20px 22px 24px;
+  overflow-y: auto;
+}
+.admin-modal-text {
+  color: var(--p-ink-soft);
+  font-size: 14.5px;
+  line-height: 1.6;
+  margin: 0 0 16px;
+}
+.admin-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.admin-vault-code {
+  text-align: center;
+  font-size: 26px;
+  letter-spacing: 12px;
+  font-weight: 600;
+  padding-block: 14px;
+}
+
+.admin-vault-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.admin-vault-count {
+  font-size: 13.5px;
+  color: var(--p-ink-faint);
+}
+.admin-vault-form {
+  background: var(--p-surface-2);
+  border: 1px solid var(--p-line);
+  border-radius: 14px;
+  padding: 16px 16px 4px;
+  margin-bottom: 16px;
+}
+.admin-field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 14px;
+}
+.admin-vault-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.admin-vault-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--p-surface-2);
+  border: 1px solid var(--p-line);
+  border-radius: 14px;
+}
+.admin-vault-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-vault-label {
+  font-weight: 700;
+  font-size: 15px;
+}
+.admin-vault-user {
+  font-size: 13px;
+  color: var(--p-ink-soft);
+}
+.admin-vault-secret {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.admin-vault-secret code {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 14px;
+  letter-spacing: 1px;
+  color: var(--p-ink);
+  background: var(--p-surface);
+  border: 1px solid var(--p-line-strong);
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+.admin-vault-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--p-sage-strong);
+  text-decoration: none;
+  margin-top: 2px;
+  word-break: break-all;
+}
+.admin-vault-link svg {
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+}
+.admin-vault-notes {
+  font-size: 12.5px;
+  color: var(--p-ink-faint);
+  margin-top: 2px;
+}
+.admin-vault-rowactions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+@keyframes admin-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

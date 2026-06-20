@@ -97,6 +97,7 @@ export default async function DashboardPage() {
             </span>
             <span className="admin-tile-body">
               <span className="admin-tile-title">סוכן וואטסאפ AI</span>
+              <span className="admin-tile-desc">agent.toptik.co.il</span>
             </span>
             <span className="admin-tile-ext">
               <ExternalIcon />

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requirePanelUser } from "@/lib/admin/supabase-server";
 import { AdminTopBar } from "@/components/admin/AdminTopBar";
 import { SettingsUsersClient } from "@/components/admin/SettingsUsersClient";
+import { VaultLauncher } from "@/components/admin/VaultLauncher";
 import { ArrowBackIcon, ServerIcon, ExternalIcon, VercelIcon, GithubIcon } from "@/components/admin/icons";
 import { INTERNIC_URL, VERCEL_URL, GITHUB_URL } from "@/lib/admin/config";
 
@@ -66,6 +67,8 @@ export default async function SettingsPage() {
               <ExternalIcon />
             </span>
           </a>
+
+          <VaultLauncher />
         </div>
       </main>
     </>

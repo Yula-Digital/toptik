@@ -81,9 +81,14 @@ admin-initiated** resets/invites, switch the two templates to the one-time
 (Optional) Configure **SMTP** under Auth → SMTP for branded sender / higher
 send limits. The built-in Supabase mailer works for low volume.
 
-### 5. Database — nothing to migrate
-Admin accounts live in Supabase Auth (`auth.users`); the panel stores no extra
-tables, so there is no migration to run for it.
+### 5. Database + vault key
+Admin accounts live in Supabase Auth (`auth.users`). The one panel table is the
+password vault — apply `supabase/migrations/20260620_admin_vault.sql`
+(`admin_vault_entries`; RLS deny-all → service-role only; rows hold ciphertext
+only). Set **`ADMIN_VAULT_KEY`** (32-byte base64) for the AES-256-GCM encryption
++ step-up HMAC; without it the "סיסמאות" vault stays closed ("not configured").
+Opening the vault requires an email-OTP step-up, so Supabase email OTP must be
+enabled (default).
 
 ### 6. Environment variables (Vercel → Settings → Environment Variables)
 Required (most already set for the carousel):

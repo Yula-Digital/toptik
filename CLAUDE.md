@@ -47,6 +47,7 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 (via `@tail
 
 - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — public reads.
 - `SUPABASE_SERVICE_ROLE_KEY`, `ADMIN_PANEL_TOKEN` — required for admin writes and imports.
+- `ADMIN_VAULT_KEY` — 32-byte base64 key for the password-vault AES-256-GCM encryption + step-up token HMAC. Without it the vault reports "not configured" and stays closed.
 - `CRON_SECRET` — Vercel cron auth for the tech-specs warmer.
 
 Env access is centralized in `src/lib/supabase/env.ts` (`hasSupabasePublicEnv()` / `hasSupabaseAdminEnv()`); clients are constructed in `src/lib/supabase/server.ts`.
@@ -58,7 +59,9 @@ A session-gated control panel served on the **`admin.toptik.co.il`** subdomain. 
 - **Auth:** Supabase Auth (email+password, hashed, built-in reset email) via `@supabase/ssr` cookie sessions. Up to **3 admins**. Helpers in `src/lib/admin/` (`supabase-server.ts`, `supabase-browser.ts`, `users.ts`, `origin.ts`, `config.ts`).
 - **Routing:** `src/proxy.ts` (Next 16 renamed Middleware→Proxy) refreshes the session and rewrites the subdomain root → `/dashboard`. Panel routes live under `src/app/(panel)/`: `/login`, `/setup`, `/reset`, `/dashboard`, `/settings`; plus the `/auth/callback` route handler.
 - **First admin:** one-time `/setup` guarded by `ADMIN_PANEL_TOKEN`; the rest are invited from `/settings`. Panel APIs under `/api/panel/{setup,users,users/reset}`.
-- **`/dashboard`** is a hub of links (intentionally minimal): admin settings (`/settings` — manage up to 3 admins: invite/remove/reset), the existing gallery editor (links to **`/admin`**), the live landing page + Shopify store (external), and a deferred "coming soon" WhatsApp-agent tile.
+- **`/dashboard`** is a hub of external/internal links: admin settings (`/settings`), the gallery editor (`landing.toptik.co.il/admin`), the live landing page, the Shopify store admin, and the WhatsApp AI agent (`agent.toptik.co.il`). All link targets are in `src/lib/admin/config.ts`.
+- **`/settings`** holds admin-user management (invite/remove/reset, max 3), external-tool links (internic, Vercel, GitHub), and the **password vault**.
+- **Password vault** ("סיסמאות" in `/settings`): an AES-256-GCM encrypted credentials store, gated by an **email-OTP step-up** (Supabase `signInWithOtp`/`verifyOtp`) before the modal opens. Crypto + step-up HMAC token live in `src/lib/admin/vault.ts` (key `ADMIN_VAULT_KEY`); rows are ciphertext-only in `admin_vault_entries` (migration `supabase/migrations/20260620_admin_vault.sql`, RLS deny-all → service-role). APIs: `/api/panel/vault/{challenge,unlock}` + `/api/panel/vault[/[id]]`; UI in `src/components/admin/VaultLauncher.tsx`.
 - The legacy **`/admin`** carousel editor is unchanged (client token-gated via `localStorage["toptik_admin_token"]` → `x-admin-token`); `/api/admin/*` stay token-only.
 
 ## Catalog import

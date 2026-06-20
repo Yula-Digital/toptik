@@ -20,8 +20,9 @@ export const SHOPIFY_ADMIN_URL =
   process.env.NEXT_PUBLIC_SHOPIFY_ADMIN_URL ??
   "https://admin.shopify.com/store/toptikcoil?ui_locales=en-IL";
 
-/** WhatsApp AI agent console (already built; URL supplied by the operator). */
-export const WHATSAPP_AGENT_URL = process.env.NEXT_PUBLIC_WHATSAPP_AGENT_URL ?? "";
+/** WhatsApp AI agent console (already built — separate service). */
+export const WHATSAPP_AGENT_URL =
+  process.env.NEXT_PUBLIC_WHATSAPP_AGENT_URL ?? "https://agent.toptik.co.il/";
 
 /** internic — hosting/storage + DNS/domain management portal. */
 export const INTERNIC_URL =
