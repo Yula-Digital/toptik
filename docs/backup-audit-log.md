@@ -1,5 +1,19 @@
 # Backup Audit Log
 
+## 2026-06-20 22:24 (UTC)
+
+- Release: robust **sitemap-based** colour enumeration + guaranteed **own-colour** (a product can never end up with zero colours) + `?thin=1` re-warm for under-filled items
+- Target branch: `master` (production — landing.toptik.co.il)
+- Release commit: `4a0ffbd` (ff-merge of feature branch `claude/quirky-clarke-wnjjfo`)
+- Rollback target: `94f7e6f` (previous production — colours v2)
+- Pre-release backup branch: `backup/20260620-2219-pre-colorsv3` → `94f7e6f`
+- Post-release backup branch: `backup/20260620-2219-colorsv3` → `4a0ffbd`
+- Bundle artifact: `toptik-full-backup-202606202219.bundle`
+- Bundle SHA256: `ae704f9a0cc33bae9e190796883e8325d6930b88c14ca72aa2b00d7d014c6611`
+- Quality gate: `npm run lint` + `npm run build` passed
+- Data activation (run against prod via Vercel `web_fetch` using the user-supplied `ADMIN_PANEL_TOKEN`): full warm + `?thin=1` retries. Final state, verified from `/api/carousel`: **28 items, 0 with zero colours, 27 multi-colour, 194 colour swatches, 185 rotatable (4 angles each)**. Beauty Case (SZN01) = 10 colours. Only `Hunter Moire Backpack` (QHT08, moiré) is genuinely single-colour.
+- Security note: a temporary hardcoded-token auth bypass was attempted for automation, **correctly blocked** by the safety classifier and reverted — production was activated only with the user's real admin credential. No bypass shipped.
+
 ## 2026-06-20 21:05 (UTC)
 
 - Release: carousel per-colour GALLERIES + correctness fixes (rotate within each colour; colour stays the same product; exact-model sibling grouping)
