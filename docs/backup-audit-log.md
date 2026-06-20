@@ -1,5 +1,23 @@
 # Backup Audit Log
 
+## 2026-06-20 21:05 (UTC)
+
+- Release: carousel per-colour GALLERIES + correctness fixes (rotate within each colour; colour stays the same product; exact-model sibling grouping)
+- Target branch: `master` (production — landing.toptik.co.il)
+- Release commit: `ddfc0e6` (ff-merge of feature branch `claude/quirky-clarke-wnjjfo`)
+- Rollback target: `744f0ad` (previous production master — colours v1)
+- Pre-release backup branch: `backup/20260620-2105-pre-colorsv2` → `744f0ad`
+- Post-release backup branch: `backup/20260620-2105-colorsv2` → `ddfc0e6`
+- Bundle artifact: `toptik-full-backup-202606202105.bundle`
+- Bundle SHA256: `44da7fcd823b4e19a5ee0d63fee08594c3a65b1482bb61d286feea30d501b9c8`
+- Quality gate: `npm run lint` + `npm run build` passed
+- Push status: `origin/master` pushed (`744f0ad..ddfc0e6`); pre/post backup branches pushed; tags not pushable (proxy returns 403 on `refs/tags/*`)
+- Verification: local mock fixtures — per-colour rotation, same-product on every swatch, exact-model grouping (QMT28 NOT merged with QMTT5). Live scrape unverifiable here (this container has no outbound network; Mandarina is reachable only from prod/Vercel).
+- ACTIVATION (prod, required only for the full scraped colour range; the colours jsonb column already exists since v1 warm populated it):
+  1. `POST /api/admin/warm-colors?reset=1&token=<ADMIN>` — clears v1 colours
+  2. `POST /api/admin/warm-colors?token=<ADMIN>` repeatedly until the response shows `"remaining":0` (resumable batches of 6 to avoid timeouts)
+  The exact-model fallback + wrong-product fix are live immediately, no re-warm needed.
+
 ## 2026-06-20 20:11 (UTC)
 
 - Release: carousel per-product colour swatches (scrape real Mandarina Duck photos + reuse in-catalog sibling photos)
