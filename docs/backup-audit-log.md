@@ -1,5 +1,18 @@
 # Backup Audit Log
 
+## 2026-06-20 23:08 (UTC)
+
+- Release: swatch-colour **accuracy** (the dot now matches the colour's own image) + **light-product trim/positioning** fix
+- Target branch: `master` (production)
+- Release commit: `b616266` (cumulative `3fe506b..b616266`)
+- Rollback target: `5c3d2b9` (previous production — colours v3)
+- Pre-release backup branch: `backup/20260620-2244-pre-colorsv4` → `5c3d2b9`
+- Fixes:
+  - Swatch dots fell back to CSS grey when a scraped colour code had no hex-map entry. New `?recolor=1` mode recomputes each colour's hex from its own image: downscale 256px → trim to the product → mean of the centre 70%. Verified from `/api/carousel`: 194 colours, 178 distinct hexes, 0 stuck; black→dark (`#2b2b2e`–`#4c`), yellow→`#e7ce43`.
+  - `img-trim` threshold 25→12 + safety fallback (keep <30% area / extreme aspect → original): light/cream products were trimmed away → off-centre crop. `trimmedProductSrc` bumped to `v=2` to bust the immutable trim cache so existing images recompute.
+- Data activation (prod via Vercel + admin token): full `?recolor=1` pass over all 28 items, 0 failures.
+- Quality gate: lint + build passed on every step.
+
 ## 2026-06-20 22:24 (UTC)
 
 - Release: robust **sitemap-based** colour enumeration + guaranteed **own-colour** (a product can never end up with zero colours) + `?thin=1` re-warm for under-filled items
