@@ -13,22 +13,29 @@ export async function dominantHexFromUrl(url: string): Promise<string | null> {
     const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10000) });
     if (!res.ok) return null;
     const buf = Buffer.from(await res.arrayBuffer());
-    const meta = await sharp(buf).metadata();
+    // Crop the flat background to the product's bounding box FIRST, so the
+    // average reflects the product regardless of how much white surrounds it —
+    // small items (bum bags / wallets / pochettes) don't fill a fixed centre crop.
+    let work: Buffer = buf;
+    try {
+      work = await sharp(buf).trim({ threshold: 12 }).toBuffer();
+    } catch {
+      work = buf;
+    }
+
+    const meta = await sharp(work).metadata();
     const w = meta.width ?? 0;
     const h = meta.height ?? 0;
-    if (w < 4 || h < 4) return null;
+    if (w < 2 || h < 2) return null;
 
-    // Centre 35% of the image — solidly the product body, away from the white
-    // margins and the side strap/logo.
-    const cw = Math.max(1, Math.round(w * 0.35));
-    const ch = Math.max(1, Math.round(h * 0.35));
+    // Average (mean) the centre 70% of the cropped product — skips edge
+    // straps/zips/handles. `dominant` (histogram mode) was unusable: it latched
+    // onto highlights/white and returned near-white even for black products.
+    const cw = Math.max(1, Math.round(w * 0.7));
+    const ch = Math.max(1, Math.round(h * 0.7));
     const left = Math.round((w - cw) / 2);
     const top = Math.round((h - ch) / 2);
-
-    // Use the MEAN colour (resize to 1px averages the region). `dominant` (the
-    // histogram mode) was unusable here — it latched onto bright highlights/white
-    // and returned near-white for every product, including black ones.
-    const { data } = await sharp(buf)
+    const { data } = await sharp(work)
       .extract({ left, top, width: cw, height: ch })
       .flatten({ background: "#ffffff" })
       .resize(1, 1, { fit: "fill" })
