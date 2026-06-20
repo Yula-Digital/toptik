@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { CarouselItem } from "@/lib/carousel/types";
-import type { ColorSwatch } from "@/lib/catalog-source/product-details";
-import { extractColorWord, COLOR_HEBREW } from "@/lib/carousel/color-groups";
+import type { ResolvedSwatch } from "@/lib/carousel/colors";
 import { trimmedProductSrc } from "@/lib/carousel/trim-src";
 import { nextImageSrcset, nextImageUrl } from "@/lib/carousel/next-image";
 
@@ -14,7 +13,7 @@ const MODAL_IMAGE_SIZES = "(max-width: 767px) 90vw, 55vw";
 type ProductModalProps = {
   item: CarouselItem | null;
   activeAngleIndex: number;
-  colors?: ColorSwatch[];
+  colors?: ResolvedSwatch[];
   onClose: () => void;
   onNextAngle: () => void;
   onPrevAngle: () => void;
@@ -86,6 +85,7 @@ export function ProductModal({
 }: ProductModalProps) {
   const touchStartX = useRef<number | null>(null);
   const warmedItemId = useRef<string | null>(null);
+  const [colorImage, setColorImage] = useState<string | null>(null);
 
   useEffect(() => {
     if (!item) {
@@ -101,8 +101,8 @@ export function ProductModal({
     if (!item) return;
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
-      if (event.key === "ArrowRight" || event.key === " ") onNextAngle();
-      if (event.key === "ArrowLeft") onPrevAngle();
+      if (event.key === "ArrowRight" || event.key === " ") { setColorImage(null); onNextAngle(); }
+      if (event.key === "ArrowLeft") { setColorImage(null); onPrevAngle(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -113,13 +113,18 @@ export function ProductModal({
   const catalogLabel = item.catalogNumber ? `דגם ${item.catalogNumber}` : "דגם";
   const angleCount = item.angles.length;
 
+  // Angle navigation resumes the base gallery, so clear any colour override.
+  const goNextAngle = () => { setColorImage(null); onNextAngle(); };
+  const goPrevAngle = () => { setColorImage(null); onPrevAngle(); };
+  const goToAngle = (index: number) => { setColorImage(null); onSelectAngle(index); };
+
   function onTouchEnd(clientX: number) {
     if (touchStartX.current === null) return;
     const delta = clientX - touchStartX.current;
     touchStartX.current = null;
     if (Math.abs(delta) < 36) return;
-    if (delta < 0) onNextAngle();
-    else onPrevAngle();
+    if (delta < 0) goNextAngle();
+    else goPrevAngle();
   }
 
   return (
@@ -138,7 +143,7 @@ export function ProductModal({
               {/* image */}
               <div
                 className="product-modal-image-wrap"
-                onClick={onNextAngle}
+                onClick={goNextAngle}
                 onTouchStart={(event) => {
                   touchStartX.current = event.touches[0]?.clientX ?? null;
                 }}
@@ -147,12 +152,12 @@ export function ProductModal({
                 tabIndex={0}
                 aria-label="דפדף לזווית הבאה"
                 onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") onNextAngle();
+                  if (event.key === "Enter" || event.key === " ") goNextAngle();
                 }}
               >
-                {(activeAngle?.imagePath || item.coverImagePath) && (
+                {(colorImage || activeAngle?.imagePath || item.coverImagePath) && (
                   <Image
-                    src={trimmedProductSrc(activeAngle?.imagePath || item.coverImagePath)}
+                    src={trimmedProductSrc(colorImage || activeAngle?.imagePath || item.coverImagePath)}
                     alt={`${item.title} - ${activeAngle?.angleKey ?? "view"}`}
                     width={1600}
                     height={1600}
@@ -168,14 +173,14 @@ export function ProductModal({
                 {/* side arrows — inside image frame, pointing outward */}
                 <button
                   className="product-modal-side-arrow product-modal-side-arrow--prev"
-                  onClick={(e) => { e.stopPropagation(); onPrevAngle(); }}
+                  onClick={(e) => { e.stopPropagation(); goPrevAngle(); }}
                   aria-label="זווית קודמת"
                 >
                   ‹
                 </button>
                 <button
                   className="product-modal-side-arrow product-modal-side-arrow--next"
-                  onClick={(e) => { e.stopPropagation(); onNextAngle(); }}
+                  onClick={(e) => { e.stopPropagation(); goNextAngle(); }}
                   aria-label="זווית הבאה"
                 >
                   ›
@@ -189,7 +194,7 @@ export function ProductModal({
                     <button
                       key={angle.id}
                       className={`product-modal-slider-dot${index === activeAngleIndex ? " is-active" : ""}`}
-                      onClick={() => onSelectAngle(index)}
+                      onClick={() => goToAngle(index)}
                       aria-label={`עבור לזווית ${index + 1}`}
                       aria-current={index === activeAngleIndex ? "true" : undefined}
                     />
@@ -198,29 +203,34 @@ export function ProductModal({
               </div>
 
               {/* color swatches */}
-              {colors.length > 0 && (() => {
-                const activeColorWord = extractColorWord(item.title);
-                return (
-                  <div className="product-modal-colors" dir="rtl">
-                    <span className="product-modal-colors-label">צבעים</span>
-                    <div className="product-modal-colors-swatches">
-                      {colors.map((c, i) => {
-                        const swatchColor = Object.entries(COLOR_HEBREW).find(([, v]) => v === c.name)?.[0] ?? c.name.toLowerCase();
-                        const isActive = activeColorWord ? swatchColor === activeColorWord : false;
-                        return (
-                          <span
-                            key={i}
-                            className={`product-modal-color-dot${isActive ? " is-current" : ""}`}
-                            title={c.name}
-                            style={c.hex ? { background: c.hex } : undefined}
-                            aria-label={c.name}
-                          />
-                        );
-                      })}
-                    </div>
+              {colors.length > 0 && (
+                <div className="product-modal-colors" dir="rtl">
+                  <span className="product-modal-colors-label">צבעים</span>
+                  <div className="product-modal-colors-swatches">
+                    {colors.map((c) => {
+                      const actionable = Boolean(c.imagePath);
+                      const highlight = colorImage ? c.imagePath === colorImage : c.isCurrent;
+                      return (
+                        <button
+                          key={c.key}
+                          type="button"
+                          className={`product-modal-color-dot${highlight ? " is-current" : ""}${actionable ? " is-actionable" : ""}`}
+                          title={c.name}
+                          style={c.hex ? { background: c.hex } : undefined}
+                          aria-label={c.name}
+                          aria-pressed={actionable ? colorImage === c.imagePath : undefined}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (c.imagePath) {
+                              setColorImage((prev) => (prev === c.imagePath ? null : c.imagePath));
+                            }
+                          }}
+                        />
+                      );
+                    })}
                   </div>
-                );
-              })()}
+                </div>
+              )}
             </div>
           </div>
 

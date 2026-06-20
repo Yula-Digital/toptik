@@ -13,6 +13,18 @@ export interface CachedTechSpecs {
   colors: Array<{ name: string; hex: string | null; swatchUrl: string | null }>;
 }
 
+// One selectable colour of a product, scraped from Mandarina Duck's sibling
+// colour products. `imagePath` is a Supabase-hosted cover image for that colour,
+// so clicking the swatch can swap the displayed product image.
+export interface CarouselColor {
+  name: string;               // Hebrew display name
+  hex: string | null;         // swatch fill
+  colorCode: string | null;   // global MD colour code (e.g. "465")
+  imagePath: string;          // Supabase-hosted product image in this colour
+  sourceUrl: string | null;   // that colour's MD product page
+  catalogNumber: string | null;
+}
+
 export interface CarouselItem {
   id: string;
   title: string;
@@ -24,6 +36,7 @@ export interface CarouselItem {
   isActive: boolean;
   angles: CarouselAngle[];
   techSpecs?: CachedTechSpecs | null;
+  colors?: CarouselColor[] | null;
 }
 
 export interface CarouselSettings {

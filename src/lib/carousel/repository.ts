@@ -20,6 +20,7 @@ type ItemRow = {
   display_order: number;
   is_active: boolean;
   tech_specs?: import("./types").CachedTechSpecs | null;
+  colors?: import("./types").CarouselColor[] | null;
 };
 
 type AngleRow = {
@@ -96,6 +97,7 @@ export async function getCarouselPayload(
       displayOrder: item.display_order,
       isActive: item.is_active,
       techSpecs: item.tech_specs ?? null,
+      colors: item.colors ?? null,
       angles: (anglesByItem.get(item.id) ?? []).map((angle) => ({
         id: angle.id,
         itemId: angle.item_id,

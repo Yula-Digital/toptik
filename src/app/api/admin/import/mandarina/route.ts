@@ -2,9 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createCatalogSourceProvider } from "@/lib/catalog-source/provider";
 import { fetchProductDetails } from "@/lib/catalog-source/product-details";
+import { enumerateColorVariants } from "@/lib/catalog-source/mandarina-scraper";
+import { uploadRemoteImageToStorage } from "@/lib/catalog-source/storage";
+import { toCarouselColors } from "@/lib/carousel/colors";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { supabaseEnv } from "@/lib/supabase/env";
-import { CachedTechSpecs, CarouselItem } from "@/lib/carousel/types";
+import { CachedTechSpecs, CarouselColor, CarouselItem } from "@/lib/carousel/types";
+
+// Import now also enumerates every colour of the model (extra page fetches +
+// image uploads), so give the function room beyond the default timeout.
+export const runtime = "nodejs";
+export const maxDuration = 120;
 
 const importCatalogSchema = z.object({
   catalogNumber: z
@@ -19,23 +27,6 @@ const importCatalogSchema = z.object({
 function isAuthorized(req: NextRequest) {
   const token = req.headers.get("x-admin-token");
   return Boolean(token && supabaseEnv.adminToken && token === supabaseEnv.adminToken);
-}
-
-function extensionFromContentType(contentType: string | null) {
-  if (!contentType) return "jpg";
-  if (contentType.includes("png")) return "png";
-  if (contentType.includes("webp")) return "webp";
-  if (contentType.includes("jpeg") || contentType.includes("jpg")) return "jpg";
-  return "jpg";
-}
-
-function extensionFromUrl(url: string) {
-  const cleanPath = url.split("?")[0];
-  const parts = cleanPath.split(".");
-  const ext = parts[parts.length - 1]?.toLowerCase();
-  if (!ext) return null;
-  if (["jpg", "jpeg", "png", "webp"].includes(ext)) return ext === "jpeg" ? "jpg" : ext;
-  return null;
 }
 
 function angleKeyByIndex(index: number) {
@@ -73,49 +64,6 @@ async function translateToHebrew(input: string | null) {
   }
 }
 
-async function uploadRemoteImageToStorage(
-  catalogNumber: string,
-  imageUrl: string,
-  index: number,
-) {
-  const sourceRes = await fetch(imageUrl, {
-    headers: {
-      "user-agent":
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-      accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-      referer: "https://mandarinaduck.com/",
-    },
-    cache: "no-store",
-    signal: AbortSignal.timeout(12000),
-  });
-  if (!sourceRes.ok) {
-    throw new Error(`Failed to download source image (${sourceRes.status})`);
-  }
-  const contentType = sourceRes.headers.get("content-type");
-  if (!contentType?.startsWith("image/")) {
-    throw new Error("Source image has unsupported content type");
-  }
-
-  const bytes = await sourceRes.arrayBuffer();
-  const ext = extensionFromUrl(imageUrl) ?? extensionFromContentType(contentType);
-  const filePath = `imports/mandarina/${catalogNumber}/${String(index + 1).padStart(
-    2,
-    "0",
-  )}-${crypto.randomUUID()}.${ext}`;
-
-  const supabase = createSupabaseServiceRoleClient();
-  const { error } = await supabase.storage
-    .from("carousel-media")
-    .upload(filePath, bytes, { contentType, upsert: false });
-
-  if (error) {
-    throw new Error(`Storage upload failed: ${error.message}`);
-  }
-
-  const { data } = supabase.storage.from("carousel-media").getPublicUrl(filePath);
-  return data.publicUrl;
-}
-
 export async function POST(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -132,7 +80,11 @@ export async function POST(req: NextRequest) {
     const uploadedUrls: string[] = [];
     for (const [index, imageUrl] of sourceProduct.imageUrls.entries()) {
       try {
-        const publicUrl = await uploadRemoteImageToStorage(normalizedCatalogNumber, imageUrl, index);
+        const publicUrl = await uploadRemoteImageToStorage(
+          `imports/mandarina/${normalizedCatalogNumber}`,
+          imageUrl,
+          index,
+        );
         uploadedUrls.push(publicUrl);
       } catch (error) {
         console.warn("Image import skipped", imageUrl, error);
@@ -156,6 +108,38 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Enumerate every colour of this model (each colour is a separate MD
+    // product) and re-host a cover image per colour, so a swatch click can swap
+    // the displayed product image. Non-fatal: a failure just leaves the item
+    // without scraped colours (the colour warmer can fill it in later).
+    let colors: CarouselColor[] | null = null;
+    if (sourceProduct.sourceUrl) {
+      try {
+        const variants = await enumerateColorVariants(sourceProduct);
+        if (variants.length > 0) {
+          const coverByHandle = new Map<string, string>();
+          await Promise.all(
+            variants.map(async (variant, index) => {
+              try {
+                const publicUrl = await uploadRemoteImageToStorage(
+                  `imports/mandarina/${normalizedCatalogNumber}/colors`,
+                  variant.coverImageUrl,
+                  index,
+                );
+                coverByHandle.set(variant.handle, publicUrl);
+              } catch (coverError) {
+                console.warn("Colour cover import skipped", variant.handle, coverError);
+              }
+            }),
+          );
+          const mapped = toCarouselColors(variants, coverByHandle);
+          if (mapped.length > 0) colors = mapped;
+        }
+      } catch (colorError) {
+        console.warn("Colour enumeration failed", colorError);
+      }
+    }
+
     const translatedDescription = await translateToHebrew(sourceProduct.description);
 
     const itemId = targetItemId ?? crypto.randomUUID();
@@ -172,6 +156,7 @@ export async function POST(req: NextRequest) {
       displayOrder: 1,
       isActive: true,
       techSpecs,
+      colors,
       angles: uploadedUrls.map((imagePath, index) => ({
         id: crypto.randomUUID(),
         itemId,
@@ -181,18 +166,18 @@ export async function POST(req: NextRequest) {
       })),
     };
 
-    // Persist the pre-fetched tech specs to the DB row created/updated by
-    // the admin save flow. Best-effort: missing column or older row schema
-    // shouldn't break the import.
-    if (techSpecs && targetItemId) {
+    // Persist pre-fetched side-data (tech specs + colours) to the existing DB
+    // row. Best-effort: a missing column or older row schema must not break the
+    // import. (New items get this filled by the warmers after the row exists.)
+    if (targetItemId && (techSpecs || colors)) {
       try {
         const supabase = createSupabaseServiceRoleClient();
-        await supabase
-          .from("carousel_items")
-          .update({ tech_specs: techSpecs })
-          .eq("id", targetItemId);
+        const update: Record<string, unknown> = {};
+        if (techSpecs) update.tech_specs = techSpecs;
+        if (colors) update.colors = colors;
+        await supabase.from("carousel_items").update(update).eq("id", targetItemId);
       } catch (persistError) {
-        console.warn("Tech specs persist failed", persistError);
+        console.warn("Side-data persist failed", persistError);
       }
     }
 

@@ -9,6 +9,7 @@ import { TechSpecsModal } from "@/components/carousel/TechSpecsModal";
 import { CarouselItem, CarouselPayload } from "@/lib/carousel/types";
 import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
 import { buildItemColorGroups } from "@/lib/carousel/color-groups";
+import { resolveItemSwatches } from "@/lib/carousel/colors";
 import {
   CategoryKey,
   filterByCategory,
@@ -166,9 +167,10 @@ export default function CarouselPageClient() {
       )}
 
       <ProductModal
+        key={selectedItem?.id ?? "none"}
         item={selectedItem}
         activeAngleIndex={activeAngleIndex}
-        colors={selectedItem ? (colorGroups.get(selectedItem.id) ?? []) : []}
+        colors={selectedItem ? resolveItemSwatches(selectedItem, colorGroups.get(selectedItem.id)) : []}
         onClose={onCloseModal}
         onNextAngle={onNextAngle}
         onPrevAngle={onPrevAngle}

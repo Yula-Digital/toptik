@@ -466,7 +466,11 @@ function modelTokenFromCatalog(catalogNumber: string): string | null {
   return head.length >= 4 ? head.toLowerCase() : null;
 }
 
-function deriveModelToken(primary: SourceProduct): string | null {
+// Minimal input the enumeration needs — usable from a full SourceProduct (import)
+// or from a stored item row (warmer).
+type ColorEnumerationInput = { sourceUrl: string; catalogNumber?: string | null };
+
+function deriveModelToken(primary: ColorEnumerationInput): string | null {
   const handle = handleFromUrl(primary.sourceUrl);
   return (
     (handle ? modelTokenFromHandle(handle) : null) ??
@@ -506,7 +510,7 @@ async function fetchVariantHandlesByModel(modelToken: string): Promise<string[]>
 }
 
 // Given the primary product (one colour), discover every colour of that model.
-export async function enumerateColorVariants(primary: SourceProduct): Promise<SourceColorVariant[]> {
+export async function enumerateColorVariants(primary: ColorEnumerationInput): Promise<SourceColorVariant[]> {
   const modelToken = deriveModelToken(primary);
   if (!modelToken) return [];
 
