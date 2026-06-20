@@ -18,19 +18,24 @@ export async function dominantHexFromUrl(url: string): Promise<string | null> {
     const h = meta.height ?? 0;
     if (w < 4 || h < 4) return null;
 
-    // Centre 50% of the image — solidly the product body.
-    const cw = Math.max(1, Math.round(w * 0.5));
-    const ch = Math.max(1, Math.round(h * 0.5));
+    // Centre 35% of the image — solidly the product body, away from the white
+    // margins and the side strap/logo.
+    const cw = Math.max(1, Math.round(w * 0.35));
+    const ch = Math.max(1, Math.round(h * 0.35));
     const left = Math.round((w - cw) / 2);
     const top = Math.round((h - ch) / 2);
 
-    const center = await sharp(buf)
+    // Use the MEAN colour (resize to 1px averages the region). `dominant` (the
+    // histogram mode) was unusable here — it latched onto bright highlights/white
+    // and returned near-white for every product, including black ones.
+    const { data } = await sharp(buf)
       .extract({ left, top, width: cw, height: ch })
       .flatten({ background: "#ffffff" })
-      .toBuffer();
-
-    const { dominant } = await sharp(center).stats();
-    return `#${toHex(dominant.r)}${toHex(dominant.g)}${toHex(dominant.b)}`;
+      .resize(1, 1, { fit: "fill" })
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+    const [r, g, b] = data;
+    return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
   } catch {
     return null;
   }
