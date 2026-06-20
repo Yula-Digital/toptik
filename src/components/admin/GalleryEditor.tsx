@@ -1,0 +1,555 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
+import { CarouselPayload, TransitionMode } from "@/lib/carousel/types";
+import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
+
+const BATCH_IMPORT_INITIAL = 5;
+const BATCH_IMPORT_INCREMENT = 5;
+type ImportFeedbackTone = "info" | "success" | "error";
+type ImportPreview = {
+  id: string;
+  title: string;
+  coverImagePath: string;
+  catalogNumber: string;
+};
+type ImportedItemData = {
+  item: CarouselPayload["items"][number];
+  source: { catalogNumber: string; importedImages: number };
+};
+type BatchImportStatus = { tone: ImportFeedbackTone; message: string };
+
+// Session-authenticated gallery editor. Auth is handled by the panel (the
+// Supabase session cookie travels with same-origin fetches), so this component
+// no longer manages any admin token.
+export function GalleryEditor() {
+  const [payload, setPayload] = useState<CarouselPayload>(fallbackCarouselPayload);
+  const [status, setStatus] = useState<string>("טוען…");
+  const [isSaving, setIsSaving] = useState(false);
+  const [batchCatalogInputs, setBatchCatalogInputs] = useState<string[]>(
+    Array.from({ length: BATCH_IMPORT_INITIAL }, () => ""),
+  );
+  const [batchImportStatuses, setBatchImportStatuses] = useState<Record<number, BatchImportStatus>>({});
+  const [isBatchImporting, setIsBatchImporting] = useState(false);
+  const [importFeedback, setImportFeedback] = useState<{ tone: ImportFeedbackTone; message: string } | null>(null);
+  const [importPreviews, setImportPreviews] = useState<ImportPreview[]>([]);
+
+  function resolveErrorMessage(error: unknown, fallback: string) {
+    if (error instanceof Error && error.message) return error.message;
+    return fallback;
+  }
+
+  function normalizeCatalogNumber(value: string) {
+    return value.trim().toUpperCase();
+  }
+
+  function upsertImportedItem(current: CarouselPayload, data: ImportedItemData, targetItemId?: string) {
+    const next = structuredClone(current);
+    const normalizedCatalog = normalizeCatalogNumber(data.source.catalogNumber);
+    const existingIndex = targetItemId
+      ? next.items.findIndex((item) => item.id === targetItemId)
+      : next.items.findIndex((item) => {
+          const byCatalogNumber = normalizeCatalogNumber(item.catalogNumber ?? "") === normalizedCatalog;
+          const byCatalogPath = item.angles.some((angle) =>
+            angle.imagePath.includes(`/imports/mandarina/${data.source.catalogNumber}/`),
+          );
+          const byTitle = item.title.trim().toLowerCase() === data.item.title.trim().toLowerCase();
+          return byCatalogNumber || byCatalogPath || byTitle;
+        });
+
+    if (existingIndex >= 0) {
+      const existing = next.items[existingIndex];
+      next.items[existingIndex] = {
+        ...existing,
+        title: data.item.title,
+        description: data.item.description,
+        catalogNumber: data.item.catalogNumber ?? data.source.catalogNumber,
+        sourceUrl: data.item.sourceUrl ?? null,
+        coverImagePath: data.item.coverImagePath,
+        angles: data.item.angles.map((angle) => ({ ...angle, itemId: existing.id })),
+      };
+      return { next, mode: "updated" as const };
+    }
+
+    const maxOrder = next.items.reduce((max, item) => Math.max(max, item.displayOrder), 0);
+    next.items.push({ ...data.item, displayOrder: maxOrder + 1 });
+    return { next, mode: "created" as const };
+  }
+
+  async function importCatalogNumberFromSource(activeCatalogNumber: string, targetItemId?: string): Promise<ImportedItemData> {
+    const res = await fetch("/api/admin/import/mandarina", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ catalogNumber: activeCatalogNumber, targetItemId }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(data?.error || "Import failed");
+    }
+    return (await res.json()) as ImportedItemData;
+  }
+
+  async function persistPayload(nextPayload: CarouselPayload) {
+    const res = await fetch("/api/admin/carousel", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(nextPayload),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(data?.error || "Save failed");
+    }
+  }
+
+  const loadData = useCallback(async () => {
+    try {
+      setStatus("טוען נתוני גלריה…");
+      const res = await fetch("/api/admin/carousel");
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error || "טעינה נכשלה");
+      }
+      setPayload(await res.json());
+      setStatus("מחובר");
+    } catch (error) {
+      setStatus(resolveErrorMessage(error, "טעינה נכשלה"));
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadData();
+  }, [loadData]);
+
+  function updateItemField(
+    index: number,
+    field: "title" | "description" | "catalogNumber" | "displayOrder" | "isActive",
+    value: string | number | boolean,
+  ) {
+    setPayload((current) => {
+      const next = structuredClone(current);
+      const item = next.items[index];
+      if (field === "displayOrder") item.displayOrder = Number(value);
+      else if (field === "isActive") item.isActive = Boolean(value);
+      else if (field === "catalogNumber") {
+        const normalized = String(value).trim();
+        item.catalogNumber = normalized ? normalized : null;
+      } else if (field === "description") item.description = String(value);
+      else item.title = String(value);
+      return next;
+    });
+  }
+
+  function addItem() {
+    setPayload((current) => {
+      const next = structuredClone(current);
+      const itemId = crypto.randomUUID();
+      next.items.push({
+        id: itemId,
+        title: "מוצר חדש",
+        description: "",
+        catalogNumber: null,
+        sourceUrl: null,
+        coverImagePath: "/hero-web-airport.png",
+        displayOrder: next.items.length + 1,
+        isActive: true,
+        angles: [{ id: crypto.randomUUID(), itemId, angleKey: "front", imagePath: "/hero-web-airport.png", angleOrder: 1 }],
+      });
+      return next;
+    });
+  }
+
+  function removeItem(itemId: string) {
+    setPayload((current) => ({ ...current, items: current.items.filter((item) => item.id !== itemId) }));
+  }
+
+  async function uploadFile(file: File, folder: string): Promise<string> {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("folder", folder);
+    const res = await fetch("/api/admin/upload", { method: "POST", body: formData });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(data?.error || "Upload failed");
+    }
+    const data = await res.json();
+    return data.publicUrl as string;
+  }
+
+  async function onCoverUpload(itemIndex: number, file: File) {
+    try {
+      setStatus("מעלה תמונה…");
+      const item = payload.items[itemIndex];
+      const url = await uploadFile(file, `items/${item.id}/cover`);
+      setPayload((current) => {
+        const next = structuredClone(current);
+        next.items[itemIndex].coverImagePath = url;
+        return next;
+      });
+      setStatus("התמונה הועלתה");
+    } catch (error) {
+      setStatus(resolveErrorMessage(error, "שגיאת העלאה"));
+    }
+  }
+
+  async function onSave() {
+    try {
+      setIsSaving(true);
+      setStatus("שומר…");
+      await persistPayload(payload);
+      setStatus("נשמר בהצלחה");
+      setImportFeedback({ tone: "success", message: "השינויים נשמרו בהצלחה." });
+    } catch (error) {
+      setStatus(resolveErrorMessage(error, "שגיאת שמירה"));
+      setImportFeedback({ tone: "error", message: resolveErrorMessage(error, "שגיאת שמירה") });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function onBatchImportAndSave() {
+    const normalizedRows = batchCatalogInputs.map((value, index) => ({ index, catalogNumber: normalizeCatalogNumber(value) }));
+    const filledRows = normalizedRows.filter((row) => row.catalogNumber);
+    const nextStatuses: Record<number, BatchImportStatus> = {};
+
+    if (filledRows.length === 0) {
+      setBatchImportStatuses({ 0: { tone: "error", message: "יש להזין לפחות מק״ט אחד." } });
+      return;
+    }
+
+    const seen = new Map<string, number>();
+    for (const row of filledRows) {
+      const firstIndex = seen.get(row.catalogNumber);
+      if (firstIndex !== undefined) {
+        nextStatuses[row.index] = { tone: "error", message: `מק״ט כפול בשורה ${firstIndex + 1}` };
+        nextStatuses[firstIndex] = { tone: "error", message: `מק״ט כפול בשורה ${row.index + 1}` };
+      } else {
+        seen.set(row.catalogNumber, row.index);
+      }
+    }
+
+    if (Object.keys(nextStatuses).length > 0) {
+      setBatchImportStatuses(nextStatuses);
+      setImportFeedback({ tone: "error", message: "יש מק״טים כפולים. תקן לפני שמירה." });
+      return;
+    }
+
+    try {
+      setIsBatchImporting(true);
+      setBatchImportStatuses(
+        Object.fromEntries(filledRows.map((row) => [row.index, { tone: "info", message: "ממתין ליבוא…" }])),
+      );
+      setImportFeedback({ tone: "info", message: `מייבא ${filledRows.length} מק״טים ושומר בסיום…` });
+
+      let workingPayload = structuredClone(payload);
+      const previews: ImportPreview[] = [];
+      let successCount = 0;
+
+      for (const row of filledRows) {
+        setBatchImportStatuses((current) => ({ ...current, [row.index]: { tone: "info", message: "מייבא…" } }));
+        try {
+          const data = await importCatalogNumberFromSource(row.catalogNumber);
+          const result = upsertImportedItem(workingPayload, data);
+          workingPayload = result.next;
+          successCount += 1;
+          previews.push({
+            id: crypto.randomUUID(),
+            title: data.item.title,
+            coverImagePath: data.item.coverImagePath,
+            catalogNumber: data.source.catalogNumber,
+          });
+          setBatchImportStatuses((current) => ({
+            ...current,
+            [row.index]: { tone: "success", message: result.mode === "updated" ? "עודכן מוצר קיים" : "נוצר מוצר חדש" },
+          }));
+        } catch (error) {
+          const message = resolveErrorMessage(error, "לא נמצא מק״ט או שגיאת יבוא");
+          setBatchImportStatuses((current) => ({ ...current, [row.index]: { tone: "error", message } }));
+        }
+      }
+
+      if (successCount === 0) throw new Error("לא יובא אף מוצר. לא נשמרו שינויים.");
+
+      await persistPayload(workingPayload);
+      setPayload(workingPayload);
+      setImportPreviews((current) => [...previews, ...current].slice(0, 8));
+      setStatus(`נשמרו ${successCount} מוצרים מייבוא מרובה.`);
+      setImportFeedback({
+        tone: "success",
+        message: `הייבוא המרובה הסתיים ונשמר: ${successCount}/${filledRows.length} מוצרים הצליחו.`,
+      });
+    } catch (error) {
+      const message = resolveErrorMessage(error, "שגיאת ייבוא מרובה");
+      setStatus(message);
+      setImportFeedback({ tone: "error", message });
+    } finally {
+      setIsBatchImporting(false);
+    }
+  }
+
+  const sortedItems = useMemo(
+    () => [...payload.items].sort((a, b) => a.displayOrder - b.displayOrder),
+    [payload.items],
+  );
+
+  return (
+    <div className="admin-gallery">
+      <p className="admin-status" style={{ marginBottom: 12 }}>
+        סטטוס: {status}
+      </p>
+
+      <section className="admin-batch-import">
+        <div className="admin-items-head">
+          <h2>ייבוא מרובה לפי מק״טים</h2>
+          <button onClick={onBatchImportAndSave} disabled={isBatchImporting || isSaving}>
+            {isBatchImporting ? "מייבא ושומר…" : "ייבא ושמור הכל"}
+          </button>
+        </div>
+        <p className="admin-import-note">
+          הכנס מק״טים ולחץ &quot;ייבא ושמור הכל&quot;. אפשר להוסיף עוד שדות בלחיצה. המערכת תשלוף ממנדרינה, תיצור/תעדכן מוצרים, ותשמור הכל בפעולה אחת.
+        </p>
+        <div className="admin-batch-grid">
+          {batchCatalogInputs.map((value, index) => {
+            const rowStatus = batchImportStatuses[index];
+            return (
+              <label key={`batch-catalog-${index}`} className="admin-batch-row">
+                <span>{index + 1}</span>
+                <input
+                  value={value}
+                  onChange={(e) => {
+                    const nextValue = e.target.value;
+                    setBatchCatalogInputs((current) => current.map((row, rowIndex) => (rowIndex === index ? nextValue : row)));
+                    setBatchImportStatuses((current) => {
+                      const next = { ...current };
+                      delete next[index];
+                      return next;
+                    });
+                  }}
+                  placeholder="מק״ט"
+                  dir="ltr"
+                />
+                <em className={rowStatus ? `admin-batch-status admin-batch-status-${rowStatus.tone}` : "admin-batch-status"}>
+                  {rowStatus?.message || ""}
+                </em>
+              </label>
+            );
+          })}
+        </div>
+        <div className="admin-batch-actions">
+          <button
+            type="button"
+            className="admin-batch-add"
+            onClick={() =>
+              setBatchCatalogInputs((current) => [
+                ...current,
+                ...Array.from({ length: BATCH_IMPORT_INCREMENT }, () => ""),
+              ])
+            }
+            disabled={isBatchImporting}
+          >
+            + הוסף {BATCH_IMPORT_INCREMENT} שדות
+          </button>
+          {batchCatalogInputs.length > BATCH_IMPORT_INITIAL && (
+            <button
+              type="button"
+              className="admin-batch-remove"
+              onClick={() => {
+                setBatchCatalogInputs((current) => {
+                  const trimmed = current.slice(0, -BATCH_IMPORT_INCREMENT);
+                  return trimmed.length < BATCH_IMPORT_INITIAL
+                    ? Array.from({ length: BATCH_IMPORT_INITIAL }, (_, i) => current[i] ?? "")
+                    : trimmed;
+                });
+                setBatchImportStatuses((current) => {
+                  const next: typeof current = {};
+                  const newLen = Math.max(BATCH_IMPORT_INITIAL, batchCatalogInputs.length - BATCH_IMPORT_INCREMENT);
+                  for (const key of Object.keys(current)) {
+                    const idx = Number(key);
+                    if (idx < newLen) next[idx] = current[idx];
+                  }
+                  return next;
+                });
+              }}
+              disabled={isBatchImporting}
+            >
+              − הסר {BATCH_IMPORT_INCREMENT} שדות
+            </button>
+          )}
+          <span className="admin-batch-count">סך שדות: {batchCatalogInputs.length}</span>
+        </div>
+      </section>
+
+      <section className="admin-settings">
+        <h2>הגדרות דפדוף</h2>
+        <label>
+          מהירות autoplay (ms)
+          <input
+            type="number"
+            min={1500}
+            max={12000}
+            value={payload.settings.autoplayMs}
+            onChange={(e) =>
+              setPayload((current) => ({ ...current, settings: { ...current.settings, autoplayMs: Number(e.target.value) } }))
+            }
+          />
+        </label>
+        <label>
+          סוג מעבר דף בית → קטלוג
+          <select
+            value={payload.settings.transitionMode}
+            onChange={(e) =>
+              setPayload((current) => ({
+                ...current,
+                settings: { ...current.settings, transitionMode: e.target.value as TransitionMode },
+              }))
+            }
+          >
+            <option value="shatter-particle">Shatter / Particle</option>
+            <option value="curtain-fade">Curtain Fade</option>
+          </select>
+        </label>
+      </section>
+
+      {importFeedback && (
+        <div className={`admin-import-feedback admin-import-feedback-${importFeedback.tone}`}>{importFeedback.message}</div>
+      )}
+
+      {importPreviews.length > 0 && (
+        <div className="admin-import-preview-list" aria-label="מוצרים שיובאו בהצלחה">
+          {importPreviews.map((preview) => (
+            <div key={preview.id} className="admin-import-preview-item">
+              <Image
+                src={preview.coverImagePath}
+                alt={preview.title}
+                width={52}
+                height={52}
+                className="admin-import-preview-image"
+                unoptimized
+              />
+              <div className="admin-import-preview-meta">
+                <div className="admin-import-preview-catalog">{preview.catalogNumber}</div>
+                <div className="admin-import-preview-title">{preview.title}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <section className="admin-items">
+        <div className="admin-items-head">
+          <h2>מוצרים</h2>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button className="admin-save-inline-btn" onClick={onSave} disabled={isSaving || isBatchImporting}>
+              {isSaving ? "שומר…" : "שמור הכל"}
+            </button>
+            <button onClick={addItem}>הוסף מוצר</button>
+          </div>
+        </div>
+
+        {sortedItems.map((item) => {
+          const itemIndex = payload.items.findIndex((row) => row.id === item.id);
+          return (
+            <article key={item.id} className="admin-item-card">
+              <div className="admin-item-head">
+                {item.coverImagePath ? (
+                  <Image src={item.coverImagePath} alt={item.title} width={64} height={64} className="admin-item-thumb" unoptimized />
+                ) : (
+                  <div className="admin-item-thumb admin-item-thumb-empty" aria-hidden>
+                    ?
+                  </div>
+                )}
+                <h3>{item.title}</h3>
+                <button className="admin-danger-btn" onClick={() => removeItem(item.id)}>
+                  מחק מוצר
+                </button>
+              </div>
+              <div className="admin-item-grid">
+                <label>
+                  כותרת
+                  <input value={item.title} onChange={(e) => updateItemField(itemIndex, "title", e.target.value)} />
+                </label>
+                <label>
+                  תיאור
+                  <input value={item.description ?? ""} onChange={(e) => updateItemField(itemIndex, "description", e.target.value)} />
+                </label>
+                <label>
+                  מספר קטלוגי
+                  <input
+                    value={item.catalogNumber ?? ""}
+                    onChange={(e) => updateItemField(itemIndex, "catalogNumber", e.target.value)}
+                    placeholder="למשל: QMT32A74"
+                  />
+                </label>
+                <label>
+                  סדר תצוגה
+                  <input
+                    type="number"
+                    value={item.displayOrder}
+                    onChange={(e) => updateItemField(itemIndex, "displayOrder", Number(e.target.value))}
+                  />
+                </label>
+                <label className={`checkbox-line admin-active-toggle ${item.isActive ? "is-active" : "is-inactive"}`}>
+                  <span className="admin-active-label">{item.isActive ? "פעיל" : "לא פעיל"}</span>
+                  <input
+                    type="checkbox"
+                    checked={item.isActive}
+                    onChange={(e) => updateItemField(itemIndex, "isActive", e.target.checked)}
+                  />
+                </label>
+                <label>
+                  Cover URL
+                  <input
+                    value={item.coverImagePath}
+                    onChange={(e) =>
+                      setPayload((current) => {
+                        const next = structuredClone(current);
+                        next.items[itemIndex].coverImagePath = e.target.value;
+                        return next;
+                      })
+                    }
+                  />
+                </label>
+                <label>
+                  כתובת מקור
+                  <input
+                    value={item.sourceUrl ?? ""}
+                    onChange={(e) =>
+                      setPayload((current) => {
+                        const next = structuredClone(current);
+                        const normalized = e.target.value.trim();
+                        next.items[itemIndex].sourceUrl = normalized ? normalized : null;
+                        return next;
+                      })
+                    }
+                    placeholder="https://mandarinaduck.com/products/..."
+                  />
+                </label>
+                <label>
+                  העלאת Cover
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) onCoverUpload(itemIndex, file);
+                    }}
+                  />
+                </label>
+              </div>
+
+              <p className="admin-import-note">
+                זוויות מוצר ({item.angles.length}) מתעדכנות אוטומטית בייבוא לפי מספר קטלוגי.
+              </p>
+            </article>
+          );
+        })}
+      </section>
+
+      <section className="admin-save">
+        <button onClick={onSave} disabled={isSaving || isBatchImporting}>
+          {isSaving ? "שומר…" : "שמור הכל"}
+        </button>
+      </section>
+    </div>
+  );
+}

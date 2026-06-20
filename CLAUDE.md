@@ -51,9 +51,17 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS v4 (via `@tail
 
 Env access is centralized in `src/lib/supabase/env.ts` (`hasSupabasePublicEnv()` / `hasSupabaseAdminEnv()`); clients are constructed in `src/lib/supabase/server.ts`.
 
-## Admin & catalog import
+## Admin panel (third surface — `admin.toptik.co.il`)
 
-- `/admin` (`src/app/admin/page.tsx`) is client-token-gated: the token is stored in `localStorage["toptik_admin_token"]` and sent as the `x-admin-token` header. It supports editing items and single/batch (25) import by catalog number.
+A session-gated control panel served on the **`admin.toptik.co.il`** subdomain. Read **`docs/ADMIN-SUBDOMAIN.md`** before touching auth, the proxy, or DNS/Vercel for it.
+
+- **Auth:** Supabase Auth (email+password, hashed, built-in reset email) via `@supabase/ssr` cookie sessions. Up to **3 admins**. Helpers in `src/lib/admin/` (`supabase-server.ts`, `supabase-browser.ts`, `users.ts`, `settings.ts`, `api-auth.ts`, `config.ts`).
+- **Routing:** `src/proxy.ts` (Next 16 renamed Middleware→Proxy) refreshes the session and rewrites the subdomain root → `/dashboard`. Panel routes live under `src/app/(panel)/`: `/login`, `/setup`, `/reset`, `/dashboard`, `/settings`, `/settings/whatsapp`, `/gallery`; plus `/auth/callback`.
+- **First admin:** one-time `/setup` guarded by `ADMIN_PANEL_TOKEN`; the rest are invited from `/settings`. Panel APIs under `/api/panel/*`. Settings table: `supabase/migrations/20260620_admin_panel.sql` (`admin_settings`, service-role only).
+- The legacy `/admin` route now **redirects to `/dashboard`**. The gallery editor moved to `/gallery` (`src/components/admin/GalleryEditor.tsx`) and authenticates by session — `/api/admin/{carousel,upload,import/mandarina}` accept a Supabase session OR the legacy `x-admin-token` (cron/back-compat) via `isAdminApiAuthorized`.
+
+## Catalog import
+
 - Import (`POST /api/admin/import/mandarina`): scrape Mandarina Duck by catalog number (`src/lib/catalog-source/`, `MandarinaDuckScraperProvider`) → download images → re-upload to the Supabase storage bucket **`carousel-media`** → translate the description to Hebrew (Google Translate endpoint) → prefetch & cache tech specs. It returns a **draft** item; the admin must "save all" (`saveCarouselPayload`) to persist it.
 
 ## Image pipeline

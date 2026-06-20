@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
-import { supabaseEnv } from "@/lib/supabase/env";
+import { isAdminApiAuthorized } from "@/lib/admin/api-auth";
+
+export const runtime = "nodejs";
 
 const ACCEPTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 const MAX_UPLOAD_SIZE = 8 * 1024 * 1024;
 
-function isAuthorized(req: NextRequest) {
-  const token = req.headers.get("x-admin-token");
-  return Boolean(token && supabaseEnv.adminToken && token === supabaseEnv.adminToken);
-}
-
 export async function POST(req: NextRequest) {
-  if (!isAuthorized(req)) {
+  if (!(await isAdminApiAuthorized(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

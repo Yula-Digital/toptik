@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createCatalogSourceProvider } from "@/lib/catalog-source/provider";
 import { fetchProductDetails } from "@/lib/catalog-source/product-details";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
-import { supabaseEnv } from "@/lib/supabase/env";
+import { isAdminApiAuthorized } from "@/lib/admin/api-auth";
 import { CachedTechSpecs, CarouselItem } from "@/lib/carousel/types";
 
 const importCatalogSchema = z.object({
@@ -15,11 +15,6 @@ const importCatalogSchema = z.object({
     .regex(/^[A-Za-z0-9._/\-]+$/, "Catalog number contains invalid characters"),
   targetItemId: z.string().uuid().optional(),
 });
-
-function isAuthorized(req: NextRequest) {
-  const token = req.headers.get("x-admin-token");
-  return Boolean(token && supabaseEnv.adminToken && token === supabaseEnv.adminToken);
-}
 
 function extensionFromContentType(contentType: string | null) {
   if (!contentType) return "jpg";
@@ -117,7 +112,7 @@ async function uploadRemoteImageToStorage(
 }
 
 export async function POST(req: NextRequest) {
-  if (!isAuthorized(req)) {
+  if (!(await isAdminApiAuthorized(req))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
