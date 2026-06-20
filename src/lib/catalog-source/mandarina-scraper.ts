@@ -122,29 +122,55 @@ function extractXmlLocEntries(xml: string) {
   return uniqueStrings(locs);
 }
 
-async function fetchProductLinksFromSitemap(catalogNumber: string) {
-  const token = catalogNumber.replace(/[^A-Za-z0-9]/g, "").toLowerCase();
+// The product sitemap is the authoritative, complete list of every product
+// handle (every colour of every model). Cache the index + each file across calls
+// so enumerating many items in one warm/import run fetches each sitemap once.
+let sitemapFilesPromise: Promise<string[]> | null = null;
+const sitemapXmlCache = new Map<string, Promise<string>>();
+
+async function getProductSitemapFiles(): Promise<string[]> {
+  if (!sitemapFilesPromise) {
+    sitemapFilesPromise = (async () => {
+      try {
+        const indexXml = await fetchHtml(`${MANDARINA_BASE_URL}/sitemap.xml`);
+        return extractXmlLocEntries(indexXml)
+          .filter((loc) => loc.includes("sitemap_products"))
+          .slice(0, 12);
+      } catch {
+        return [];
+      }
+    })();
+  }
+  return sitemapFilesPromise;
+}
+
+async function fetchSitemapXml(url: string): Promise<string> {
+  let cached = sitemapXmlCache.get(url);
+  if (!cached) {
+    cached = fetchHtml(url).catch(() => "");
+    sitemapXmlCache.set(url, cached);
+  }
+  return cached;
+}
+
+// Scan EVERY product sitemap file for product URLs whose handle contains the
+// model/catalog token. Deterministic and complete — does not depend on MD's
+// /search returning the full colour set.
+async function fetchProductLinksFromSitemap(tokenSource: string) {
+  const token = tokenSource.replace(/[^A-Za-z0-9]/g, "").toLowerCase();
   if (!token) return [];
 
-  const indexXml = await fetchHtml(`${MANDARINA_BASE_URL}/sitemap.xml`);
-  const sitemapUrls = extractXmlLocEntries(indexXml)
-    .filter((loc) => loc.includes("sitemap_products"))
-    .slice(0, 8);
-
+  const files = await getProductSitemapFiles();
   const productLinks: string[] = [];
-  for (const sitemapUrl of sitemapUrls) {
-    try {
-      const sitemapXml = await fetchHtml(sitemapUrl);
-      const links = extractXmlLocEntries(sitemapXml).filter(
-        (loc) => loc.includes("/products/") && loc.toLowerCase().includes(token),
-      );
-      productLinks.push(...links);
-      if (productLinks.length > 0) break;
-    } catch {
-      // continue to next sitemap file
+  for (const sitemapUrl of files) {
+    const xml = await fetchSitemapXml(sitemapUrl);
+    if (!xml) continue;
+    for (const loc of extractXmlLocEntries(xml)) {
+      if (loc.includes("/products/") && loc.toLowerCase().includes(token)) {
+        productLinks.push(loc);
+      }
     }
   }
-
   return uniqueStrings(productLinks);
 }
 
@@ -504,15 +530,16 @@ async function fetchVariantHandlesByModel(modelToken: string): Promise<string[]>
     // fall through to sitemap
   }
 
-  if (handles.size === 0) {
-    try {
-      for (const link of await fetchProductLinksFromSitemap(modelToken)) {
-        const handle = handleFromUrl(link);
-        if (handle.includes(token)) handles.add(handle);
-      }
-    } catch {
-      // give up — caller tolerates an empty result
+  // ALWAYS union with the sitemap — MD's /search frequently returns only a
+  // subset (or just the queried colour), so the sitemap is what guarantees the
+  // complete same-model colour set.
+  try {
+    for (const link of await fetchProductLinksFromSitemap(modelToken)) {
+      const handle = handleFromUrl(link);
+      if (handle.includes(token)) handles.add(handle);
     }
+  } catch {
+    // tolerate — any search hits still stand
   }
 
   return [...handles];

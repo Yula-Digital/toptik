@@ -70,6 +70,32 @@ export function toCarouselColors(
   return colors;
 }
 
+// Guarantee a product's OWN colour is present — a product always exists at least
+// in the colour it was imported in. Uses the item's existing cover so it never
+// ends up with zero colours even when sibling scraping fails entirely.
+export function ensureOwnColor(
+  colors: CarouselColor[],
+  item: { catalogNumber: string | null; title?: string | null; coverImagePath: string },
+): CarouselColor[] {
+  if (!item.coverImagePath) return colors;
+  const ownCode = colorCodeFromCatalog(item.catalogNumber);
+  const hasOwn =
+    (ownCode != null && colors.some((c) => c.colorCode?.toUpperCase() === ownCode)) ||
+    colors.some((c) => c.imagePath === item.coverImagePath);
+  if (hasOwn) return colors;
+  const { name, hex } = resolveColorMeta(item.title ? extractColorWord(item.title) : null, ownCode);
+  const own: CarouselColor = {
+    name,
+    hex,
+    colorCode: ownCode,
+    imagePath: item.coverImagePath,
+    angles: [item.coverImagePath],
+    sourceUrl: null,
+    catalogNumber: item.catalogNumber,
+  };
+  return [own, ...colors];
+}
+
 // ─── UI swatch resolution ────────────────────────────────────────────────────
 
 // A swatch ready to render. `imagePath` non-null ⇒ clicking swaps the displayed

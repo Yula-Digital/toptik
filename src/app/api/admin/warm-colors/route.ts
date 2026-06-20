@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { enumerateColorVariants } from "@/lib/catalog-source/mandarina-scraper";
 import { uploadVariantGalleries } from "@/lib/catalog-source/storage";
-import { toCarouselColors } from "@/lib/carousel/colors";
+import { ensureOwnColor, toCarouselColors } from "@/lib/carousel/colors";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { hasSupabaseAdminEnv, supabaseEnv } from "@/lib/supabase/env";
 
@@ -25,6 +25,8 @@ type ColorWarmRow = {
   id: string;
   catalog_number: string | null;
   source_url: string | null;
+  cover_image_path: string;
+  title: string | null;
   colors: unknown;
 };
 
@@ -38,6 +40,9 @@ export async function POST(req: NextRequest) {
 
   const reset = req.nextUrl.searchParams.get("reset") === "1";
   const force = req.nextUrl.searchParams.get("force") === "1";
+  // ?thin=1 re-warms items that came back with fewer than 2 colours, to retry
+  // them with the current (more complete, sitemap-based) enumeration.
+  const thin = req.nextUrl.searchParams.get("thin") === "1";
   // Re-hosting a full gallery per colour is heavy, so process a bounded batch per
   // call and report `remaining` — callers loop until it reaches 0 (no timeout).
   const limit = Math.min(
@@ -59,7 +64,7 @@ export async function POST(req: NextRequest) {
 
   const { data: items, error } = await supabase
     .from("carousel_items")
-    .select("id,catalog_number,source_url,colors")
+    .select("id,catalog_number,source_url,cover_image_path,title,colors")
     .eq("is_active", true);
 
   if (error) {
@@ -67,7 +72,11 @@ export async function POST(req: NextRequest) {
   }
 
   const allTargets = (items ?? []).filter(
-    (it: ColorWarmRow) => it.source_url && (force || !it.colors),
+    (it: ColorWarmRow) =>
+      it.source_url &&
+      (force ||
+        !it.colors ||
+        (thin && Array.isArray(it.colors) && (it.colors as unknown[]).length < 2)),
   );
   const targets = allTargets.slice(0, limit);
 
@@ -77,13 +86,18 @@ export async function POST(req: NextRequest) {
         sourceUrl: item.source_url as string,
         catalogNumber: item.catalog_number,
       });
-      if (variants.length === 0) throw new Error("no colour variants found");
 
       const folder = `imports/mandarina/${item.catalog_number ?? item.id}/colors`;
       const galleryByHandle = await uploadVariantGalleries(folder, variants);
 
-      const colors = toCarouselColors(variants, galleryByHandle);
-      if (colors.length === 0) throw new Error("no colour galleries could be re-hosted");
+      // Always keep the item's own colour so a product never ends up with zero
+      // colours, even if sibling enumeration / re-hosting fails entirely.
+      const colors = ensureOwnColor(toCarouselColors(variants, galleryByHandle), {
+        catalogNumber: item.catalog_number,
+        title: item.title,
+        coverImagePath: item.cover_image_path,
+      });
+      if (colors.length === 0) throw new Error("no colours resolved");
 
       const { error: updateError } = await supabase
         .from("carousel_items")
