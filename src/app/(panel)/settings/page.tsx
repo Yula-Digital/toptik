@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requirePanelUser } from "@/lib/admin/supabase-server";
 import { AdminTopBar } from "@/components/admin/AdminTopBar";
 import { SettingsUsersClient } from "@/components/admin/SettingsUsersClient";
-import { ArrowBackIcon, WhatsappIcon } from "@/components/admin/icons";
+import { ArrowBackIcon } from "@/components/admin/icons";
 
 export const dynamic = "force-dynamic";
 
@@ -25,16 +25,6 @@ export default async function SettingsPage() {
         </div>
 
         <SettingsUsersClient currentEmail={user.email ?? null} />
-
-        <Link href="/settings/whatsapp" className="admin-tile" style={{ marginTop: 16 }}>
-          <span className="admin-tile-icon">
-            <WhatsappIcon />
-          </span>
-          <span className="admin-tile-body">
-            <span className="admin-tile-title">סוכן וואטסאפ AI</span>
-            <span className="admin-tile-desc">הפעלה, השבתה והגדרת הסוכן החכם של הוואטסאפ.</span>
-          </span>
-        </Link>
       </main>
     </>
   );

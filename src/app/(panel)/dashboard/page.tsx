@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { requirePanelUser } from "@/lib/admin/supabase-server";
-import { getAdminSettings } from "@/lib/admin/settings";
 import { LANDING_URL, SHOPIFY_STORE_URL } from "@/lib/admin/config";
 import { AdminTopBar } from "@/components/admin/AdminTopBar";
 import {
@@ -16,13 +15,6 @@ export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
   const user = await requirePanelUser();
-
-  let whatsappOn = false;
-  try {
-    whatsappOn = (await getAdminSettings()).whatsappEnabled;
-  } catch {
-    whatsappOn = false;
-  }
 
   return (
     <>
@@ -45,13 +37,13 @@ export default async function DashboardPage() {
             </span>
           </Link>
 
-          <Link href="/gallery" className="admin-tile">
+          <Link href="/admin" className="admin-tile">
             <span className="admin-tile-icon">
               <GalleryIcon />
             </span>
             <span className="admin-tile-body">
               <span className="admin-tile-title">עדכון גלריית דף הנחיתה</span>
-              <span className="admin-tile-desc">הוספה, עריכה וייבוא של מוצרי הקרוסלה בדף הבית.</span>
+              <span className="admin-tile-desc">מעבר לעורך הקרוסלה של דף הבית.</span>
             </span>
           </Link>
 
@@ -81,21 +73,21 @@ export default async function DashboardPage() {
             </span>
           </a>
 
-          <Link href="/settings/whatsapp" className="admin-tile">
+          <div className="admin-tile admin-tile--disabled" aria-disabled="true">
             <span className="admin-tile-icon">
               <WhatsappIcon />
             </span>
             <span className="admin-tile-body">
               <span className="admin-tile-title">
                 סוכן וואטסאפ AI
-                <span className={`admin-chip ${whatsappOn ? "admin-chip--on" : "admin-chip--off"}`}>
+                <span className="admin-chip admin-chip--off">
                   <span className="admin-chip-dot" />
-                  {whatsappOn ? "פעיל" : "מושבת"}
+                  בקרוב
                 </span>
               </span>
-              <span className="admin-tile-desc">הפעלה, השבתה והגדרה של סוכן הוואטסאפ החכם.</span>
+              <span className="admin-tile-desc">הפעלה והגדרה של סוכן הוואטסאפ — בפיתוח, יתווסף בהמשך.</span>
             </span>
-          </Link>
+          </div>
         </nav>
       </main>
     </>

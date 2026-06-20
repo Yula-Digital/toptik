@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCarouselPayload, saveCarouselPayload } from "@/lib/carousel/repository";
-import { isAdminApiAuthorized } from "@/lib/admin/api-auth";
+import { supabaseEnv } from "@/lib/supabase/env";
 
-export const runtime = "nodejs";
+function isAuthorized(req: NextRequest) {
+  const token = req.headers.get("x-admin-token");
+  return Boolean(token && supabaseEnv.adminToken && token === supabaseEnv.adminToken);
+}
 
 export async function GET(req: NextRequest) {
-  if (!(await isAdminApiAuthorized(req))) {
+  if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -19,7 +22,7 @@ export async function GET(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
-  if (!(await isAdminApiAuthorized(req))) {
+  if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

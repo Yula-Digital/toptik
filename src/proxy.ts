@@ -81,7 +81,6 @@ export const config = {
     "/reset/:path*",
     "/dashboard/:path*",
     "/settings/:path*",
-    "/gallery/:path*",
     "/auth/:path*",
   ],
 };

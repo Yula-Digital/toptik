@@ -16,10 +16,10 @@ new panel.
 | # | Item | Destination |
 |---|------|-------------|
 | 1 | הגדרות אדמין | `/settings` — manage admin users (invite / remove / reset, max 3) |
-| 2 | עדכון גלריית דף הנחיתה | `/gallery` — the carousel editor (session-gated) |
+| 2 | עדכון גלריית דף הנחיתה | links to **`/admin`** — the existing carousel editor (token-gated) |
 | 3 | דף הנחיתה | `https://landing.toptik.co.il` (new tab) |
 | 4 | חנות שופיפיי | `https://toptik.co.il` (new tab) |
-| 5 | סוכן וואטסאפ AI | `/settings/whatsapp` — enable/disable + config (UI now, runtime later) |
+| 5 | סוכן וואטסאפ AI | "coming soon" tile — deferred, no page yet |
 
 ## Surface / route map
 
@@ -29,11 +29,13 @@ admin.toptik.co.il/            → rewritten to /dashboard (→ /login when sign
 /setup        public   one-time primary-admin creation (guarded by ADMIN_PANEL_TOKEN)
 /reset        public   request a reset link, or set a new password (with a session)
 /auth/callback route   exchanges the email link (code OR token_hash) → session
-/dashboard    gated    the 5-item menu
-/settings     gated    manage admin users
-/settings/whatsapp gated  WhatsApp AI agent toggle + config
-/gallery      gated    carousel editor
+/dashboard    gated    the menu hub (links out to /settings, /admin, external sites)
+/settings     gated    manage admin users (invite / remove / reset, max 3)
 ```
+
+The gallery editor is the pre-existing **`/admin`** route (token-gated, not part of
+the panel group); the dashboard simply links to it. WhatsApp is a deferred
+"coming soon" tile with no page yet.
 
 ## One-time deploy / DNS / Supabase setup
 
@@ -79,8 +81,9 @@ admin-initiated** resets/invites, switch the two templates to the one-time
 (Optional) Configure **SMTP** under Auth → SMTP for branded sender / higher
 send limits. The built-in Supabase mailer works for low volume.
 
-### 5. Database — run the migration
-Apply `supabase/migrations/20260620_admin_panel.sql` (creates `admin_settings`).
+### 5. Database — nothing to migrate
+Admin accounts live in Supabase Auth (`auth.users`); the panel stores no extra
+tables, so there is no migration to run for it.
 
 ### 6. Environment variables (Vercel → Settings → Environment Variables)
 Required (most already set for the carousel):
@@ -107,9 +110,8 @@ After an owner exists, `/setup` is locked (redirects to `/login`).
 
 ## Security notes
 - Passwords are hashed and managed by Supabase Auth; the app never stores them.
-- `admin_settings` (incl. the WhatsApp access token) is reachable only via the
-  service-role client behind session-gated API routes; RLS denies anon /
-  authenticated access. The token is never returned to the browser (the API
-  reports only whether one is set).
-- `ADMIN_PANEL_TOKEN` stays server-side. The new panel uses cookie sessions; the
-  legacy static-token path on `/api/admin/*` is kept only for cron/back-compat.
+- Panel pages and the `/api/panel/*` routes are gated by the Supabase session
+  (`getPanelUser()` validates the JWT server-side).
+- `ADMIN_PANEL_TOKEN` stays server-side and now guards only one-time `/setup`.
+  The legacy `/admin` carousel editor + `/api/admin/*` keep their own
+  `x-admin-token` auth, unchanged.

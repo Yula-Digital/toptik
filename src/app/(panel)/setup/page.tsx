@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { redirect } from "next/navigation";
 import { getPanelUser } from "@/lib/admin/supabase-server";
 import { hasSupabaseAdminEnv } from "@/lib/supabase/env";
@@ -24,7 +25,7 @@ export default async function SetupPage() {
   return (
     <main className="admin-main admin-main--narrow">
       <div className="admin-auth-card">
-        <div className="admin-auth-logo">T</div>
+        <Image src="/toptiklogo.png" alt="TOPTIK" width={380} height={150} className="admin-auth-logo-img" priority />
         <h1 className="admin-auth-title">הקמת מנהל ראשי</h1>
         <p className="admin-auth-sub">
           ברוכים הבאים ל‑TOPTIK Admin. צרו את חשבון המנהל הראשון. לאחר מכן תוכלו להזמין עד שני מנהלים נוספים מתוך הפאנל.

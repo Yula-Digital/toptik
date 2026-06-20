@@ -55,10 +55,11 @@ Env access is centralized in `src/lib/supabase/env.ts` (`hasSupabasePublicEnv()`
 
 A session-gated control panel served on the **`admin.toptik.co.il`** subdomain. Read **`docs/ADMIN-SUBDOMAIN.md`** before touching auth, the proxy, or DNS/Vercel for it.
 
-- **Auth:** Supabase Auth (email+password, hashed, built-in reset email) via `@supabase/ssr` cookie sessions. Up to **3 admins**. Helpers in `src/lib/admin/` (`supabase-server.ts`, `supabase-browser.ts`, `users.ts`, `settings.ts`, `api-auth.ts`, `config.ts`).
-- **Routing:** `src/proxy.ts` (Next 16 renamed Middleware→Proxy) refreshes the session and rewrites the subdomain root → `/dashboard`. Panel routes live under `src/app/(panel)/`: `/login`, `/setup`, `/reset`, `/dashboard`, `/settings`, `/settings/whatsapp`, `/gallery`; plus `/auth/callback`.
-- **First admin:** one-time `/setup` guarded by `ADMIN_PANEL_TOKEN`; the rest are invited from `/settings`. Panel APIs under `/api/panel/*`. Settings table: `supabase/migrations/20260620_admin_panel.sql` (`admin_settings`, service-role only).
-- The legacy `/admin` route now **redirects to `/dashboard`**. The gallery editor moved to `/gallery` (`src/components/admin/GalleryEditor.tsx`) and authenticates by session — `/api/admin/{carousel,upload,import/mandarina}` accept a Supabase session OR the legacy `x-admin-token` (cron/back-compat) via `isAdminApiAuthorized`.
+- **Auth:** Supabase Auth (email+password, hashed, built-in reset email) via `@supabase/ssr` cookie sessions. Up to **3 admins**. Helpers in `src/lib/admin/` (`supabase-server.ts`, `supabase-browser.ts`, `users.ts`, `origin.ts`, `config.ts`).
+- **Routing:** `src/proxy.ts` (Next 16 renamed Middleware→Proxy) refreshes the session and rewrites the subdomain root → `/dashboard`. Panel routes live under `src/app/(panel)/`: `/login`, `/setup`, `/reset`, `/dashboard`, `/settings`; plus the `/auth/callback` route handler.
+- **First admin:** one-time `/setup` guarded by `ADMIN_PANEL_TOKEN`; the rest are invited from `/settings`. Panel APIs under `/api/panel/{setup,users,users/reset}`.
+- **`/dashboard`** is a hub of links (intentionally minimal): admin settings (`/settings` — manage up to 3 admins: invite/remove/reset), the existing gallery editor (links to **`/admin`**), the live landing page + Shopify store (external), and a deferred "coming soon" WhatsApp-agent tile.
+- The legacy **`/admin`** carousel editor is unchanged (client token-gated via `localStorage["toptik_admin_token"]` → `x-admin-token`); `/api/admin/*` stay token-only.
 
 ## Catalog import
 

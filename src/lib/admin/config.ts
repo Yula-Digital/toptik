@@ -26,7 +26,6 @@ export const PANEL_PREFIXES = [
   "/reset",
   "/dashboard",
   "/settings",
-  "/gallery",
   "/auth",
 ] as const;
 
