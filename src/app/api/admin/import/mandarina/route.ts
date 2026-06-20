@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createCatalogSourceProvider } from "@/lib/catalog-source/provider";
 import { fetchProductDetails } from "@/lib/catalog-source/product-details";
 import { enumerateColorVariants } from "@/lib/catalog-source/mandarina-scraper";
-import { uploadRemoteImageToStorage } from "@/lib/catalog-source/storage";
+import { uploadRemoteImageToStorage, uploadVariantGalleries } from "@/lib/catalog-source/storage";
 import { toCarouselColors } from "@/lib/carousel/colors";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { supabaseEnv } from "@/lib/supabase/env";
@@ -117,22 +117,11 @@ export async function POST(req: NextRequest) {
       try {
         const variants = await enumerateColorVariants(sourceProduct);
         if (variants.length > 0) {
-          const coverByHandle = new Map<string, string>();
-          await Promise.all(
-            variants.map(async (variant, index) => {
-              try {
-                const publicUrl = await uploadRemoteImageToStorage(
-                  `imports/mandarina/${normalizedCatalogNumber}/colors`,
-                  variant.coverImageUrl,
-                  index,
-                );
-                coverByHandle.set(variant.handle, publicUrl);
-              } catch (coverError) {
-                console.warn("Colour cover import skipped", variant.handle, coverError);
-              }
-            }),
+          const galleryByHandle = await uploadVariantGalleries(
+            `imports/mandarina/${normalizedCatalogNumber}/colors`,
+            variants,
           );
-          const mapped = toCarouselColors(variants, coverByHandle);
+          const mapped = toCarouselColors(variants, galleryByHandle);
           if (mapped.length > 0) colors = mapped;
         }
       } catch (colorError) {

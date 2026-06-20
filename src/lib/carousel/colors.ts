@@ -1,6 +1,6 @@
 import type { SourceColorVariant } from "@/lib/catalog-source/types";
 import type { CarouselColor, CarouselItem } from "./types";
-import { COLOR_HEX, COLOR_HEBREW, extractColorWord, getFamilyKey } from "./color-groups";
+import { COLOR_HEX, COLOR_HEBREW, extractColorWord } from "./color-groups";
 
 // Global Mandarina Duck colour codes — the middle segment of the catalog number
 // (P10·QMC01·`465`·TU). The code is stable across every model, so it's the most
@@ -42,17 +42,17 @@ export function resolveColorMeta(
 }
 
 // Map scraped colour variants → persisted colours, attaching the Supabase-hosted
-// cover image uploaded for each variant. Variants without an uploaded cover are
-// dropped (a swatch with no image can't drive the image swap).
+// gallery re-hosted for each variant (its rotation angles). Variants whose images
+// couldn't be re-hosted are dropped (a swatch with no image can't drive a swap).
 export function toCarouselColors(
   variants: SourceColorVariant[],
-  coverByHandle: Map<string, string>,
+  galleryByHandle: Map<string, string[]>,
 ): CarouselColor[] {
   const colors: CarouselColor[] = [];
   const seen = new Set<string>();
   for (const variant of variants) {
-    const imagePath = coverByHandle.get(variant.handle);
-    if (!imagePath) continue;
+    const angles = galleryByHandle.get(variant.handle) ?? [];
+    if (angles.length === 0) continue;
     const { name, hex } = resolveColorMeta(variant.colorWord, variant.colorCode);
     const key = (variant.colorCode || variant.colorWord || variant.handle).toLowerCase();
     if (seen.has(key)) continue;
@@ -61,7 +61,8 @@ export function toCarouselColors(
       name,
       hex,
       colorCode: variant.colorCode,
-      imagePath,
+      imagePath: angles[0],
+      angles,
       sourceUrl: variant.sourceUrl,
       catalogNumber: variant.catalogNumber,
     });
@@ -77,7 +78,8 @@ export interface ResolvedSwatch {
   key: string;
   name: string;
   hex: string | null;
-  imagePath: string | null;
+  imagePath: string | null; // cover (= angles[0])
+  angles: string[]; // this colour's full gallery — drives rotation while selected
   isCurrent: boolean;
 }
 
@@ -88,67 +90,85 @@ export function colorCodeFromCatalog(catalogNumber: string | null | undefined): 
   return parts.length >= 2 ? parts[1] : null;
 }
 
-// Prefer the scraped per-colour set (real re-hosted photos). Otherwise use the
-// sibling swatches built from colour-variant ITEMS already in the catalog — also
-// real photos, just reused from existing items (see buildSiblingColorSwatches).
+// Model code = first catalog segment minus the P-prefix (P10·`QMC01`·465·TU).
+// Every colour of a product shares this code; the colour is the second segment.
+export function modelCodeFromCatalog(catalogNumber: string | null | undefined): string | null {
+  if (!catalogNumber) return null;
+  const head = catalogNumber.toUpperCase().split(/[-_/]/)[0] ?? "";
+  const stripped = head.replace(/^P\d+/, "");
+  return stripped.length >= 4 ? stripped : null;
+}
+
+// Prefer the scraped per-colour set (real re-hosted galleries). Otherwise use the
+// in-catalog model-sibling swatches. Each swatch carries the colour's full gallery
+// so it stays rotatable; the item's OWN colour shows its curated imported angles.
 export function resolveItemSwatches(
   item: CarouselItem,
-  siblingSwatches?: ResolvedSwatch[],
+  modelSiblings?: ResolvedSwatch[],
 ): ResolvedSwatch[] {
   if (item.colors && item.colors.length > 0) {
     const ownCode = colorCodeFromCatalog(item.catalogNumber);
-    return item.colors.map((color) => ({
-      key: color.colorCode ?? color.name,
-      name: color.name,
-      hex: color.hex,
-      imagePath: color.imagePath,
-      isCurrent:
-        ownCode != null && color.colorCode != null && color.colorCode.toUpperCase() === ownCode,
-    }));
+    const ownAngles =
+      item.angles.length > 0
+        ? [...item.angles].sort((a, b) => a.angleOrder - b.angleOrder).map((a) => a.imagePath)
+        : null;
+    return item.colors.map((color) => {
+      const isCurrent =
+        ownCode != null && color.colorCode != null && color.colorCode.toUpperCase() === ownCode;
+      const scraped = color.angles && color.angles.length > 0 ? color.angles : [color.imagePath];
+      return {
+        key: color.colorCode ?? color.name,
+        name: color.name,
+        hex: color.hex,
+        imagePath: color.imagePath,
+        angles: isCurrent && ownAngles ? ownAngles : scraped,
+        isCurrent,
+      };
+    });
   }
 
-  return siblingSwatches ?? [];
+  return modelSiblings ?? [];
 }
 
-// Build interactive swatches from colour-variant ITEMS already in the catalog,
-// reusing each sibling's existing cover photo — no scraping needed. A product
-// whose colours are separate catalog items gets a working colour selector for
-// free; the colour scraper/warmer only needs to add colours NOT in the catalog.
-export function buildSiblingColorSwatches(items: CarouselItem[]): Map<string, ResolvedSwatch[]> {
+// Fallback swatches (pre-warm) built from colour-variant ITEMS already in the
+// catalog, grouped by EXACT model code so only true colour siblings merge — a
+// swatch can never resolve to a different product (the wrong-product bug). Each
+// swatch carries that sibling's own angle gallery, so colours stay rotatable
+// without any scraped data.
+export function buildModelSiblingSwatches(items: CarouselItem[]): Map<string, ResolvedSwatch[]> {
   const families = new Map<string, CarouselItem[]>();
   for (const item of items) {
-    const key = getFamilyKey(item.title);
-    if (!families.has(key)) families.set(key, []);
-    families.get(key)!.push(item);
+    const model = modelCodeFromCatalog(item.catalogNumber);
+    if (!model) continue;
+    if (!families.has(model)) families.set(model, []);
+    families.get(model)!.push(item);
   }
 
   const result = new Map<string, ResolvedSwatch[]>();
   for (const members of families.values()) {
     const seen = new Set<string>();
-    const base: Array<{ word: string; name: string; hex: string | null; imagePath: string }> = [];
+    const base: Array<{ code: string; swatch: Omit<ResolvedSwatch, "isCurrent"> }> = [];
     for (const member of members) {
-      const word = extractColorWord(member.title);
-      if (!word || seen.has(word) || !member.coverImagePath) continue;
-      seen.add(word);
-      base.push({
-        word,
-        name: COLOR_HEBREW[word] ?? word,
-        hex: COLOR_HEX[word] ?? null,
-        imagePath: member.coverImagePath,
-      });
+      const code = (colorCodeFromCatalog(member.catalogNumber) ?? member.id).toUpperCase();
+      if (seen.has(code)) continue;
+      seen.add(code);
+      const { name, hex } = resolveColorMeta(
+        extractColorWord(member.title),
+        colorCodeFromCatalog(member.catalogNumber),
+      );
+      const angles =
+        member.angles.length > 0
+          ? [...member.angles].sort((a, b) => a.angleOrder - b.angleOrder).map((a) => a.imagePath)
+          : [member.coverImagePath];
+      base.push({ code, swatch: { key: code, name, hex, imagePath: member.coverImagePath, angles } });
     }
     if (base.length < 2) continue; // need 2+ colours to form a selector
+
     for (const member of members) {
-      const ownWord = extractColorWord(member.title);
+      const ownCode = (colorCodeFromCatalog(member.catalogNumber) ?? member.id).toUpperCase();
       result.set(
         member.id,
-        base.map((b) => ({
-          key: b.word,
-          name: b.name,
-          hex: b.hex,
-          imagePath: b.imagePath,
-          isCurrent: b.word === ownWord,
-        })),
+        base.map((b) => ({ ...b.swatch, isCurrent: b.code === ownCode })),
       );
     }
   }

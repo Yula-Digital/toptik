@@ -8,7 +8,7 @@ import { ProductModal } from "@/components/carousel/ProductModal";
 import { TechSpecsModal } from "@/components/carousel/TechSpecsModal";
 import { CarouselItem, CarouselPayload } from "@/lib/carousel/types";
 import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
-import { buildSiblingColorSwatches, resolveItemSwatches } from "@/lib/carousel/colors";
+import { buildModelSiblingSwatches, resolveItemSwatches } from "@/lib/carousel/colors";
 import {
   CategoryKey,
   filterByCategory,
@@ -19,7 +19,6 @@ export default function CarouselPageClient() {
   const [payload, setPayload] = useState<CarouselPayload>(fallbackCarouselPayload);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<CarouselItem | null>(null);
-  const [activeAngleIndex, setActiveAngleIndex] = useState(0);
   const [techSpecsItem, setTechSpecsItem] = useState<CarouselItem | null>(null);
   const [activeCategory, setActiveCategory] = useState<CategoryKey>(() => {
     if (typeof window === "undefined") return "all";
@@ -68,7 +67,7 @@ export default function CarouselPageClient() {
     return () => controller.abort();
   }, []);
 
-  const siblingSwatches = useMemo(() => buildSiblingColorSwatches(payload.items.filter(i => i.isActive)), [payload.items]);
+  const modelSiblings = useMemo(() => buildModelSiblingSwatches(payload.items.filter(i => i.isActive)), [payload.items]);
 
   const activeItems = useMemo(() => {
     const deduped = new Map<string, CarouselItem>();
@@ -105,22 +104,11 @@ export default function CarouselPageClient() {
   const onOpenItem = useCallback((item: CarouselItem) => {
     const orderedAngles = [...item.angles].sort((a, b) => a.angleOrder - b.angleOrder);
     setSelectedItem({ ...item, angles: orderedAngles });
-    setActiveAngleIndex(0);
   }, []);
 
   const onCloseModal = useCallback(() => setSelectedItem(null), []);
   const onOpenTechSpecs = useCallback((item: CarouselItem) => setTechSpecsItem(item), []);
   const onCloseTechSpecs = useCallback(() => setTechSpecsItem(null), []);
-
-  const onNextAngle = useCallback(() => {
-    if (!selectedItem) return;
-    setActiveAngleIndex((current) => (current + 1) % selectedItem.angles.length);
-  }, [selectedItem]);
-
-  const onPrevAngle = useCallback(() => {
-    if (!selectedItem) return;
-    setActiveAngleIndex((current) => (current - 1 + selectedItem.angles.length) % selectedItem.angles.length);
-  }, [selectedItem]);
 
   const visibleItems = useMemo(
     () => filterByCategory(activeItems, activeCategory),
@@ -168,12 +156,8 @@ export default function CarouselPageClient() {
       <ProductModal
         key={selectedItem?.id ?? "none"}
         item={selectedItem}
-        activeAngleIndex={activeAngleIndex}
-        colors={selectedItem ? resolveItemSwatches(selectedItem, siblingSwatches.get(selectedItem.id)) : []}
+        colors={selectedItem ? resolveItemSwatches(selectedItem, modelSiblings.get(selectedItem.id)) : []}
         onClose={onCloseModal}
-        onNextAngle={onNextAngle}
-        onPrevAngle={onPrevAngle}
-        onSelectAngle={setActiveAngleIndex}
         onOpenTechSpecs={onOpenTechSpecs}
       />
 

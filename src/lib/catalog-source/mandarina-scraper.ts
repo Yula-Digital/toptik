@@ -518,32 +518,87 @@ async function fetchVariantHandlesByModel(modelToken: string): Promise<string[]>
   return [...handles];
 }
 
-// Given the primary product (one colour), discover every colour of that model.
+const MAX_COLOR_VARIANTS = 16;
+const MAX_ANGLES_PER_COLOR = 5;
+
+// Does this handle's trailing "<model><colour>" token belong to `model5`? Every
+// colour of a model shares the same 5-char model prefix in that token (e.g.
+// "qmc01465", "qmc0109k" → model "qmc01"). This is the precise sibling test —
+// it excludes "related product" links of OTHER models that share a title word.
+function handleBelongsToModel(handle: string, model5: string): boolean {
+  const tail = handle.split("-").pop() ?? "";
+  const m = model5.toLowerCase();
+  return tail.length >= m.length + 2 && tail.toLowerCase().startsWith(m);
+}
+
+// Colour code = middle catalog segment (P10·QMC01·`465`·TU). Reliable per-colour key.
+function colorCodeFromCatalogNumber(catalog: string | null): string | null {
+  if (!catalog) return null;
+  const parts = catalog.toUpperCase().split(/[-_/]/).filter(Boolean);
+  return parts.length >= 2 ? parts[1] : null;
+}
+
+// Pull every same-model sibling handle linked anywhere in a product page (the
+// colour-swatch widget renders them as /products/<handle> links). Authoritative
+// and complete — no dependence on MD's search returning the full colour set.
+function extractSiblingHandles(html: string, model5: string): string[] {
+  const handles = new Set<string>();
+  const regex = /\/products\/([a-z0-9][a-z0-9-]*)/gi;
+  let match: RegExpExecArray | null = null;
+  while ((match = regex.exec(html)) !== null) {
+    const handle = match[1].toLowerCase();
+    if (handleBelongsToModel(handle, model5)) handles.add(handle);
+  }
+  return [...handles];
+}
+
+// Given the primary product (one colour), discover every colour of that model and
+// scrape each colour's full gallery (its rotation angles). Sibling discovery is
+// the union of (a) swatch links on the primary page and (b) the model-token search
+// — both filtered to the exact 5-char model so a swatch never resolves to a
+// different product.
 export async function enumerateColorVariants(primary: ColorEnumerationInput): Promise<SourceColorVariant[]> {
-  const modelToken = deriveModelToken(primary);
-  if (!modelToken) return [];
+  const model5 = deriveModelToken(primary);
+  if (!model5) return [];
 
   const primaryHandle = handleFromUrl(primary.sourceUrl);
-  const handles = await fetchVariantHandlesByModel(modelToken);
-  if (primaryHandle && !handles.includes(primaryHandle)) handles.unshift(primaryHandle);
+
+  // (a) authoritative sibling links from the primary product page
+  let pageHandles: string[] = [];
+  try {
+    pageHandles = extractSiblingHandles(await fetchHtml(primary.sourceUrl), model5);
+  } catch {
+    // page unavailable — rely on search fallback
+  }
+
+  // (b) model-token search, filtered to the exact model
+  const searchHandles = (await fetchVariantHandlesByModel(model5)).filter((h) =>
+    handleBelongsToModel(h, model5),
+  );
+
+  const handles = [...new Set([primaryHandle, ...pageHandles, ...searchHandles])].filter(Boolean);
 
   const scraped = await Promise.all(
-    handles.slice(0, 14).map(async (handle): Promise<SourceColorVariant | null> => {
+    handles.slice(0, MAX_COLOR_VARIANTS).map(async (handle): Promise<SourceColorVariant | null> => {
       const sourceUrl = `${MANDARINA_BASE_URL}/products/${handle}`;
       try {
         const html = await fetchHtml(sourceUrl);
         const title = extractTitle(html);
-        const catalogNumber = extractCatalogNumberFromHtml(html, "");
-        const cover = extractImageUrlsFromProductPage(html, "")[0];
-        if (!cover) return null;
+        const catalogNumber = extractCatalogNumberFromHtml(html, "") || null;
+        const imageUrls = extractImageUrlsFromProductPage(html, catalogNumber ?? "").slice(
+          0,
+          MAX_ANGLES_PER_COLOR,
+        );
+        if (imageUrls.length === 0) return null;
         return {
           colorWord: extractColorWord(title) ?? extractColorWord(colorTextFromHandle(handle)),
-          colorCode: colorCodeFromHandle(handle),
+          colorCode: colorCodeFromCatalogNumber(catalogNumber) ?? colorCodeFromHandle(handle),
           title,
-          catalogNumber: catalogNumber || null,
+          catalogNumber,
           sourceUrl,
           handle,
-          coverImageUrl: cover,
+          coverImageUrl: imageUrls[0],
+          imageUrls,
         };
       } catch {
         return null;
@@ -551,12 +606,12 @@ export async function enumerateColorVariants(primary: ColorEnumerationInput): Pr
     }),
   );
 
-  // De-duplicate by colour (word → code → handle), preserving discovery order.
+  // De-duplicate by colour (code → word → handle), preserving discovery order.
   const seen = new Set<string>();
   const variants: SourceColorVariant[] = [];
   for (const variant of scraped) {
     if (!variant) continue;
-    const key = (variant.colorWord || variant.colorCode || variant.handle).toLowerCase();
+    const key = (variant.colorCode || variant.colorWord || variant.handle).toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
     variants.push(variant);

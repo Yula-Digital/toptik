@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { enumerateColorVariants } from "@/lib/catalog-source/mandarina-scraper";
-import { uploadRemoteImageToStorage } from "@/lib/catalog-source/storage";
+import { uploadVariantGalleries } from "@/lib/catalog-source/storage";
 import { toCarouselColors } from "@/lib/carousel/colors";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { hasSupabaseAdminEnv, supabaseEnv } from "@/lib/supabase/env";
@@ -36,8 +36,26 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Supabase admin env not configured" }, { status: 500 });
   }
 
+  const reset = req.nextUrl.searchParams.get("reset") === "1";
   const force = req.nextUrl.searchParams.get("force") === "1";
+  // Re-hosting a full gallery per colour is heavy, so process a bounded batch per
+  // call and report `remaining` — callers loop until it reaches 0 (no timeout).
+  const limit = Math.min(
+    Math.max(parseInt(req.nextUrl.searchParams.get("limit") ?? "6", 10) || 6, 1),
+    28,
+  );
   const supabase = createSupabaseServiceRoleClient();
+
+  // `?reset=1` clears cached colours so a subsequent warm repopulates every item
+  // with the current scraper logic (use once before a full re-warm).
+  if (reset) {
+    const { error: resetError } = await supabase
+      .from("carousel_items")
+      .update({ colors: null })
+      .eq("is_active", true);
+    if (resetError) return NextResponse.json({ error: resetError.message }, { status: 500 });
+    return NextResponse.json({ reset: true });
+  }
 
   const { data: items, error } = await supabase
     .from("carousel_items")
@@ -48,9 +66,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const targets = (items ?? []).filter(
+  const allTargets = (items ?? []).filter(
     (it: ColorWarmRow) => it.source_url && (force || !it.colors),
   );
+  const targets = allTargets.slice(0, limit);
 
   const results = await Promise.allSettled(
     targets.map(async (item: ColorWarmRow) => {
@@ -61,20 +80,10 @@ export async function POST(req: NextRequest) {
       if (variants.length === 0) throw new Error("no colour variants found");
 
       const folder = `imports/mandarina/${item.catalog_number ?? item.id}/colors`;
-      const coverByHandle = new Map<string, string>();
-      await Promise.all(
-        variants.map(async (variant, index) => {
-          try {
-            const publicUrl = await uploadRemoteImageToStorage(folder, variant.coverImageUrl, index);
-            coverByHandle.set(variant.handle, publicUrl);
-          } catch {
-            // skip this colour's cover; others may still succeed
-          }
-        }),
-      );
+      const galleryByHandle = await uploadVariantGalleries(folder, variants);
 
-      const colors = toCarouselColors(variants, coverByHandle);
-      if (colors.length === 0) throw new Error("no colour covers could be re-hosted");
+      const colors = toCarouselColors(variants, galleryByHandle);
+      if (colors.length === 0) throw new Error("no colour galleries could be re-hosted");
 
       const { error: updateError } = await supabase
         .from("carousel_items")
@@ -92,9 +101,10 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     totalActive: items?.length ?? 0,
     targetsAttempted: targets.length,
+    remaining: allTargets.length - targets.length,
     succeeded,
     failed,
-    skipped: (items?.length ?? 0) - targets.length,
+    skipped: (items?.length ?? 0) - allTargets.length,
     sample: results
       .slice(0, 5)
       .map((r) =>

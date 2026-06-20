@@ -15,7 +15,8 @@ export interface SourceColorVariant {
   catalogNumber: string | null;
   sourceUrl: string;
   handle: string;
-  coverImageUrl: string;      // representative image on that colour's own product page
+  coverImageUrl: string;      // representative (first) image on that colour's product page
+  imageUrls: string[];        // full gallery for this colour — its rotation angles
 }
 
 export interface CatalogSourceProvider {

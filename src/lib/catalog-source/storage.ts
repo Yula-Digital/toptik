@@ -1,4 +1,5 @@
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import type { SourceColorVariant } from "@/lib/catalog-source/types";
 
 // Shared image-ingest helper: download a remote (Mandarina CDN) image and
 // re-upload it to the Supabase `carousel-media` bucket, returning the public
@@ -64,4 +65,32 @@ export async function uploadRemoteImageToStorage(
 
   const { data } = supabase.storage.from("carousel-media").getPublicUrl(filePath);
   return data.publicUrl;
+}
+
+// Re-host each colour variant's FULL gallery (its rotation angles) into the
+// bucket, returning handle → [public URLs]. Each colour gets its own subfolder.
+// Per-image failures are tolerated; a colour with zero re-hosted images is simply
+// absent from the map (and later dropped by toCarouselColors).
+export async function uploadVariantGalleries(
+  baseFolder: string,
+  variants: SourceColorVariant[],
+): Promise<Map<string, string[]>> {
+  const byHandle = new Map<string, string[]>();
+  await Promise.all(
+    variants.map(async (variant) => {
+      const folder = `${baseFolder.replace(/\/$/, "")}/${variant.handle}`;
+      const urls = await Promise.all(
+        variant.imageUrls.map(async (imageUrl, index) => {
+          try {
+            return await uploadRemoteImageToStorage(folder, imageUrl, index);
+          } catch {
+            return null;
+          }
+        }),
+      );
+      const ok = urls.filter((url): url is string => Boolean(url));
+      if (ok.length > 0) byHandle.set(variant.handle, ok);
+    }),
+  );
+  return byHandle;
 }
