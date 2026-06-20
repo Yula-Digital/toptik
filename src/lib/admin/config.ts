@@ -8,11 +8,31 @@ export const ADMIN_HOST = (process.env.NEXT_PUBLIC_ADMIN_HOST ?? "admin.toptik.c
 /** Hard cap on the number of admin accounts (product requirement: up to 3). */
 export const MAX_ADMIN_USERS = 3;
 
-/** Public landing page (menu shortcut #3). */
+/** Public landing page — "צפייה בדף הנחיתה". */
 export const LANDING_URL = process.env.NEXT_PUBLIC_LANDING_URL ?? "https://landing.toptik.co.il";
 
-/** Shopify storefront — the apex was returned to Shopify on 2026-06-20 (menu shortcut #4). */
-export const SHOPIFY_STORE_URL = process.env.NEXT_PUBLIC_SHOPIFY_URL ?? "https://toptik.co.il";
+/** Landing-page gallery (carousel) editor — lives on the landing domain. */
+export const GALLERY_EDITOR_URL =
+  process.env.NEXT_PUBLIC_GALLERY_EDITOR_URL ?? "https://landing.toptik.co.il/admin";
+
+/** Shopify store admin console. */
+export const SHOPIFY_ADMIN_URL =
+  process.env.NEXT_PUBLIC_SHOPIFY_ADMIN_URL ??
+  "https://admin.shopify.com/store/toptikcoil?ui_locales=en-IL";
+
+/** WhatsApp AI agent console (already built; URL supplied by the operator). */
+export const WHATSAPP_AGENT_URL = process.env.NEXT_PUBLIC_WHATSAPP_AGENT_URL ?? "";
+
+/** internic — hosting/storage + DNS/domain management portal. */
+export const INTERNIC_URL =
+  process.env.NEXT_PUBLIC_INTERNIC_URL ?? "https://portal.internic.co.il/dashboard/main";
+
+/** Vercel — hosting / deployments dashboard. */
+export const VERCEL_URL =
+  process.env.NEXT_PUBLIC_VERCEL_URL ?? "https://vercel.com/rordan-ais-projects";
+
+/** GitHub — source code in the cloud. */
+export const GITHUB_URL = process.env.NEXT_PUBLIC_GITHUB_URL ?? "https://github.com/Yula-Digital";
 
 /**
  * URL path prefixes that belong to the admin panel surface. `proxy.ts` uses

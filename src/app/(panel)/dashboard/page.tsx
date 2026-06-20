@@ -1,6 +1,11 @@
 import Link from "next/link";
 import { requirePanelUser } from "@/lib/admin/supabase-server";
-import { LANDING_URL, SHOPIFY_STORE_URL } from "@/lib/admin/config";
+import {
+  LANDING_URL,
+  GALLERY_EDITOR_URL,
+  SHOPIFY_ADMIN_URL,
+  WHATSAPP_AGENT_URL,
+} from "@/lib/admin/config";
 import { AdminTopBar } from "@/components/admin/AdminTopBar";
 import {
   SettingsIcon,
@@ -33,61 +38,70 @@ export default async function DashboardPage() {
             </span>
             <span className="admin-tile-body">
               <span className="admin-tile-title">הגדרות אדמין</span>
-              <span className="admin-tile-desc">ניהול משתמשי מנהל, הזמנת מנהלים חדשים ואיפוס סיסמאות.</span>
+              <span className="admin-tile-desc">משתמשי מנהל · אחסון ודומיין</span>
             </span>
           </Link>
 
-          <Link href="/admin" className="admin-tile">
+          <a href={GALLERY_EDITOR_URL} target="_blank" rel="noopener noreferrer" className="admin-tile">
             <span className="admin-tile-icon">
               <GalleryIcon />
             </span>
             <span className="admin-tile-body">
               <span className="admin-tile-title">עדכון גלריית דף הנחיתה</span>
-              <span className="admin-tile-desc">מעבר לעורך הקרוסלה של דף הבית.</span>
+              <span className="admin-tile-desc">landing.toptik.co.il/admin</span>
             </span>
-          </Link>
+            <span className="admin-tile-ext">
+              <ExternalIcon />
+            </span>
+          </a>
 
           <a href={LANDING_URL} target="_blank" rel="noopener noreferrer" className="admin-tile">
             <span className="admin-tile-icon">
               <LandingIcon />
             </span>
             <span className="admin-tile-body">
-              <span className="admin-tile-title">דף הנחיתה</span>
-              <span className="admin-tile-desc">צפייה בדף הנחיתה החי בכרטיסייה חדשה.</span>
+              <span className="admin-tile-title">צפייה בדף הנחיתה</span>
+              <span className="admin-tile-desc">landing.toptik.co.il</span>
             </span>
             <span className="admin-tile-ext">
               <ExternalIcon />
             </span>
           </a>
 
-          <a href={SHOPIFY_STORE_URL} target="_blank" rel="noopener noreferrer" className="admin-tile admin-tile--brass">
+          <a
+            href={SHOPIFY_ADMIN_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="admin-tile admin-tile--brass"
+          >
             <span className="admin-tile-icon">
               <ShopIcon />
             </span>
             <span className="admin-tile-body">
-              <span className="admin-tile-title">חנות שופיפיי</span>
-              <span className="admin-tile-desc">מעבר לחנות האונליין בשופיפיי בכרטיסייה חדשה.</span>
+              <span className="admin-tile-title">חנות אונליין שופיפיי אדמין</span>
+              <span className="admin-tile-desc">admin.shopify.com</span>
             </span>
             <span className="admin-tile-ext">
               <ExternalIcon />
             </span>
           </a>
 
-          <div className="admin-tile admin-tile--disabled" aria-disabled="true">
+          <a
+            href={WHATSAPP_AGENT_URL || "#"}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="admin-tile"
+          >
             <span className="admin-tile-icon">
               <WhatsappIcon />
             </span>
             <span className="admin-tile-body">
-              <span className="admin-tile-title">
-                סוכן וואטסאפ AI
-                <span className="admin-chip admin-chip--off">
-                  <span className="admin-chip-dot" />
-                  בקרוב
-                </span>
-              </span>
-              <span className="admin-tile-desc">הפעלה והגדרה של סוכן הוואטסאפ — בפיתוח, יתווסף בהמשך.</span>
+              <span className="admin-tile-title">סוכן וואטסאפ AI</span>
             </span>
-          </div>
+            <span className="admin-tile-ext">
+              <ExternalIcon />
+            </span>
+          </a>
         </nav>
       </main>
     </>

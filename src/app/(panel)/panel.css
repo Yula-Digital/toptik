@@ -747,7 +747,7 @@
 
 /* Real brand logo (transparent PNG) in the top bar + auth cards */
 .admin-brand-logo {
-  height: 30px;
+  height: 42px;
   width: auto;
   display: block;
 }
@@ -760,7 +760,7 @@
   border-inline-start: 1px solid var(--p-line-strong);
 }
 .admin-auth-logo-img {
-  height: 46px;
+  height: 78px;
   width: auto;
   display: block;
   margin: 0 auto 18px;
