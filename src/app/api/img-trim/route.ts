@@ -52,20 +52,31 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // Trim the flat background border around the product. Threshold 25 trims
-    // near-uniform background (white / very light) but preserves the product
-    // and its natural shadow. Output stays full-resolution; next/image
-    // optimizes the size downstream.
-    const trimmed = await sharp(sourceBytes)
-      .trim({ threshold: 25 })
-      .webp({ quality: 88 })
-      .toBuffer();
+    const meta = await sharp(sourceBytes).metadata();
+    const origArea = (meta.width ?? 0) * (meta.height ?? 0);
 
-    return new NextResponse(new Uint8Array(trimmed), {
-      headers: {
-        ...CACHE_HEADERS,
-        "content-type": "image/webp",
-      },
+    // Threshold 12 removes the flat near-white background WITHOUT eating into
+    // light/cream products (which sit only ~15-35 levels off pure white and were
+    // being trimmed away at the old threshold of 25, leaving an off-centre crop).
+    const { data: trimmed, info } = await sharp(sourceBytes)
+      .trim({ threshold: 12 })
+      .webp({ quality: 88 })
+      .toBuffer({ resolveWithObject: true });
+
+    // Safety: if the trim kept <30% of the area or produced an extreme aspect,
+    // it likely still ate a very light product — pass the original (centred on
+    // its own canvas) through instead of an off-centre fragment.
+    const keptRatio = origArea > 0 ? (info.width * info.height) / origArea : 1;
+    const extremeAspect = info.width / info.height > 4 || info.height / info.width > 4;
+    if (keptRatio >= 0.3 && !extremeAspect) {
+      return new NextResponse(new Uint8Array(trimmed), {
+        headers: { ...CACHE_HEADERS, "content-type": "image/webp" },
+      });
+    }
+
+    const original = await sharp(sourceBytes).webp({ quality: 88 }).toBuffer();
+    return new NextResponse(new Uint8Array(original), {
+      headers: { ...CACHE_HEADERS, "content-type": "image/webp" },
     });
   } catch {
     // If trim fails for any reason, pass the original image through so the

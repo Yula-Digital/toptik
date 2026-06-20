@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { enumerateColorVariants } from "@/lib/catalog-source/mandarina-scraper";
 import { uploadVariantGalleries } from "@/lib/catalog-source/storage";
 import { ensureOwnColor, toCarouselColors } from "@/lib/carousel/colors";
+import { dominantHexFromUrl } from "@/lib/carousel/dominant-color";
+import type { CarouselColor } from "@/lib/carousel/types";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { hasSupabaseAdminEnv, supabaseEnv } from "@/lib/supabase/env";
 
@@ -39,6 +41,8 @@ export async function POST(req: NextRequest) {
   }
 
   const reset = req.nextUrl.searchParams.get("reset") === "1";
+  const recolor = req.nextUrl.searchParams.get("recolor") === "1";
+  const offset = Math.max(0, parseInt(req.nextUrl.searchParams.get("offset") ?? "0", 10) || 0);
   const force = req.nextUrl.searchParams.get("force") === "1";
   // ?thin=1 re-warms items that came back with fewer than 2 colours, to retry
   // them with the current (more complete, sitemap-based) enumeration.
@@ -60,6 +64,47 @@ export async function POST(req: NextRequest) {
       .eq("is_active", true);
     if (resetError) return NextResponse.json({ error: resetError.message }, { status: 500 });
     return NextResponse.json({ reset: true });
+  }
+
+  // `?recolor=1` recomputes each colour's swatch hex from its own image's
+  // dominant colour, so the dot matches the product. Resumable via `?offset=N`.
+  if (recolor) {
+    const { data: rows, error: rErr } = await supabase
+      .from("carousel_items")
+      .select("id,colors")
+      .eq("is_active", true)
+      .order("display_order", { ascending: true });
+    if (rErr) return NextResponse.json({ error: rErr.message }, { status: 500 });
+
+    const withColors = (rows ?? []).filter(
+      (it: { colors: unknown }) => Array.isArray(it.colors) && (it.colors as unknown[]).length > 0,
+    );
+    const batch = withColors.slice(offset, offset + limit);
+    const results = await Promise.allSettled(
+      batch.map(async (it: { id: string; colors: unknown }) => {
+        const colors = it.colors as CarouselColor[];
+        const updated = await Promise.all(
+          colors.map(async (c) => {
+            const hex = await dominantHexFromUrl(c.imagePath);
+            return hex ? { ...c, hex } : c;
+          }),
+        );
+        const { error: uErr } = await supabase
+          .from("carousel_items")
+          .update({ colors: updated })
+          .eq("id", it.id);
+        if (uErr) throw uErr;
+        return { id: it.id, colors: updated.length };
+      }),
+    );
+    return NextResponse.json({
+      recolor: true,
+      offset,
+      processed: batch.length,
+      remaining: Math.max(0, withColors.length - (offset + batch.length)),
+      succeeded: results.filter((r) => r.status === "fulfilled").length,
+      failed: results.filter((r) => r.status === "rejected").length,
+    });
   }
 
   const { data: items, error } = await supabase
