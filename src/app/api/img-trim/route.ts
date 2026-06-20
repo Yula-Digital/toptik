@@ -52,23 +52,25 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const meta = await sharp(sourceBytes).metadata();
-    const origArea = (meta.width ?? 0) * (meta.height ?? 0);
-
     // Threshold 12 removes the flat near-white background WITHOUT eating into
-    // light/cream products (which sit only ~15-35 levels off pure white and were
-    // being trimmed away at the old threshold of 25, leaving an off-centre crop).
+    // light/cream products (which sit only ~15-35 levels off pure white).
     const { data: trimmed, info } = await sharp(sourceBytes)
       .trim({ threshold: 12 })
       .webp({ quality: 88 })
       .toBuffer({ resolveWithObject: true });
 
-    // Safety: if the trim kept <30% of the area or produced an extreme aspect,
-    // it likely still ate a very light product — pass the original (centred on
-    // its own canvas) through instead of an off-centre fragment.
-    const keptRatio = origArea > 0 ? (info.width * info.height) / origArea : 1;
-    const extremeAspect = info.width / info.height > 4 || info.height / info.width > 4;
-    if (keptRatio >= 0.3 && !extremeAspect) {
+    // Keep the tight crop so EVERY colour fills the frame consistently. A product
+    // photographed small inside a large white canvas yields a small-but-valid
+    // crop that MUST be kept — gating on area ratio (the old behaviour) returned
+    // the un-cropped original for those variants, so they showed up small and
+    // off-centre next to colours whose source filled the canvas. Only fall back
+    // when the crop is DEGENERATE (a near-empty sliver = trim ate a white product).
+    const degenerate =
+      info.width < 32 ||
+      info.height < 32 ||
+      info.width / info.height > 4 ||
+      info.height / info.width > 4;
+    if (!degenerate) {
       return new NextResponse(new Uint8Array(trimmed), {
         headers: { ...CACHE_HEADERS, "content-type": "image/webp" },
       });
