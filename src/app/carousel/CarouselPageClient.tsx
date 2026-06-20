@@ -8,8 +8,7 @@ import { ProductModal } from "@/components/carousel/ProductModal";
 import { TechSpecsModal } from "@/components/carousel/TechSpecsModal";
 import { CarouselItem, CarouselPayload } from "@/lib/carousel/types";
 import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
-import { buildItemColorGroups } from "@/lib/carousel/color-groups";
-import { resolveItemSwatches } from "@/lib/carousel/colors";
+import { buildSiblingColorSwatches, resolveItemSwatches } from "@/lib/carousel/colors";
 import {
   CategoryKey,
   filterByCategory,
@@ -69,7 +68,7 @@ export default function CarouselPageClient() {
     return () => controller.abort();
   }, []);
 
-  const colorGroups = useMemo(() => buildItemColorGroups(payload.items.filter(i => i.isActive)), [payload.items]);
+  const siblingSwatches = useMemo(() => buildSiblingColorSwatches(payload.items.filter(i => i.isActive)), [payload.items]);
 
   const activeItems = useMemo(() => {
     const deduped = new Map<string, CarouselItem>();
@@ -170,7 +169,7 @@ export default function CarouselPageClient() {
         key={selectedItem?.id ?? "none"}
         item={selectedItem}
         activeAngleIndex={activeAngleIndex}
-        colors={selectedItem ? resolveItemSwatches(selectedItem, colorGroups.get(selectedItem.id)) : []}
+        colors={selectedItem ? resolveItemSwatches(selectedItem, siblingSwatches.get(selectedItem.id)) : []}
         onClose={onCloseModal}
         onNextAngle={onNextAngle}
         onPrevAngle={onPrevAngle}

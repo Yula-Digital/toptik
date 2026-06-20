@@ -1,7 +1,6 @@
 import type { SourceColorVariant } from "@/lib/catalog-source/types";
 import type { CarouselColor, CarouselItem } from "./types";
-import type { ColorSwatch } from "@/lib/catalog-source/product-details";
-import { COLOR_HEX, COLOR_HEBREW, extractColorWord } from "./color-groups";
+import { COLOR_HEX, COLOR_HEBREW, extractColorWord, getFamilyKey } from "./color-groups";
 
 // Global Mandarina Duck colour codes — the middle segment of the catalog number
 // (P10·QMC01·`465`·TU). The code is stable across every model, so it's the most
@@ -89,11 +88,12 @@ export function colorCodeFromCatalog(catalogNumber: string | null | undefined): 
   return parts.length >= 2 ? parts[1] : null;
 }
 
-// Prefer the scraped per-colour set (interactive, image-backed). Fall back to
-// the title-derived sibling grouping (passive dots) when no colours are cached.
+// Prefer the scraped per-colour set (real re-hosted photos). Otherwise use the
+// sibling swatches built from colour-variant ITEMS already in the catalog — also
+// real photos, just reused from existing items (see buildSiblingColorSwatches).
 export function resolveItemSwatches(
   item: CarouselItem,
-  fallback: ColorSwatch[] | undefined,
+  siblingSwatches?: ResolvedSwatch[],
 ): ResolvedSwatch[] {
   if (item.colors && item.colors.length > 0) {
     const ownCode = colorCodeFromCatalog(item.catalogNumber);
@@ -107,21 +107,50 @@ export function resolveItemSwatches(
     }));
   }
 
-  if (fallback && fallback.length > 0) {
-    const ownWord = extractColorWord(item.title);
-    return fallback.map((swatch) => {
-      const word =
-        Object.entries(COLOR_HEBREW).find(([, value]) => value === swatch.name)?.[0] ??
-        swatch.name.toLowerCase();
-      return {
-        key: swatch.name,
-        name: swatch.name,
-        hex: swatch.hex,
-        imagePath: null,
-        isCurrent: ownWord ? word === ownWord : false,
-      };
-    });
+  return siblingSwatches ?? [];
+}
+
+// Build interactive swatches from colour-variant ITEMS already in the catalog,
+// reusing each sibling's existing cover photo — no scraping needed. A product
+// whose colours are separate catalog items gets a working colour selector for
+// free; the colour scraper/warmer only needs to add colours NOT in the catalog.
+export function buildSiblingColorSwatches(items: CarouselItem[]): Map<string, ResolvedSwatch[]> {
+  const families = new Map<string, CarouselItem[]>();
+  for (const item of items) {
+    const key = getFamilyKey(item.title);
+    if (!families.has(key)) families.set(key, []);
+    families.get(key)!.push(item);
   }
 
-  return [];
+  const result = new Map<string, ResolvedSwatch[]>();
+  for (const members of families.values()) {
+    const seen = new Set<string>();
+    const base: Array<{ word: string; name: string; hex: string | null; imagePath: string }> = [];
+    for (const member of members) {
+      const word = extractColorWord(member.title);
+      if (!word || seen.has(word) || !member.coverImagePath) continue;
+      seen.add(word);
+      base.push({
+        word,
+        name: COLOR_HEBREW[word] ?? word,
+        hex: COLOR_HEX[word] ?? null,
+        imagePath: member.coverImagePath,
+      });
+    }
+    if (base.length < 2) continue; // need 2+ colours to form a selector
+    for (const member of members) {
+      const ownWord = extractColorWord(member.title);
+      result.set(
+        member.id,
+        base.map((b) => ({
+          key: b.word,
+          name: b.name,
+          hex: b.hex,
+          imagePath: b.imagePath,
+          isCurrent: b.word === ownWord,
+        })),
+      );
+    }
+  }
+  return result;
 }

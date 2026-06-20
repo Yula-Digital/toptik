@@ -6,8 +6,7 @@ import { A11y, Autoplay, Keyboard, Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 import type { Swiper as SwiperType } from "swiper";
 import { CarouselItem } from "@/lib/carousel/types";
-import { buildItemColorGroups } from "@/lib/carousel/color-groups";
-import { resolveItemSwatches, type ResolvedSwatch } from "@/lib/carousel/colors";
+import { buildSiblingColorSwatches, resolveItemSwatches, type ResolvedSwatch } from "@/lib/carousel/colors";
 import { trimmedProductSrc } from "@/lib/carousel/trim-src";
 import { nextImageSrcset } from "@/lib/carousel/next-image";
 
@@ -188,7 +187,7 @@ function CatalogCard({
 export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }: CarouselGridProps) {
   const pages = useMemo(() => chunkItems(items, 4), [items]);
   const swiperKey = useMemo(() => items.map((item) => item.id).join("|"), [items]);
-  const colorGroups = useMemo(() => buildItemColorGroups(items), [items]);
+  const siblingSwatches = useMemo(() => buildSiblingColorSwatches(items), [items]);
   const [swiperInstance, setSwiperInstance] = useState<SwiperType | null>(null);
   const [isBeginning, setIsBeginning] = useState(true);
   const [isEnd, setIsEnd] = useState(false);
@@ -242,7 +241,7 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }:
                 <CatalogCard
                   key={item.id}
                   item={item}
-                  swatches={resolveItemSwatches(item, colorGroups.get(item.id))}
+                  swatches={resolveItemSwatches(item, siblingSwatches.get(item.id))}
                   onOpenItem={onOpenItem}
                   onOpenTechSpecs={onOpenTechSpecs}
                 />
