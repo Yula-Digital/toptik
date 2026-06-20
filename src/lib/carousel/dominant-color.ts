@@ -13,14 +13,18 @@ export async function dominantHexFromUrl(url: string): Promise<string | null> {
     const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10000) });
     if (!res.ok) return null;
     const buf = Buffer.from(await res.arrayBuffer());
-    // Crop the flat background to the product's bounding box FIRST, so the
-    // average reflects the product regardless of how much white surrounds it —
-    // small items (bum bags / wallets / pochettes) don't fill a fixed centre crop.
-    let work: Buffer = buf;
+    // Downscale first — a colour average needs no detail, and this keeps the
+    // recolour pass fast/reliable. Then crop the flat background to the product's
+    // bounding box, so the average reflects the product regardless of how much
+    // white surrounds it (small items don't fill a fixed centre crop).
+    const small = await sharp(buf)
+      .resize(256, 256, { fit: "inside", withoutEnlargement: true })
+      .toBuffer();
+    let work: Buffer = small;
     try {
-      work = await sharp(buf).trim({ threshold: 12 }).toBuffer();
+      work = await sharp(small).trim({ threshold: 12 }).toBuffer();
     } catch {
-      work = buf;
+      work = small;
     }
 
     const meta = await sharp(work).metadata();
