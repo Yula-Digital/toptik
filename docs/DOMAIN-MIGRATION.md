@@ -1,14 +1,14 @@
 # העברת הדומיין toptik.co.il — היסטוריה + rollback
 
-> **⚠️ עודכן 2026-06-20 — בוטל חלקית.** השורש `toptik.co.il` **הוחזר לחנות Shopify**
-> (לבקשת הלקוח). דף הנחיתה (Vercel) עובר ל‑**`landing.toptik.co.il`** — ראה
-> **`docs/LANDING-SUBDOMAIN.md`** לרצף הביצוע המעודכן. המסמך הזה נשאר כ‑**רשומה
-> היסטורית + עוגני rollback** של המעבר המקורי מ‑2026-06-18.
+> **⚠️ עודכן 2026-06-20 — בוטל חלקית (הושלם ✅).** השורש `toptik.co.il` **הוחזר לחנות
+> Shopify**, ודף הנחיתה (Vercel) **עבר וחי על `landing.toptik.co.il`** — ראה
+> **`docs/LANDING-SUBDOMAIN.md`** לרשומה המלאה. המסמך הזה נשאר כ‑**רשומה היסטורית +
+> עוגני rollback** של המעבר המקורי מ‑2026-06-18.
 >
-> **מה התחלף ב‑2026-06-20:**
-> - שורש `toptik.co.il`: `A 216.150.1.1` (Vercel) → הוחזר ל‑Shopify.
-> - דף הנחיתה: אותו פרודקשן Vercel, בית חדש `landing.toptik.co.il` (CNAME → Vercel).
-> - `216.150.1.1` = ה‑IP של Vercel (לא שרת נפרד); Vercel מנתב לפי Host header.
+> **המצב הסופי (2026-06-20):**
+> - שורש `toptik.co.il`: היה `A 216.150.1.1` (Vercel) → **Shopify** `A 23.227.38.65`; `www` → `CNAME shops.myshopify.com.`.
+> - דף הנחיתה: אותו פרודקשן Vercel, חי על `landing.toptik.co.il` → `CNAME 59246325c2db1707.vercel-dns-017.com.` (Valid + SSL).
+> - `216.150.1.1` = ה‑IP של Vercel (לא שרת נפרד); Vercel מנתב לפי Host header — לכן סאב‑דומיין דורש CNAME **+** רישום בפרויקט, לא רשומת A בודדת.
 
 > **רקע מקורי (2026-06-18):** הפרודקשן חי על `https://toptik.co.il` (ו‑`www` מפנה אליו).
 

@@ -1,9 +1,13 @@
-# דף הנחיתה עובר ל‑landing.toptik.co.il — Runbook
+# דף הנחיתה ב‑landing.toptik.co.il — Runbook + record
 
-> **רקע (2026-06-20):** השורש `toptik.co.il` הוחזר לחנות Shopify (בוצע ב‑DNS).
-> דף הנחיתה (אפליקציית Next על Vercel, פרויקט `toptik`) **לא נעלם** — הוא רק
-> צריך בית חדש: תת‑הדומיין **`landing.toptik.co.il`**.
-> מסמך זה הוא ה‑record + הרצף המדויק לביצוע. השלמת DNS+Vercel = **בתהליך**.
+> **סטטוס: הושלם ✅ 2026-06-20.** דף הנחיתה חי על **`https://landing.toptik.co.il`**
+> (Vercel: *Valid Configuration* + SSL). השורש `toptik.co.il` הוחזר לחנות Shopify.
+> מסמך זה הוא ה‑record של מה שבוצע + rollback.
+>
+> **הרשומות בפועל (סופי):**
+> - `landing` → `CNAME 59246325c2db1707.vercel-dns-017.com.` · TTL 3600 → Vercel (Production).
+> - שורש `@` → `A 23.227.38.65` (Shopify) · `www` → `CNAME shops.myshopify.com.`.
+> - רשומות אימייל/אימות (MX/SPF/DKIM/dmarc/NS) — לא נגעו.
 
 ---
 
@@ -17,20 +21,22 @@
 
 ---
 
-## 1. מצב נוכחי
+## 1. מצב סופי
 
 | פריט | ערך |
 |---|---|
 | פרויקט Vercel | `toptik` · `prj_7LROyMek3LBhb16a9e4A4EyJNhJy` |
 | Team | `rordan-ais-projects` · `team_OOyctgp7Iroyd2ONA9sy9XJL` |
-| דומיינים בפרויקט כיום | `toptik.co.il`, `www.toptik.co.il`, `*.vercel.app` — **`landing` עדיין לא קיים** |
+| דומיינים בפרויקט | **`landing.toptik.co.il`** (Valid + SSL), `toptik.co.il`, `www.toptik.co.il`, `*.vercel.app` |
 | ניהול DNS | internic / sitesdepot — `https://portal.internic.co.il` (zone 7144) |
-| שורש `toptik.co.il` | הוחזר ל‑Shopify (DNS) |
-| כתובת אימות זמנית (עד שה‑CNAME עולה) | `https://toptik-iota.vercel.app` — אותו פרודקשן, עובד תמיד |
+| שורש `toptik.co.il` | Shopify — `A 23.227.38.65` · `www` → `CNAME shops.myshopify.com.` |
+| כתובת דף הנחיתה החיה | **`https://landing.toptik.co.il`** (legacy fallback: `https://toptik-iota.vercel.app`) |
 
 ---
 
-## 2. מה צריך לקרות (שני צדדים — הסדר לא קריטי)
+## 2. מה בוצע (הרצף שננקט — לתיעוד/שחזור)
+
+> בוצע בפועל: סוכן ה‑DNS יצר את ה‑CNAME, ואז נוסף הדומיין ב‑Vercel והגיע ל‑Valid + SSL.
 
 שני הצדדים חייבים להתקיים; מי שנוצר ראשון פשוט **"ממתין"** לשני — זה סטטוס pending
 זמני, **לא שגיאה אמיתית** ולא שובר כלום. אפשר כל סדר:
@@ -52,7 +58,8 @@
 ### שלב ב' — ב‑internic (רשומת DNS אחת; מבוצע ע"י סוכן ה‑DNS)
 - **סוג:** `CNAME`
 - **שם:** `landing`
-- **ערך:** הערך המדויק מ‑Vercel (שלב א'.4). אם לא זמין — גנרי עדכני `cname.vercel-dns-0.com.`
+- **ערך (נשמר בפועל):** `59246325c2db1707.vercel-dns-017.com.` — הערך המדויק ש‑Vercel הציג
+  (הוחלף מהגנרי `cname.vercel-dns-0.com.` ששימש זמנית; שניהם תקפים, הספציפי מומלץ).
 - **TTL:** `3600`
 - **אסור:** `A → 216.150.1.1` לסאב‑דומיין. לא לגעת בשורש, ב‑`www`, וברשומות
   האימייל/אימות (`MX`, `SPF/TXT`, `*._domainkey`, `dmarc`, `mailerlul`, `ftp`, `NS`).

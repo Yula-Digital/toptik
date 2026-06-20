@@ -7,7 +7,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <!-- BEGIN:deployment-workflow -->
 # Deployment workflow — DO NOT improvise
 
-**Production URL the user verifies on:** the landing page lives on **`https://landing.toptik.co.il`** (since 2026-06-20 the apex `toptik.co.il` was returned to the Shopify store — do NOT verify the landing page there anymore). Deploys from `master`, ~90 s. The legacy `https://toptik-iota.vercel.app` still serves the same production deployment and is the fallback verify URL until the `landing` CNAME + Vercel domain go live. Cutover runbook: `docs/LANDING-SUBDOMAIN.md`.
+**Production URL the user verifies on:** the landing page lives on **`https://landing.toptik.co.il`** (since 2026-06-20 the apex `toptik.co.il` was returned to the Shopify store — do NOT verify the landing page there anymore). Deploys from `master`, ~90 s. The legacy `https://toptik-iota.vercel.app` still serves the same production deployment and is the fallback verify URL. Cutover record + DNS values: `docs/LANDING-SUBDOMAIN.md`.
 
 **Vercel preview URLs are GATED by Vercel Authentication** (`https://toptik-git-<branch>-rordan-ais-projects.vercel.app` returns 401 to logged-out visitors). The user has explicitly asked NOT to be sent there to verify visuals — it caused a full day of wasted time.
 
@@ -22,7 +22,7 @@ So the workflow for any visual / user-facing change is:
    git push origin master
    git checkout <feature-branch>   # stay on feature branch for next task
    ```
-4. Tell the user: "production updates in ~90 s at `https://landing.toptik.co.il/<path>`" (or `https://toptik-iota.vercel.app/<path>` until the `landing` subdomain is live).
+4. Tell the user: "production updates in ~90 s at `https://landing.toptik.co.il/<path>`" (legacy fallback: `https://toptik-iota.vercel.app/<path>`).
 
 Optional long-term improvement (one-click, user-driven, NOT to be presented as a blocker): the user can disable Vercel Authentication on Preview at `https://vercel.com/rordan-ais-projects/toptik/settings/deployment-protection`. Until then, master is the only public path.
 
