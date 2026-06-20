@@ -44,6 +44,10 @@ const assistant = Assistant({
 });
 
 export const metadata: Metadata = {
+  // Canonical home of the landing page. The apex toptik.co.il was returned to
+  // the Shopify store on 2026-06-20; this Vercel app now lives on the
+  // `landing` subdomain. See docs/LANDING-SUBDOMAIN.md.
+  metadataBase: new URL("https://landing.toptik.co.il"),
   title: "TopTik Collection — Move in Style. Travel with Purpose.",
   description: "TopTik — דף נחיתה רשמי",
 };
