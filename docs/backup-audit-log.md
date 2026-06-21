@@ -1,5 +1,23 @@
 # Backup Audit Log
 
+## 2026-06-21 11:53 (UTC)
+
+- Release: **unify the admin panel into the repo** — merge the separately-developed dashboard branch `claude/hopeful-cannon-6epcmb` into `master` so the panel ships in every commit/backup/deploy (one repo, no separate channel).
+- Target branch: `master` (production — landing.toptik.co.il)
+- Merge commit: `312ce1c` (`--no-ff` merge of `origin/claude/hopeful-cannon-6epcmb` into the feature branch, then ff-merged to master)
+- Rollback target: `e528cac` (previous production `master` — grid colour-swatch preload)
+- Pre-release backup branch: `backup/20260621-1153-pre-panel` → `e528cac`
+- Post-release backup branch: `backup/20260621-1153-panel` → release commit
+- Pre-merge verification (did NOT trust the hand-off's "clean" claim — checked it):
+  - Merge-base `a994dd1`; **file overlap between the two sides = 0** → no conflicts possible. Merge applied via `ort` with zero conflicts.
+  - **No route collisions**: panel routes (`/dashboard /login /reset /settings /setup /auth/callback /api/panel/*`) are all distinct from `/`, `/carousel`, `/admin`.
+  - Panel adds `src/proxy.ts` (Next 16 middleware). Its matcher is `["/", "/login/* …", "/auth/*"]` — **excludes `/carousel` and `/api/*`**, so the perf-critical paths are never intercepted. Traced execution: on the production landing host the proxy makes **zero Supabase calls** (panel paths early-redirect to the admin subdomain; `/` → `needsSession=false` → `NextResponse.next()`). `/` and `/carousel` stay STATIC (`○`) in the build.
+  - `demo.ts` is hard-gated (`NODE_ENV !== "production" && PANEL_DEMO === "1"`, `server-only`) → dead code in prod.
+- Issue found & fixed vs. the hand-off prompt: it merged → verified → pushed **without `npm install`**, but the panel adds one dependency (`@supabase/ssr@^0.12.0`); ran `npm install` before the build.
+- Quality gate (on the merged tree): `npm run lint` + `npm run build` **passed** (20 static pages; `ƒ Proxy (Middleware)` active).
+- Panel is **dormant in production** until enabled: needs env vars (`ADMIN_VAULT_KEY`, `ADMIN_PANEL_TOKEN`, Supabase keys) + the `20260620_admin_vault.sql` migration + `admin.toptik.co.il` DNS. See `TODO-TOMORROW.md` / `docs/ADMIN-SUBDOMAIN.md`. Merging the migration file is inert (not auto-applied).
+- Follow-up (optional, non-blocking): scope the proxy matcher so it does not add an edge hop on the public landing root `/` (currently a no-op there).
+
 ## 2026-06-21 10:43 (UTC)
 
 - Release: **grid colour-swatch preload** — extend the modal's preload methodology to the catalog card. Picking a colour on a card *in the grid* (before the modal is ever opened) was still cold (one un-warmed `img-trim?w=720` fetch per click); now it paints from cache.
