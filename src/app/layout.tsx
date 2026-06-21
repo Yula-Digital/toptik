@@ -5,6 +5,8 @@ import {
   Rubik,
   Playfair_Display,
   Assistant,
+  Poppins,
+  Heebo,
 } from "next/font/google";
 import "./globals.css";
 
@@ -43,6 +45,22 @@ const assistant = Assistant({
   display: "swap",
 });
 
+// Used by the carousel "MANDARINA DUCK" wordmark (Poppins) and the
+// "קולקציה נבחרת" collection title (Heebo) — per the leather-background design.
+const poppins = Poppins({
+  subsets: ["latin"],
+  variable: "--font-poppins",
+  weight: ["500", "600", "700"],
+  display: "swap",
+});
+
+const heebo = Heebo({
+  subsets: ["latin", "hebrew"],
+  variable: "--font-heebo",
+  weight: ["300", "400", "500", "700"],
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   // Canonical home of the landing page. The apex toptik.co.il was returned to
   // the Shopify store on 2026-06-20; this Vercel app now lives on the
@@ -66,7 +84,7 @@ export default function RootLayout({
     <html lang="he" dir="rtl" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className={`${italiana.variable} ${greatVibes.variable} ${rubik.variable} ${playfair.variable} ${assistant.variable} antialiased`}
+        className={`${italiana.variable} ${greatVibes.variable} ${rubik.variable} ${playfair.variable} ${assistant.variable} ${poppins.variable} ${heebo.variable} antialiased`}
       >
         {children}
       </body>

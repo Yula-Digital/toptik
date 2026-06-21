@@ -1,5 +1,20 @@
 # Backup Audit Log
 
+## 2026-06-21 19:32 (UTC)
+
+- Release: **carousel "black leather" background + new title** (design hand-off `leather-background.standalone.html`). Replaces ONLY the page background and the heading — product cards / buttons / grid untouched, per request.
+- Target branch: `master` (production)
+- Rollback target: `834c35e` (previous production `master` — buy CTA)
+- Pre-release backup branch: `backup/20260621-1932-pre-leather` → `834c35e`
+- Post-release backup branch: `backup/20260621-1932-leather` → release commit
+- Change (3 files only):
+  - `CarouselPageClient.tsx`: dropped the `/carousel-texture.webp` surface var; added the SVG filter defs (`#leatherGrain`, `#leatherPores`, width/height 0) + a `.carousel-leather-bg` stack of 5 layers; replaced `<h1>קטלוג TOPTIK</h1>` with `MANDARINA DUCK` wordmark + `קולקציה <span>נבחרת</span>`.
+  - `globals.css`: `.carousel-page` base `#070605` (+ `position:relative`); leather layer rules (grain/pores via `filter:url()`, glow/rake/vignette gradients); content (`.carousel-header/.carousel-page-body/.carousel-loading`) lifted to `z-index:1` above the bg; title styled per design — wordmark Poppins gold, collection title Heebo light `#f2ece2`, the word "נבחרת" in gold `#d7aa6a`.
+  - `layout.tsx`: added Poppins + Heebo via `next/font` (`--font-poppins`, `--font-heebo`).
+- Verification: `npm run lint` + `npm run build` passed; Playwright screenshots (desktop 1280 + mobile 390) confirm the leather texture + glow render, the title shows with the gold "נבחרת", and the product cards float unchanged on top.
+- Known follow-up (out of the requested scope): the side category-nav heading + the brief "טוען מוצרים…" loading text still use the old dark ink and are low-contrast on the dark bg (pills/back-link/cards have their own light backgrounds, so they're fine). Flagged to the user — adapt on request.
+- Read-safety: presentational only; the now-unused `public/carousel-texture.webp` is left in place (harmless).
+
 ## 2026-06-21 18:48 (UTC)
 
 - Release: **"לרכישה" (buy) CTA** — new orange button above "לנתונים טכנים" on every catalog card AND in the product modal. Clickable, no action yet (per request).

@@ -506,11 +506,8 @@ body {
 /* ─────── Carousel page ─────── */
 .carousel-page {
   height: 100dvh;
-  --carousel-bg-url: none;
-  background-color: #ece5d1;
-  background-image: var(--carousel-bg-url);
-  background-size: 320px auto;
-  background-repeat: repeat;
+  position: relative;
+  background-color: #070605;
   color: var(--ink);
   padding: clamp(8px, 1vw, 14px);
   overflow: hidden;
@@ -518,6 +515,29 @@ body {
   flex-direction: column;
   gap: 6px;
 }
+
+/* ─── Black-leather background — texture from SVG filters (no image asset).
+   The <svg> defs + the 5 layers live in CarouselPageClient; this stacks them
+   over a #070605 base, behind all page content. ─── */
+.leather-defs { position: absolute; width: 0; height: 0; }
+.carousel-leather-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: #070605;
+  overflow: hidden;
+  pointer-events: none;
+}
+.leather-layer { position: absolute; inset: 0; }
+.leather-grain { filter: url(#leatherGrain); opacity: 0.92; mix-blend-mode: screen; }
+.leather-pores { filter: url(#leatherPores); opacity: 0.38; mix-blend-mode: overlay; }
+.leather-glow { background: radial-gradient(120% 90% at 88% 18%, rgba(120,102,82,0.42) 0%, rgba(60,52,44,0.14) 32%, rgba(0,0,0,0) 62%); }
+.leather-rake { background: linear-gradient(255deg, rgba(150,128,100,0.10) 0%, rgba(0,0,0,0) 40%); }
+.leather-vignette { background: radial-gradient(130% 120% at 70% 30%, rgba(0,0,0,0) 38%, rgba(0,0,0,0.55) 78%, rgba(0,0,0,0.82) 100%); }
+/* Keep all page content above the leather background. */
+.carousel-header,
+.carousel-page-body,
+.carousel-loading { position: relative; z-index: 1; }
 
 .carousel-header {
   position: relative;
@@ -528,11 +548,34 @@ body {
   margin-bottom: 4px;
 }
 
+.carousel-title-block {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.brand-wordmark {
+  font-family: var(--font-poppins), sans-serif;
+  letter-spacing: 5px;
+  font-size: 13px;
+  color: #caa46e;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
 .carousel-header h1 {
-  font-family: var(--font-rubik), var(--font-assistant), sans-serif;
-  font-size: clamp(24px, 2vw, 34px);
-  font-weight: 700;
+  font-family: var(--font-heebo), var(--font-assistant), sans-serif;
+  font-size: clamp(24px, 3vw, 40px);
+  font-weight: 300;
+  color: #f2ece2;
+  margin: 0;
+  letter-spacing: 1px;
   text-align: center;
+}
+
+.carousel-header h1 span {
+  color: #d7aa6a;
+  font-weight: 700;
 }
 
 .carousel-header-actions {
