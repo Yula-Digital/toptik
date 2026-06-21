@@ -41,7 +41,6 @@ export default function AdminPage() {
     message: string;
   } | null>(null);
   const [importPreviews, setImportPreviews] = useState<ImportPreview[]>([]);
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   function resolveErrorMessage(error: unknown, fallback: string) {
     if (error instanceof Error && error.message) return error.message;
@@ -382,54 +381,29 @@ export default function AdminPage() {
   return (
     <main className="admin-page">
       {!authReady && (
-        <>
-          <button
-            type="button"
-            className="admin-secret-zone"
-            aria-label="כניסת אדמין"
-            onClick={() => setShowLoginPrompt(true)}
-          />
-          {showLoginPrompt && (
-            <div
-              className="admin-secret-backdrop"
-              role="dialog"
-              aria-modal="true"
-              onClick={() => setShowLoginPrompt(false)}
-            >
-              <div
-                className="admin-secret-modal"
-                onClick={(e) => e.stopPropagation()}
-                dir="rtl"
-              >
-                <input
-                  type="password"
-                  value={token}
-                  autoFocus
-                  onChange={(e) => setToken(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      window.localStorage.setItem(STORAGE_KEY, token);
-                      loadData(token);
-                    }
-                  }}
-                  placeholder="סיסמה"
-                />
-                <button
-                  type="button"
-                  onClick={() => {
-                    window.localStorage.setItem(STORAGE_KEY, token);
-                    loadData(token);
-                  }}
-                >
-                  כניסה
-                </button>
-                {status && status !== "מחובר" && (
-                  <div className="admin-secret-status">{status}</div>
-                )}
-              </div>
-            </div>
-          )}
-        </>
+        <div className="admin-secret-backdrop" role="dialog" aria-modal="true">
+          <form
+            className="admin-secret-modal"
+            dir="rtl"
+            onSubmit={(e) => {
+              e.preventDefault();
+              window.localStorage.setItem(STORAGE_KEY, token);
+              loadData(token);
+            }}
+          >
+            <input
+              type="password"
+              value={token}
+              autoFocus
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="סיסמת אדמין"
+            />
+            <button type="submit">כניסה</button>
+            {status && status !== "מחובר" && (
+              <div className="admin-secret-status">{status}</div>
+            )}
+          </form>
+        </div>
       )}
 
       {authReady && (
