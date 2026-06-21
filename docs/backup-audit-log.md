@@ -1,5 +1,16 @@
 # Backup Audit Log
 
+## 2026-06-21 20:22 (UTC)
+
+- Release: **carousel color tweaks on the leather bg** (follow-up to the leather background). CSS-only.
+- Target branch: `master` (production)
+- Rollback target: `aefafcc` (leather background release)
+- Pre-release backup branch: `backup/20260621-2022-pre-navcolors` → `aefafcc`
+- Post-release backup branch: `backup/20260621-2022-navcolors` → release commit
+- Change (`globals.css`, 4 rules): `.category-nav-title` `#3a2208`→`#ffffff` (white "קטגוריות"); `.category-pill.is-active` highlight `#3a2208`→`#d7aa6a` (gold, with dark `#3a2208` text for contrast); carousel nav arrows `.carousel-nav` `#5a3a0c`→`#d7aa6a` (both prev+next), hover `#e6c089`. Matches the gold of the "נבחרת" title word.
+- Verified: `lint`+`build` pass; desktop screenshot confirms white heading, gold active pill, gold arrows.
+- Read-safety: presentational only.
+
 ## 2026-06-21 19:32 (UTC)
 
 - Release: **carousel "black leather" background + new title** (design hand-off `leather-background.standalone.html`). Replaces ONLY the page background and the heading — product cards / buttons / grid untouched, per request.

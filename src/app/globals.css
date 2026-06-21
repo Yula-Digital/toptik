@@ -646,7 +646,7 @@ body {
   font-family: var(--font-rubik), var(--font-assistant), sans-serif;
   font-size: 22px;
   font-weight: 700;
-  color: #3a2208;
+  color: #ffffff;
   margin: 0 0 4px;
   text-align: right;
 }
@@ -687,9 +687,9 @@ body {
 }
 
 .category-pill.is-active {
-  background: #3a2208;
-  color: #fdf8ee;
-  border-color: #3a2208;
+  background: #d7aa6a;
+  color: #3a2208;
+  border-color: #d7aa6a;
 }
 
 .category-pill-label {
@@ -735,7 +735,7 @@ body {
   border: none;
   padding: 0;
   font-family: inherit;
-  color: #5a3a0c;
+  color: #d7aa6a;
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -757,7 +757,7 @@ body {
 }
 
 .carousel-nav:hover {
-  color: #3a2208;
+  color: #e6c089;
   transform: translateY(-50%) scale(1.08);
 }
 
