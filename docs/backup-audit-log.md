@@ -1,5 +1,21 @@
 # Backup Audit Log
 
+## 2026-06-21 16:51 (UTC)
+
+- Release: **admin-user management without email** — the owner now creates admins and resets passwords with a password set DIRECTLY (no SMTP). Fixes invites failing in production.
+- Target branch: `master` (production)
+- Rollback target: `961ce43` (previous production `master` — proxy host-scope)
+- Pre-release backup branch: `backup/20260621-1651-pre-noemailadmin` → `961ce43`
+- Post-release backup branch: `backup/20260621-1651-noemailadmin` → release commit
+- Root cause (proven from the project's Supabase **Auth logs**, not guessed): `POST /auth/v1/invite` returned **500 `unexpected_failure` after ~2.6 s** — i.e. Supabase failed to **send** the invite email. This rules out redirect-URL and rate-limit theories (those fail fast with 4xx). Supabase docs confirm invites REQUIRE working SMTP and the built-in mailer is "demonstration only". The user's SMTP (Gmail) wasn't delivering, so every email-dependent action failed.
+- Fix (decouple admin management from email entirely):
+  - `src/lib/admin/users.ts`: `inviteAdmin` (used `inviteUserByEmail`) → **`createAdminWithPassword`** (`admin.createUser` + `email_confirm:true`, no email). `sendResetEmail` → **`setAdminPassword`** (`admin.updateUserById({ password })`, no email).
+  - `POST /api/panel/users` now takes `{ email, password }` (≥10); `POST /api/panel/users/reset` now takes `{ id, password }`.
+  - `SettingsUsersClient`: add-admin form is email + password with a **"צור סיסמה"** Web-Crypto generator; the reset button generates+sets a new password. Both show the credentials in a success banner for the owner to hand over out-of-band.
+  - Left `src/app/auth/callback/route.ts` + `ResetClient` (self-service email reset) intact as a fallback for if/when SMTP is configured; `getPublicOrigin` is now unused but harmless.
+- Quality gate: `npm run lint` + `npm run build` passed.
+- Read-safety: no schema/data change; uses existing Supabase admin APIs with the service-role key already set in prod.
+
 ## 2026-06-21 12:15 (UTC)
 
 - Release: **admin-panel subdomain — repo/code side finalised** (architectural: one repo + one deployment now serves TWO domains by host). Scope the proxy so the public landing root is fully outside it.

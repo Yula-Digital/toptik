@@ -24,13 +24,25 @@ function formatDate(value: string | null): string {
   }
 }
 
+// A strong random password (no ambiguous chars). Created client-side via Web
+// Crypto so the owner can hand it to the new admin — no email is involved.
+function generatePassword(len = 14): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*";
+  const arr = new Uint32Array(len);
+  crypto.getRandomValues(arr);
+  let out = "";
+  for (let i = 0; i < len; i++) out += chars[arr[i] % chars.length];
+  return out;
+}
+
 export function SettingsUsersClient({ currentEmail }: { currentEmail: string | null }) {
   const [users, setUsers] = useState<PanelUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [inviteEmail, setInviteEmail] = useState("");
+  const [newEmail, setNewEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const [inviting, setInviting] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -49,41 +61,51 @@ export function SettingsUsersClient({ currentEmail }: { currentEmail: string | n
     void load();
   }, [load]);
 
-  async function invite(e: React.FormEvent) {
+  async function createAdmin(e: React.FormEvent) {
     e.preventDefault();
     setFeedback(null);
-    setInviting(true);
+    const email = newEmail.trim();
+    if (newPassword.length < 10) {
+      setFeedback({ tone: "error", message: "הסיסמה חייבת להכיל לפחות 10 תווים." });
+      return;
+    }
+    setCreating(true);
     try {
       const res = await fetch("/api/panel/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail.trim() }),
+        body: JSON.stringify({ email, password: newPassword }),
       });
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      if (!res.ok) throw new Error(data?.error ?? "ההזמנה נכשלה");
-      setInviteEmail("");
-      setFeedback({ tone: "success", message: "ההזמנה נשלחה. המנהל החדש יקבל קישור להגדרת סיסמה." });
+      if (!res.ok) throw new Error(data?.error ?? "יצירת המנהל נכשלה");
+      setFeedback({
+        tone: "success",
+        message: `המנהל נוצר. מסרו לו את הפרטים (אין מייל אוטומטי) — אימייל: ${email} · סיסמה: ${newPassword}`,
+      });
+      setNewEmail("");
+      setNewPassword("");
       await load();
     } catch (error) {
       setFeedback({ tone: "error", message: error instanceof Error ? error.message : "שגיאה" });
     } finally {
-      setInviting(false);
+      setCreating(false);
     }
   }
 
-  async function resetUser(email: string | null) {
-    if (!email) return;
+  async function resetUser(user: PanelUser) {
+    if (!window.confirm(`לאפס את הסיסמה של ${user.email}? תיווצר סיסמה חדשה שתצטרכו למסור לו.`)) return;
     setFeedback(null);
-    setPendingId(email);
+    setPendingId(user.id);
     try {
+      const password = generatePassword();
       const res = await fetch("/api/panel/users/reset", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ id: user.id, password }),
       });
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
-      if (!res.ok) throw new Error(data?.error ?? "שליחת האיפוס נכשלה");
-      setFeedback({ tone: "success", message: `קישור לאיפוס סיסמה נשלח אל ${email}.` });
+      if (!res.ok) throw new Error(data?.error ?? "איפוס הסיסמה נכשל");
+      setFeedback({ tone: "success", message: `סיסמה חדשה ל-${user.email}: ${password} — מסרו לו אותה.` });
     } catch (error) {
       setFeedback({ tone: "error", message: error instanceof Error ? error.message : "שגיאה" });
     } finally {
@@ -115,7 +137,8 @@ export function SettingsUsersClient({ currentEmail }: { currentEmail: string | n
       <div className="admin-card-head">
         <h2 className="admin-card-title">משתמשי מנהל</h2>
         <p className="admin-card-desc">
-          ניתן להגדיר עד {MAX_ADMIN_USERS} מנהלים. כל מנהל מתחבר עם המייל והסיסמה שלו, ויכול לאפס סיסמה בעצמו.
+          ניתן להגדיר עד {MAX_ADMIN_USERS} מנהלים. כל מנהל מתחבר עם המייל והסיסמה שלו; הבעלים יוצר מנהלים ומאפס סיסמאות
+          ישירות (ללא מייל).
         </p>
       </div>
 
@@ -143,7 +166,7 @@ export function SettingsUsersClient({ currentEmail }: { currentEmail: string | n
                   </div>
                   <div className="admin-user-meta">
                     {user.invitePending
-                      ? "הזמנה ממתינה — טרם הוגדרה סיסמה"
+                      ? "טרם התחבר/ה"
                       : `כניסה אחרונה: ${formatDate(user.lastSignInAt)}`}
                   </div>
                 </div>
@@ -154,10 +177,10 @@ export function SettingsUsersClient({ currentEmail }: { currentEmail: string | n
                   <button
                     type="button"
                     className="admin-icon-btn"
-                    title="שליחת קישור איפוס סיסמה"
-                    aria-label={`שליחת איפוס סיסמה ל-${user.email}`}
-                    disabled={pendingId === user.email || !user.email}
-                    onClick={() => resetUser(user.email)}
+                    title="איפוס סיסמה (הגדרת סיסמה חדשה)"
+                    aria-label={`איפוס סיסמה ל-${user.email}`}
+                    disabled={pendingId === user.id || !user.email}
+                    onClick={() => resetUser(user)}
                   >
                     <KeyIcon />
                   </button>
@@ -180,31 +203,55 @@ export function SettingsUsersClient({ currentEmail }: { currentEmail: string | n
 
       <hr className="admin-divider" />
 
-      <form onSubmit={invite}>
-        <label className="admin-label" htmlFor="invite-email">
-          הזמנת מנהל חדש
+      <form onSubmit={createAdmin}>
+        <label className="admin-label" htmlFor="new-email">
+          הוספת מנהל חדש
         </label>
         <div className="admin-add-row">
           <input
-            id="invite-email"
+            id="new-email"
             className="admin-input"
             type="email"
             dir="ltr"
-            value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.target.value)}
             placeholder="name@toptik.co.il"
-            disabled={atCapacity || inviting}
+            disabled={atCapacity || creating}
             required
           />
-          <button type="submit" className="admin-btn admin-btn--primary" disabled={atCapacity || inviting}>
-            {inviting ? <span className="admin-spin" /> : <PlusIcon />}
-            הזמנה
+        </div>
+        <div className="admin-add-row" style={{ marginTop: 8 }}>
+          <input
+            id="new-password"
+            className="admin-input"
+            type="text"
+            dir="ltr"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            placeholder="סיסמה (לפחות 10 תווים)"
+            autoComplete="new-password"
+            disabled={atCapacity || creating}
+            required
+          />
+          <button
+            type="button"
+            className="admin-btn admin-btn--ghost"
+            onClick={() => setNewPassword(generatePassword())}
+            disabled={atCapacity || creating}
+          >
+            צור סיסמה
+          </button>
+        </div>
+        <div className="admin-add-row" style={{ marginTop: 8 }}>
+          <button type="submit" className="admin-btn admin-btn--primary" disabled={atCapacity || creating}>
+            {creating ? <span className="admin-spin" /> : <PlusIcon />}
+            יצירת מנהל
           </button>
         </div>
         <p className="admin-hint" style={{ marginTop: 8 }}>
           {atCapacity
-            ? `הגעתם למספר המנהלים המרבי (${MAX_ADMIN_USERS}). הסירו מנהל כדי להזמין אחר.`
-            : "המוזמן יקבל מייל עם קישור להגדרת סיסמה והתחברות."}
+            ? `הגעתם למספר המנהלים המרבי (${MAX_ADMIN_USERS}). הסירו מנהל כדי להוסיף אחר.`
+            : "המנהל ייווצר מיד עם הסיסמה. מסרו לו את האימייל והסיסמה — אין מייל אוטומטי. הוא יוכל לשנות סיסמה אחרי הכניסה."}
         </p>
       </form>
     </div>

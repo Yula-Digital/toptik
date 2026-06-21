@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { createSupabaseServerClient, createSupabaseServiceRoleClient } from "@/lib/supabase/server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { MAX_ADMIN_USERS } from "@/lib/admin/config";
 
 export type AdminUserSummary = {
@@ -61,8 +61,14 @@ export async function createPrimaryAdmin(email: string, password: string): Promi
   if (error) throw error;
 }
 
-/** Invites an additional admin by email (enforces the 3-account ceiling). */
-export async function inviteAdmin(email: string, redirectTo: string): Promise<AdminUserSummary> {
+/**
+ * Creates an additional admin with a password set DIRECTLY — no email is ever
+ * sent (admin.createUser + email_confirm). The owner shares the credentials with
+ * the new admin out-of-band. Enforces the 3-account ceiling. This deliberately
+ * avoids inviteUserByEmail, which requires working SMTP and fails (500
+ * unexpected_failure) when email delivery is unavailable.
+ */
+export async function createAdminWithPassword(email: string, password: string): Promise<AdminUserSummary> {
   const admin = createSupabaseServiceRoleClient();
   const existing = await listAdminUsers();
   if (existing.some((u) => u.email?.toLowerCase() === email.toLowerCase())) {
@@ -71,11 +77,14 @@ export async function inviteAdmin(email: string, redirectTo: string): Promise<Ad
   if (existing.length >= MAX_ADMIN_USERS) {
     throw new Error(`ניתן להגדיר עד ${MAX_ADMIN_USERS} מנהלים בלבד.`);
   }
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-    redirectTo,
-    data: { role: "admin" },
+  const { data, error } = await admin.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { role: "admin" },
   });
   if (error) throw error;
+  if (!data.user) throw new Error("יצירת המנהל נכשלה.");
   return toSummary(data.user);
 }
 
@@ -93,9 +102,12 @@ export async function deleteAdmin(id: string): Promise<void> {
   if (error) throw error;
 }
 
-/** Sends a password-reset email to an existing admin (self-service or admin-initiated). */
-export async function sendResetEmail(email: string, redirectTo: string): Promise<void> {
-  const supabase = createSupabaseServerClient();
-  const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+/**
+ * Owner-initiated password reset: sets a NEW password directly on the account —
+ * no email. The owner shares the new password with the admin out-of-band.
+ */
+export async function setAdminPassword(id: string, password: string): Promise<void> {
+  const admin = createSupabaseServiceRoleClient();
+  const { error } = await admin.auth.admin.updateUserById(id, { password });
   if (error) throw error;
 }
