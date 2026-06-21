@@ -2,6 +2,7 @@ import "server-only";
 import crypto from "crypto";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { hasSupabaseAdminEnv } from "@/lib/supabase/env";
+import { isPanelDemo } from "@/lib/admin/demo";
 
 // AES-256-GCM at-rest encryption for vault secrets. The key lives only on the
 // server (ADMIN_VAULT_KEY, 32 bytes base64). Step-up access tokens are signed
@@ -13,6 +14,7 @@ const STEP_UP_TTL_MS = 12 * 60 * 1000; // 12 minutes
 const TABLE = "admin_vault_entries";
 
 export function isVaultConfigured(): boolean {
+  if (isPanelDemo()) return true;
   if (!hasSupabaseAdminEnv() || !KEY_B64) return false;
   try {
     return getKey().length === 32;
@@ -92,7 +94,20 @@ export type VaultEntryInput = {
   notes: string | null;
 };
 
+// In-memory store for demo mode (persists for the life of the dev server).
+let demoStore: VaultEntry[] | null = null;
+function demoVault(): VaultEntry[] {
+  if (!demoStore) {
+    demoStore = [
+      { id: "1", label: "Supabase", username: "rordan@gmail.com", url: "https://supabase.com/dashboard", notes: "פרויקט toptik", secret: "S8x!ntP2qzL#", updatedAt: "2026-06-20T10:00:00Z" },
+      { id: "2", label: "Shopify Admin", username: "toptikcoil", url: "https://admin.shopify.com/store/toptikcoil", notes: "", secret: "shp_4kQ9zR1mY", updatedAt: "2026-06-19T09:00:00Z" },
+    ];
+  }
+  return demoStore;
+}
+
 export async function listVaultEntries(): Promise<VaultEntry[]> {
+  if (isPanelDemo()) return demoVault();
   const supabase = createSupabaseServiceRoleClient();
   const { data, error } = await supabase
     .from(TABLE)
@@ -119,6 +134,18 @@ function safeDecrypt(payload: string): string {
 }
 
 export async function createVaultEntry(input: VaultEntryInput, userId: string): Promise<void> {
+  if (isPanelDemo()) {
+    demoVault().unshift({
+      id: crypto.randomUUID(),
+      label: input.label,
+      username: input.username,
+      url: input.url,
+      notes: input.notes,
+      secret: input.secret,
+      updatedAt: new Date().toISOString(),
+    });
+    return;
+  }
   const supabase = createSupabaseServiceRoleClient();
   const { error } = await supabase.from(TABLE).insert({
     label: input.label,
@@ -132,6 +159,22 @@ export async function createVaultEntry(input: VaultEntryInput, userId: string): 
 }
 
 export async function updateVaultEntry(id: string, input: VaultEntryInput): Promise<void> {
+  if (isPanelDemo()) {
+    const store = demoVault();
+    const i = store.findIndex((e) => e.id === id);
+    if (i >= 0) {
+      store[i] = {
+        ...store[i],
+        label: input.label,
+        username: input.username,
+        url: input.url,
+        notes: input.notes,
+        secret: input.secret,
+        updatedAt: new Date().toISOString(),
+      };
+    }
+    return;
+  }
   const supabase = createSupabaseServiceRoleClient();
   const { error } = await supabase
     .from(TABLE)
@@ -148,6 +191,10 @@ export async function updateVaultEntry(id: string, input: VaultEntryInput): Prom
 }
 
 export async function deleteVaultEntry(id: string): Promise<void> {
+  if (isPanelDemo()) {
+    demoStore = demoVault().filter((e) => e.id !== id);
+    return;
+  }
   const supabase = createSupabaseServiceRoleClient();
   const { error } = await supabase.from(TABLE).delete().eq("id", id);
   if (error) throw new Error(error.message);

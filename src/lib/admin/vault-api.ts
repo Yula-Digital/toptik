@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
 import { getPanelUser } from "@/lib/admin/supabase-server";
 import { isVaultConfigured, verifyStepUpToken, STEP_UP_COOKIE, type VaultEntryInput } from "@/lib/admin/vault";
+import { isPanelDemo, DEMO_USER } from "@/lib/admin/demo";
 
 /**
  * Gate for vault read/write routes: requires an authenticated panel session AND
@@ -11,6 +12,7 @@ import { isVaultConfigured, verifyStepUpToken, STEP_UP_COOKIE, type VaultEntryIn
  * NextResponse to short-circuit with.
  */
 export async function authStepUp(): Promise<{ res: NextResponse } | { user: User }> {
+  if (isPanelDemo()) return { user: DEMO_USER };
   const user = await getPanelUser();
   if (!user) return { res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   if (!isVaultConfigured()) {

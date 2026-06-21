@@ -7,6 +7,7 @@ import {
   STEP_UP_COOKIE,
   STEP_UP_MAX_AGE,
 } from "@/lib/admin/vault";
+import { isPanelDemo } from "@/lib/admin/demo";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,6 +15,7 @@ export const runtime = "nodejs";
 /** Step 2 of the vault gate — verify the OTP, open a short step-up window, and
  *  return the decrypted entries. */
 export async function POST(req: NextRequest) {
+  if (isPanelDemo()) return NextResponse.json({ ok: true, entries: await listVaultEntries() });
   const user = await getPanelUser();
   if (!user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!isVaultConfigured()) {

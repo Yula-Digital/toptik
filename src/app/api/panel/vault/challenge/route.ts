@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getPanelUser, createPanelServerClient } from "@/lib/admin/supabase-server";
 import { isVaultConfigured } from "@/lib/admin/vault";
+import { isPanelDemo, DEMO_MASKED_EMAIL } from "@/lib/admin/demo";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -14,6 +15,7 @@ function maskEmail(email: string): string {
 
 /** Step 1 of the vault gate — email a fresh 6-digit OTP to the admin. */
 export async function POST() {
+  if (isPanelDemo()) return NextResponse.json({ ok: true, email: DEMO_MASKED_EMAIL });
   const user = await getPanelUser();
   if (!user?.email) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   if (!isVaultConfigured()) {

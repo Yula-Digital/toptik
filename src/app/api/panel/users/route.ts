@@ -4,6 +4,7 @@ import { hasSupabaseAdminEnv } from "@/lib/supabase/env";
 import { getPanelUser } from "@/lib/admin/supabase-server";
 import { deleteAdmin, inviteAdmin, listAdminUsers } from "@/lib/admin/users";
 import { getPublicOrigin } from "@/lib/admin/origin";
+import { isPanelDemo, DEMO_USERS } from "@/lib/admin/demo";
 
 export const runtime = "nodejs";
 
@@ -19,6 +20,7 @@ async function guard(): Promise<NextResponse | null> {
 }
 
 export async function GET(): Promise<NextResponse> {
+  if (isPanelDemo()) return NextResponse.json({ users: DEMO_USERS });
   const blocked = await guard();
   if (blocked) return blocked;
   try {

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { hasSupabasePublicEnv, supabaseEnv } from "@/lib/supabase/env";
+import { isPanelDemo, DEMO_USER } from "@/lib/admin/demo";
 
 /**
  * Cookie-bound Supabase client for Server Components, Server Actions and Route
@@ -42,6 +43,7 @@ export async function createPanelServerClient() {
  * validates the JWT against Supabase Auth (never trust the unverified cookie).
  */
 export async function getPanelUser(): Promise<User | null> {
+  if (isPanelDemo()) return DEMO_USER;
   if (!hasSupabasePublicEnv()) return null;
   try {
     const supabase = await createPanelServerClient();
