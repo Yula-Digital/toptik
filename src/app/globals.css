@@ -434,7 +434,7 @@ body {
   .catalog-card-body       { translate: 0 -29px; scale: 1.01; }
   .catalog-card-cta        { translate: -39px 10px; scale: 1.83; }
   .catalog-card-colors     { translate: -3px 2px; scale: 0.86; }
-  .catalog-card-tech-btn   { translate: 0 5px; }
+  .catalog-card-actions    { translate: 0 5px; }
   .carousel-nav-prev       { translate: 13px -20px; scale: 0.79; }
   .carousel-nav-next       { translate: -8px -19px; scale: 0.79; }
 }
@@ -443,7 +443,7 @@ body {
   .catalog-card-body       { translate: 0 -31px; }
   .catalog-card-cta        { translate: -40px 12px; scale: 2.07; }
   .catalog-card-colors     { translate: -3px 1px; scale: 0.88; }
-  .catalog-card-tech-btn   { translate: 0 18px; }
+  .catalog-card-actions    { translate: 0 18px; }
   .carousel-nav-prev       { translate: 13px -22px; scale: 0.78; }
   .carousel-nav-next       { translate: -8px -19px; scale: 0.81; }
 }
@@ -452,7 +452,7 @@ body {
   .catalog-card-body       { translate: 0 -32px; }
   .catalog-card-cta        { translate: -44px 13px; scale: 2.13; }
   .catalog-card-colors     { translate: -2px 0; scale: 0.90; }
-  .catalog-card-tech-btn   { translate: 0 21px; }
+  .catalog-card-actions    { translate: 0 21px; }
   .carousel-nav-prev       { translate: 15px -21px; scale: 0.84; }
   .carousel-nav-next       { translate: -10px -21px; scale: 0.84; }
 }
@@ -467,7 +467,6 @@ body {
   .product-modal-description { translate: 0 -32px; }
   .product-modal-slider      { translate: -2px -222px; }
   .product-modal-angle       { translate: -11px -130px; scale: 0.79; }
-  .product-modal-tech-btn    { translate: 0 4px;        scale: 0.95; }
 }
 @media (min-width: 375px) and (max-width: 413px) {
   .product-modal-image-wrap  { translate: 0 7px;      scale: 1.07; }
@@ -476,7 +475,6 @@ body {
   .product-modal-description { translate: 0 -17px; }
   .product-modal-slider      { translate: 2px -222px; }
   .product-modal-angle       { translate: 0 -188px;   scale: 0.75; }
-  .product-modal-tech-btn    { translate: 0 2px;       scale: 0.98; }
 }
 @media (min-width: 414px) and (max-width: 767px) {
   .product-modal-image-wrap  { translate: 2px 7px;    scale: 1.06; }
@@ -485,7 +483,6 @@ body {
   .product-modal-description { translate: 0 -3px; }
   .product-modal-slider      { translate: 0 -221px; }
   .product-modal-angle       { translate: 5px -219px; scale: 0.76; }
-  .product-modal-tech-btn    { translate: 0 1px; }
 }
 
 /* ─────── MOBILE LANDSCAPE (phones turned sideways) ───────
@@ -999,6 +996,40 @@ body {
   overflow: hidden;
 }
 
+/* "לרכישה" + "לנתונים טכנים" grouped at the card bottom, kept adjacent (tiny gap).
+   The group carries the bottom placement (and the per-phone translate calibration
+   that used to live on the tech button), so both buttons move together. */
+.catalog-card-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  margin-top: auto;
+}
+
+.catalog-card-buy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  font-size: 12px;
+  font-weight: 800;
+  color: #43320f;
+  border: 1px solid rgba(95, 66, 18, 0.18);
+  border-radius: 999px;
+  padding: 0 10px;
+  background: #d7aa6a;
+  line-height: 1.2;
+  cursor: pointer;
+  font-family: inherit;
+  width: 182px;
+  height: 32px;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: background 0.15s ease;
+}
+.catalog-card-buy-btn:hover { background: #cf9f58; }
+
 .carousel-loading {
   max-width: 1320px;
   margin: 40px auto;
@@ -1322,8 +1353,37 @@ body {
   font-family: inherit;
   white-space: nowrap;
   width: 100%;
-  margin-top: auto;
 }
+
+/* Group "לרכישה" above "לנתונים טכנים" at the bottom of the modal meta column,
+   kept adjacent with a tiny gap. The group owns the bottom placement + phone
+   translate/scale calibration that previously sat on the tech button. */
+.product-modal-actions {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.product-modal-buy-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 800;
+  color: #43320f;
+  border: 1px solid rgba(95, 66, 18, 0.18);
+  border-radius: 999px;
+  padding: 0 16px;
+  height: 34px;
+  background: #d7aa6a;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  width: 100%;
+  transition: background 0.15s ease;
+}
+.product-modal-buy-btn:hover { background: #cf9f58; }
 
 /* ─────── Tech Specs Modal ─────── */
 
@@ -2172,6 +2232,17 @@ body {
     -webkit-line-clamp: 5;
   }
 
+  /* Mobile modal positions every meta element absolutely; anchor the buy+tech
+     group to the empty band above the bottom controls so it stays visible. */
+  .product-modal-actions {
+    position: absolute;
+    bottom: 38px;
+    left: 18px;
+    right: 18px;
+    margin-top: 0;
+    z-index: 3;
+  }
+
   .product-modal-slider {
     position: absolute;
     left: 96px;
@@ -2207,7 +2278,8 @@ body {
     font-size: 18px;
   }
 
-  .catalog-card-tech-btn {
+  .catalog-card-tech-btn,
+  .catalog-card-buy-btn {
     font-size: 9px;
     width: calc(100% - 16px);
     min-width: 0;
@@ -2283,12 +2355,10 @@ body {
     height: 16px;
   }
 
+  .product-modal-buy-btn,
   .product-modal-tech-btn {
-    position: absolute;
-    left: 16px;
-    right: 16px;
-    bottom: 12px;
-    width: auto;
+    position: static;
+    width: 100%;
     font-size: 11px;
     height: 30px;
     margin-top: 0;

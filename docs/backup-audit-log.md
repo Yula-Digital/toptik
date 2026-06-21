@@ -1,5 +1,21 @@
 # Backup Audit Log
 
+## 2026-06-21 18:48 (UTC)
+
+- Release: **"לרכישה" (buy) CTA** — new orange button above "לנתונים טכנים" on every catalog card AND in the product modal. Clickable, no action yet (per request).
+- Target branch: `master` (production)
+- Rollback target: `e3aeba1` (previous production `master` — no-email admin mgmt)
+- Pre-release backup branch: `backup/20260621-1848-pre-buybtn` → `e3aeba1`
+- Post-release backup branch: `backup/20260621-1848-buybtn` → release commit
+- Change:
+  - `CarouselGrid.tsx` / `ProductModal.tsx`: wrap the buy + tech buttons in a `.catalog-card-actions` / `.product-modal-actions` group; the buy button is unconditional, tech stays conditional on `sourceUrl`.
+  - `globals.css`: orange `#d7aa6a` buy button (dark-brown text), matched to the tech button's shape/size. The action GROUP now owns the bottom placement + the per-phone `translate` calibration that used to sit on the tech button (keeps buy+tech adjacent, tiny gap). Modal: group is `margin-top:auto` on desktop; on mobile it's `position:absolute; bottom:38px` and both buttons are forced `position:static` so they stack inside it (the original mobile design absolutely-positioned the lone tech button at `bottom:12`, which would have fought the group).
+- Verification (layout-sensitive, so checked properly):
+  - Visual (local Playwright): desktop card, mobile card, desktop modal — buy directly above tech, small gap, correct orange.
+  - Compiled-CSS check of the shipped bundle for the mobile modal: `.product-modal-actions{…position:absolute;bottom:38px…}` + `.product-modal-buy-btn,.product-modal-tech-btn{…position:static}` with NO residual `position:absolute` on the tech button → buy stacks above tech in the bottom band. (Dev/Turbopack served stale CSS mid-work; the production build compiles fresh.)
+- Quality gate: `npm run lint` + `npm run build` passed.
+- Read-safety: pure presentational change; no data/schema/logic touched.
+
 ## 2026-06-21 16:51 (UTC)
 
 - Release: **admin-user management without email** — the owner now creates admins and resets passwords with a password set DIRECTLY (no SMTP). Fixes invites failing in production.

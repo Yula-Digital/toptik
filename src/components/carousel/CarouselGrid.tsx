@@ -97,18 +97,28 @@ function CatalogCard({
           <div className="catalog-card-title">{item.title}</div>
           {item.description && <div className="catalog-card-description">{item.description}</div>}
         </div>
-        {item.sourceUrl && (
+        <div className="catalog-card-actions">
           <button
-            className="catalog-card-tech-btn"
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenTechSpecs(item);
-            }}
-            aria-label={`נתונים טכניים עבור ${item.title}`}
+            type="button"
+            className="catalog-card-buy-btn"
+            onClick={(e) => e.stopPropagation()}
+            aria-label={`רכישת ${item.title}`}
           >
-            <span>לנתונים טכנים</span>
+            <span>לרכישה</span>
           </button>
-        )}
+          {item.sourceUrl && (
+            <button
+              className="catalog-card-tech-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenTechSpecs(item);
+              }}
+              aria-label={`נתונים טכניים עבור ${item.title}`}
+            >
+              <span>לנתונים טכנים</span>
+            </button>
+          )}
+        </div>
       </div>
       <div className="catalog-card-visual">
         <div

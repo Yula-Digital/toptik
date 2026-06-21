@@ -270,15 +270,25 @@ export function ProductModal({ item, colors = [], onClose, onOpenTechSpecs }: Pr
             <div className="product-modal-angle">
               {safeIdx + 1} / {count}
             </div>
-            {item.sourceUrl && (
+            <div className="product-modal-actions">
               <button
-                className="product-modal-tech-btn"
-                onClick={(e) => { e.stopPropagation(); onOpenTechSpecs(item); }}
-                aria-label="פרטים טכניים"
+                type="button"
+                className="product-modal-buy-btn"
+                onClick={(e) => e.stopPropagation()}
+                aria-label="רכישה"
               >
-                לנתונים טכנים
+                לרכישה
               </button>
-            )}
+              {item.sourceUrl && (
+                <button
+                  className="product-modal-tech-btn"
+                  onClick={(e) => { e.stopPropagation(); onOpenTechSpecs(item); }}
+                  aria-label="פרטים טכניים"
+                >
+                  לנתונים טכנים
+                </button>
+              )}
+            </div>
           </div>
         </div>
         <button type="button" className="product-modal-close" onClick={onClose} aria-label="סגור">
