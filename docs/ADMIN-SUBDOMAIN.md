@@ -2,8 +2,24 @@
 
 The admin panel is a session-gated control surface served on the **`admin.toptik.co.il`**
 subdomain (same Vercel project / `master` deployment as the landing page). It is
-**not** the legacy token-only `/admin` editor — that route now redirects into the
-new panel.
+**separate from** the legacy token-only `/admin` carousel editor, which stays exactly
+as-is; the dashboard simply links to it (see the menu below).
+
+## Status — verified 2026-06-21
+
+- **Repo / code: READY and live on `master`.** Host routing is in `src/proxy.ts`
+  (`/` is rewritten to `/dashboard` only on the admin host; the landing root is
+  outside the matcher, so it stays a pure static hit). The panel renders today on
+  the production Vercel URL — e.g. `https://toptik-iota.vercel.app/login` (shows
+  the one-time "הקמת מנהל ראשי" `/setup` screen because no owner exists yet).
+- **Vercel domains attached (checked via API):** `landing.toptik.co.il` +
+  the `*.vercel.app` URLs. **`admin.toptik.co.il` is NOT attached to the project
+  yet** — this is the one blocker. Adding it (step 1) + DNS (step 2) is what makes
+  the subdomain serve from this repo; from then on every `master` deploy updates it.
+- **Cannot be done by the cloud agent:** steps 1–7 below are external dashboard
+  actions (Vercel domains/env, internic DNS, Supabase). The Claude-Code-on-the-web
+  container has no internet egress and none of the keys, so a human (or desktop
+  Claude with the dashboards open) must perform them. The repo side is complete.
 
 - Login / password reset: **Supabase Auth** (email + password, hashed, built-in
   recovery email). Up to **3 admin accounts**.

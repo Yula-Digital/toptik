@@ -73,9 +73,15 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
   return response;
 }
 
+// Matcher. The bare root `/` is intercepted ONLY on the admin subdomain (where it
+// rewrites to /dashboard) — host-scoping it keeps the PUBLIC landing root out of
+// the proxy entirely, so `landing.toptik.co.il/` stays a pure static/CDN hit with
+// no edge-function hop. Panel paths match on every host: on the landing/apex host
+// they redirect to the admin subdomain; on the admin host they get a fresh
+// session. (The host literal must match ADMIN_HOST in src/lib/admin/config.ts.)
 export const config = {
   matcher: [
-    "/",
+    { source: "/", has: [{ type: "host", value: "admin.toptik.co.il" }] },
     "/login/:path*",
     "/setup/:path*",
     "/reset/:path*",

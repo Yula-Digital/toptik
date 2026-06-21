@@ -1,5 +1,21 @@
 # Backup Audit Log
 
+## 2026-06-21 12:15 (UTC)
+
+- Release: **admin-panel subdomain — repo/code side finalised** (architectural: one repo + one deployment now serves TWO domains by host). Scope the proxy so the public landing root is fully outside it.
+- Target branch: `master` (production)
+- Rollback target: `cf81ee6` (previous production `master` — panel unification merge)
+- Pre-release backup branch: `backup/20260621-1215-pre-subdomain` → `cf81ee6`
+- Post-release backup branch: `backup/20260621-1215-subdomain` → release commit
+- Change: `src/proxy.ts` matcher — the bare `/` is now host-scoped to `admin.toptik.co.il` (`has: [{type:"host"}]`), so `landing.toptik.co.il/` never enters the proxy (stays a pure static/CDN hit — protects the image-perf work). Panel paths still match on every host (landing→redirect to admin subdomain; admin→fresh session). Build verified: `/` and `/carousel` remain static `○`, `ƒ Proxy (Middleware)` active. Also corrected a stale line in `docs/ADMIN-SUBDOMAIN.md` (the legacy `/admin` carousel editor stays as-is; it does NOT redirect into the panel) and added a verified STATUS block.
+- Quality gate: `npm run lint` + `npm run build` passed.
+
+### Architecture note for ALL agents — how the subdomain serves from this repo
+- ONE Vercel project (`prj_7LROyMek3LBhb16a9e4A4EyJNhJy`), ONE `master` deployment, serves BOTH domains. `src/proxy.ts` routes by `Host`: `admin.toptik.co.il/*` → panel (`src/app/(panel)/…`), `landing.toptik.co.il/*` → landing/carousel. So **every push to `master` updates the subdomain too** — there is no separate repo/branch/deploy for the panel.
+- **Go-live blocker (verified via Vercel API on 2026-06-21):** the project's attached domains are `landing.toptik.co.il` + `*.vercel.app` only — **`admin.toptik.co.il` is NOT attached.** Until it is added in Vercel → Domains (+ the DNS CNAME), the subdomain does not serve from this project even though it exists at the DNS host.
+- **Why this session could not finish go-live:** the Claude-Code-on-the-web container has **no internet egress** (403 to api.vercel.com / internic) and **none of the keys in its ENV** (all unset), and the Vercel MCP exposes **no domain/env-var write tools** (only deploy + reads). So attaching the domain, setting DNS, setting env vars, and running the Supabase migration are human/desktop actions. Full runbook: `docs/ADMIN-SUBDOMAIN.md` steps 1–7.
+- **No extra Vercel function or backup hook is needed** for this architecture: deploy is unchanged (push `master` → Vercel redeploys → both domains update together); the existing `.claude/hooks/session-start.sh` already surfaces the backup rules each session.
+
 ## 2026-06-21 11:53 (UTC)
 
 - Release: **unify the admin panel into the repo** — merge the separately-developed dashboard branch `claude/hopeful-cannon-6epcmb` into `master` so the panel ships in every commit/backup/deploy (one repo, no separate channel).
