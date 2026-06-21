@@ -728,7 +728,7 @@ body {
 
 .carousel-nav {
   position: absolute;
-  top: 50%;
+  top: calc(50% - 16px);
   transform: translateY(-50%);
   z-index: 20;
   background: transparent;
@@ -768,11 +768,11 @@ body {
 }
 
 .carousel-nav-prev {
-  left: -18px;
+  left: -28px;
 }
 
 .carousel-nav-next {
-  right: -18px;
+  right: -28px;
 }
 
 .catalog-carousel .swiper,

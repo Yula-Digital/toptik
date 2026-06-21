@@ -1,5 +1,16 @@
 # Backup Audit Log
 
+## 2026-06-21 20:54 (UTC)
+
+- Release: **carousel nav-arrow placement** — raise + center the prev/next arrows on the line between the two card rows, and push them slightly outward. CSS-only.
+- Target branch: `master` (production)
+- Rollback target: `4fd64a8` (nav color tweaks)
+- Pre-release backup branch: `backup/20260621-2054-pre-arrowpos` → `4fd64a8`
+- Post-release backup branch: `backup/20260621-2054-arrowpos` → release commit
+- Change (`globals.css`): `.carousel-nav` `top:50%`→`top:calc(50% - 16px)` (the 16px = half the swiper's `padding-bottom:32px` pagination space, which had pulled the geometric centre below the row-divider); `.carousel-nav-prev` `left:-18px`→`-28px`, `.carousel-nav-next` `right:-18px`→`-28px`.
+- Verified (Playwright @1440): row-divider at 371px; both arrow centres now exactly 371px (was 387); arrows moved from −18 to −28 outward. Screenshot confirms.
+- Read-safety: presentational only; mobile nav overrides untouched.
+
 ## 2026-06-21 20:22 (UTC)
 
 - Release: **carousel color tweaks on the leather bg** (follow-up to the leather background). CSS-only.
