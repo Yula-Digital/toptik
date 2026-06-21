@@ -35,6 +35,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "forbidden host" }, { status: 403 });
   }
 
+  // Optional target width. We resize to this BEFORE trim/encode so sharp works
+  // on a small buffer (decode+encode of the full-res source is the dominant
+  // cost), and this is ALSO the final served width — callers render the result
+  // directly via <Image unoptimized>, so there is no second optimizer/AVIF pass.
+  const widthRaw = req.nextUrl.searchParams.get("w");
+  const targetWidth = widthRaw
+    ? Math.min(Math.max(Number.parseInt(widthRaw, 10) || 0, 64), 2048)
+    : null;
+
   let sourceBytes: Buffer;
   try {
     const res = await fetch(parsed.toString(), {
@@ -54,9 +63,14 @@ export async function GET(req: NextRequest) {
   try {
     // Threshold 12 removes the flat near-white background WITHOUT eating into
     // light/cream products (which sit only ~15-35 levels off pure white).
-    const { data: trimmed, info } = await sharp(sourceBytes)
+    // Resize first (when a width is requested) so trim+encode run on far fewer
+    // pixels — this is the single most expensive step in the request.
+    const base = targetWidth
+      ? sharp(sourceBytes).resize({ width: targetWidth, withoutEnlargement: true })
+      : sharp(sourceBytes);
+    const { data: trimmed, info } = await base
       .trim({ threshold: 12 })
-      .webp({ quality: 88 })
+      .webp({ quality: 82 })
       .toBuffer({ resolveWithObject: true });
 
     // Keep the tight crop so EVERY colour fills the frame consistently. A product
@@ -76,7 +90,10 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    const original = await sharp(sourceBytes).webp({ quality: 88 }).toBuffer();
+    const originalBase = targetWidth
+      ? sharp(sourceBytes).resize({ width: targetWidth, withoutEnlargement: true })
+      : sharp(sourceBytes);
+    const original = await originalBase.webp({ quality: 82 }).toBuffer();
     return new NextResponse(new Uint8Array(original), {
       headers: { ...CACHE_HEADERS, "content-type": "image/webp" },
     });

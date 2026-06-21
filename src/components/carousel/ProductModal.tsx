@@ -4,11 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import { CarouselItem } from "@/lib/carousel/types";
 import type { ResolvedSwatch } from "@/lib/carousel/colors";
-import { trimmedProductSrc } from "@/lib/carousel/trim-src";
-import { nextImageSrcset, nextImageUrl } from "@/lib/carousel/next-image";
-
-// The modal <Image> renders at this `sizes`, with next/image's default quality (75).
-const MODAL_IMAGE_SIZES = "(max-width: 767px) 90vw, 55vw";
+import { trimmedProductSrc, MODAL_IMG_WIDTH } from "@/lib/carousel/trim-src";
 
 type ProductModalProps = {
   item: CarouselItem | null;
@@ -17,55 +13,68 @@ type ProductModalProps = {
   onOpenTechSpecs: (item: CarouselItem) => void;
 };
 
-// Preload every image of the CURRENT gallery so rotating (and switching colours)
-// is instant. Mobile uses a responsive preload matching the modal <Image> so it's
-// a real cache hit; the active image + neighbours warm first, the tail defers.
-function preloadGalleryImages(paths: string[], activeIndex: number) {
-  if (typeof window === "undefined") return;
+// The angle paths a swatch rotates through: its own scraped angles, else its
+// single cover, else nothing.
+function anglesOf(swatch: ResolvedSwatch): string[] {
+  if (swatch.angles.length > 0) return swatch.angles;
+  return swatch.imagePath ? [swatch.imagePath] : [];
+}
+
+// Map raw storage paths to the EXACT display-ready trim URLs the <img> requests
+// (same width tier), so a <link rel=preload> for each resolves to a cache hit
+// rather than a wasted parallel fetch.
+function galleryUrls(paths: string[]): string[] {
+  return paths.map((p) => trimmedProductSrc(p, MODAL_IMG_WIDTH)).filter(Boolean);
+}
+
+// Order a gallery so the active angle and its immediate neighbours warm first.
+function orderNearest(paths: string[], activeIndex: number): string[] {
   const count = paths.length;
-  if (count === 0) return;
-  const isMobile = window.matchMedia("(max-width: 767px)").matches;
+  if (count === 0) return [];
+  return [...paths.keys()]
+    .sort((a, b) => {
+      const da = Math.min((a - activeIndex + count) % count, (activeIndex - a + count) % count);
+      const db = Math.min((b - activeIndex + count) % count, (activeIndex - b + count) % count);
+      return da - db;
+    })
+    .map((i) => trimmedProductSrc(paths[i], MODAL_IMG_WIDTH));
+}
 
-  const order = [...paths.keys()].sort((a, b) => {
-    const da = Math.min((a - activeIndex + count) % count, (activeIndex - a + count) % count);
-    const db = Math.min((b - activeIndex + count) % count, (activeIndex - b + count) % count);
-    return da - db;
-  });
+const scheduleIdle: (cb: () => void) => void =
+  typeof window !== "undefined" &&
+  (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback
+    ? (cb) =>
+        (window as Window & { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback(cb)
+    : (cb) => {
+        if (typeof window !== "undefined") window.setTimeout(cb, 200);
+      };
 
-  const created: HTMLLinkElement[] = [];
-  const addPreload = (src: string, eager: boolean) => {
+// Warm each url not already warmed via a <link rel=preload as=image>. Because the
+// trim route now returns the final display-ready WebP (single pipeline — no
+// next/image AVIF re-encode), these preloads load the SAME bytes the <img> shows,
+// so a colour/angle switch paints from cache instead of a 1-3s cold compute.
+function warmImages(urls: string[], eager: boolean, warmed: Set<string>) {
+  if (typeof window === "undefined") return;
+  for (const url of urls) {
+    if (!url || warmed.has(url) || url.startsWith("data:")) continue;
+    warmed.add(url);
     const link = document.createElement("link");
     link.rel = "preload";
     link.as = "image";
-    if (isMobile) {
-      link.setAttribute("imagesrcset", nextImageSrcset(src));
-      link.setAttribute("imagesizes", MODAL_IMAGE_SIZES);
-    } else {
-      link.href = nextImageUrl(src, 1080, 85);
-    }
+    link.href = url;
     link.setAttribute("fetchpriority", eager ? "high" : "low");
     document.head.appendChild(link);
-    created.push(link);
-  };
-
-  const scheduleIdle =
-    (window as Window & { requestIdleCallback?: (cb: () => void) => number }).requestIdleCallback ??
-    ((cb: () => void) => window.setTimeout(cb, 300));
-
-  order.forEach((idx, position) => {
-    const src = trimmedProductSrc(paths[idx]);
-    const eager = position <= 2;
-    if (isMobile && !eager) scheduleIdle(() => addPreload(src, false));
-    else addPreload(src, eager);
-  });
-
-  window.setTimeout(() => created.forEach((link) => link.remove()), 30000);
+    window.setTimeout(() => link.remove(), 60000);
+  }
 }
 
 export function ProductModal({ item, colors = [], onClose, onOpenTechSpecs }: ProductModalProps) {
   const touchStartX = useRef<number | null>(null);
-  // The modal is remounted per item (keyed by id in the parent), so initialising
-  // the selected colour to the item's own colour runs once per open.
+  // Tracks every URL already preloaded for THIS modal open. The modal is remounted
+  // per item (keyed by id in the parent), so this resets on each open.
+  const warmedRef = useRef<Set<string>>(new Set());
+  // The modal is remounted per item, so initialising the selected colour to the
+  // item's own colour runs once per open.
   const [selectedColorKey, setSelectedColorKey] = useState<string | null>(
     () => colors.find((c) => c.isCurrent)?.key ?? null,
   );
@@ -86,9 +95,27 @@ export function ProductModal({ item, colors = [], onClose, onOpenTechSpecs }: Pr
   const count = gallery.length;
   const safeIdx = count > 0 ? Math.min(angleIdx, count - 1) : 0;
 
+  // Preload strategy (the fix for slow angle/colour switching):
+  //  (a) the gallery we're showing — highest priority, nearest angle first
+  //  (b) one cover per OTHER colour — so the first frame after a swatch click is instant
+  //  (c) idle: every colour's full set of angles — so deep rotation is instant too
   useEffect(() => {
     if (!item) return;
-    preloadGalleryImages(gallery, safeIdx);
+    const warmed = warmedRef.current;
+
+    warmImages(orderNearest(gallery, safeIdx), true, warmed);
+
+    const otherCovers = colors
+      .filter((c) => c.key !== selectedColorKey)
+      .map((c) => trimmedProductSrc(anglesOf(c)[0] ?? "", MODAL_IMG_WIDTH));
+    warmImages(otherCovers, true, warmed);
+
+    scheduleIdle(() => {
+      for (const c of colors) warmImages(galleryUrls(anglesOf(c)), false, warmed);
+      if (item.angles.length > 0) {
+        warmImages(galleryUrls(item.angles.map((a) => a.imagePath)), false, warmed);
+      }
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item?.id, selectedColorKey]);
 
@@ -114,6 +141,10 @@ export function ProductModal({ item, colors = [], onClose, onOpenTechSpecs }: Pr
     setSelectedColorKey(key);
     setAngleIdx(0);
   };
+  // Hovering/touching a swatch warms that colour's full gallery at high priority,
+  // so by the time the click lands the images are already in cache.
+  const warmColor = (swatch: ResolvedSwatch) =>
+    warmImages(galleryUrls(anglesOf(swatch)), true, warmedRef.current);
 
   function onTouchEnd(clientX: number) {
     if (touchStartX.current === null) return;
@@ -154,11 +185,12 @@ export function ProductModal({ item, colors = [], onClose, onOpenTechSpecs }: Pr
               >
                 {displayed && (
                   <Image
-                    src={trimmedProductSrc(displayed)}
+                    src={trimmedProductSrc(displayed, MODAL_IMG_WIDTH)}
                     alt={`${item.title} - ${safeIdx + 1}`}
-                    width={1600}
-                    height={1600}
-                    sizes="(max-width: 767px) 90vw, 55vw"
+                    width={MODAL_IMG_WIDTH}
+                    height={MODAL_IMG_WIDTH}
+                    unoptimized
+                    priority
                     className="product-modal-image"
                   />
                 )}
@@ -215,6 +247,9 @@ export function ProductModal({ item, colors = [], onClose, onOpenTechSpecs }: Pr
                           style={c.hex ? { background: c.hex } : undefined}
                           aria-label={c.name}
                           aria-pressed={selected}
+                          onMouseEnter={() => warmColor(c)}
+                          onFocus={() => warmColor(c)}
+                          onTouchStart={() => warmColor(c)}
                           onClick={(e) => {
                             e.stopPropagation();
                             selectColor(c.key);

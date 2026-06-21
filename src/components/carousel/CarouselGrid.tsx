@@ -7,11 +7,7 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import type { Swiper as SwiperType } from "swiper";
 import { CarouselItem } from "@/lib/carousel/types";
 import { buildModelSiblingSwatches, resolveItemSwatches, type ResolvedSwatch } from "@/lib/carousel/colors";
-import { trimmedProductSrc } from "@/lib/carousel/trim-src";
-import { nextImageSrcset } from "@/lib/carousel/next-image";
-
-// Matches ProductModal's <Image sizes>; used to pre-warm the modal-size image on mobile.
-const MODAL_IMAGE_SIZES = "(max-width: 767px) 90vw, 55vw";
+import { trimmedProductSrc, CARD_IMG_WIDTH, MODAL_IMG_WIDTH } from "@/lib/carousel/trim-src";
 
 import "swiper/css";
 import "swiper/css/navigation";
@@ -24,30 +20,24 @@ type CarouselGridProps = {
   onOpenTechSpecs: (item: CarouselItem) => void;
 };
 
-// Warm a card's angle images when the user signals open-intent (hover/touch).
-// MOBILE: preload the exact modal-size resource (responsive imagesrcset matching
-// ProductModal) so opening the product is instant — and far lighter than pulling
-// the full-resolution trim onto a phone. DESKTOP: unchanged full-res trim warm.
+// Warm a card's first few angle images when the user signals open-intent
+// (hover/touch). These are loaded at the MODAL width tier — the EXACT trim URL
+// the product modal will request — so opening it paints from cache. The modal
+// itself then warms the remaining angles and every other colour. Capped to keep
+// the on-hover cost bounded (esp. on mobile touch).
 function preloadAngleImages(item: CarouselItem) {
   if (typeof window === "undefined") return;
-  const isMobile = window.matchMedia("(max-width: 767px)").matches;
-  item.angles.forEach((angle) => {
-    const src = trimmedProductSrc(angle.imagePath);
-    if (isMobile) {
-      const link = document.createElement("link");
-      link.rel = "preload";
-      link.as = "image";
-      link.setAttribute("imagesrcset", nextImageSrcset(src));
-      link.setAttribute("imagesizes", MODAL_IMAGE_SIZES);
-      link.setAttribute("fetchpriority", "low");
-      document.head.appendChild(link);
-      setTimeout(() => link.remove(), 30000);
-    } else {
-      const image = new window.Image();
-      image.decoding = "async";
-      image.src = src;
-    }
-  });
+  const paths = (item.angles.length > 0
+    ? item.angles.map((a) => a.imagePath)
+    : [item.coverImagePath]
+  )
+    .filter((p): p is string => Boolean(p))
+    .slice(0, 4);
+  for (const path of paths) {
+    const image = new window.Image();
+    image.decoding = "async";
+    image.src = trimmedProductSrc(path, MODAL_IMG_WIDTH);
+  }
 }
 
 function extractCatalogNumber(item: CarouselItem) {
@@ -119,11 +109,11 @@ function CatalogCard({
         >
           {displayed ? (
             <Image
-              src={trimmedProductSrc(displayed)}
+              src={trimmedProductSrc(displayed, CARD_IMG_WIDTH)}
               alt={item.title}
-              width={1200}
-              height={1200}
-              sizes="(max-width: 767px) 45vw, 22vw"
+              width={CARD_IMG_WIDTH}
+              height={CARD_IMG_WIDTH}
+              unoptimized
               className="catalog-card-image"
             />
           ) : (

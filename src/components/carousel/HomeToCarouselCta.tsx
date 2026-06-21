@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import catalogButton from "../../../images/cataloge_bottun.svg";
 import { ShatterTransition } from "@/components/carousel/ShatterTransition";
 import { TransitionMode, CarouselPayload } from "@/lib/carousel/types";
-import { trimmedProductSrc } from "@/lib/carousel/trim-src";
+import { trimmedProductSrc, CARD_IMG_WIDTH } from "@/lib/carousel/trim-src";
 
 const catalogButtonUrl = typeof catalogButton === "string" ? catalogButton : catalogButton.src;
 
@@ -46,14 +46,13 @@ export function HomeToCarouselCta({ heroImageUrl }: HomeToCarouselCtaProps) {
           );
         }
 
-        // Warm the trim cache for every active cover image. The trim route
-        // is the slow step (~1-2s sharp invocation per cold image); once
-        // its edge cache is hot, any Next/Image optimizer size the carousel
-        // requests — whether 256px on a 414-wide phone or 640px on a
-        // laptop — pulls instantly from the trim cache.
+        // Warm the trim cache for every active cover image at the card width —
+        // the EXACT URL the catalog grid renders. The trim route is the slow
+        // step (cold sharp invocation per image); once its edge cache is hot the
+        // grid paints instantly.
         for (const item of data?.items ?? []) {
           if (!item.isActive || !item.coverImagePath) continue;
-          const src = trimmedProductSrc(item.coverImagePath);
+          const src = trimmedProductSrc(item.coverImagePath, CARD_IMG_WIDTH);
           if (!src.startsWith("/api/img-trim")) continue;
           // Fire-and-forget GET — populates Vercel edge cache for the URL.
           void fetch(src, { priority: "low" } as RequestInit).catch(() => {});

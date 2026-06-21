@@ -1,5 +1,25 @@
 # Backup Audit Log
 
+## 2026-06-21 10:25 (UTC)
+
+- Release: **product-image loading performance** — modal open, angle switch, and colour switch were taking ~10–13 s; rebuilt the image delivery to a single, preloaded pipeline.
+- Target branch: `master` (production — landing.toptik.co.il)
+- Release commit: ff-merge of feature branch `claude/quirky-clarke-wnjjfo` (post-release backup branch tip below is the exact anchor)
+- Rollback target: `5fdb3d0` (previous production `master` — admin login fix)
+- Pre-release backup branch: `backup/20260621-1025-pre-perf` → `5fdb3d0`
+- Post-release backup branch: `backup/20260621-1025-perf` → release commit
+- Root cause: every product `<Image src={trimmedProductSrc(...)}>` ran a **double cold pipeline** — `/api/img-trim` (sharp trim on the full-res ~2000 px source) **and then** the `next/image` optimizer re-decoding + **re-encoding to AVIF** (1–3 s per cold image on serverless). A colour switch fired 5 never-seen angles through that at once, and the modal only preloaded the *current* gallery, so nothing was warm.
+- Fix (single pipeline + aggressive preload):
+  - `/api/img-trim` now takes `&w=` and **resizes before trim** (sharp works on ≤1280 px, not ~2000 px) and returns the final display-ready WebP (q82). Benchmark on a detailed source: 31 % smaller, sharp step faster — and the whole AVIF re-encode pass is gone.
+  - Product images render via `<Image unoptimized>` so the browser fetches the trim URL **directly** (no `/_next/image` second pass). Width tiers: card `w=720`, modal `w=1280`.
+  - `ProductModal` preloads, on open, the current gallery **+ every other colour's cover** (eager) and every colour's **full gallery** (idle); swatch hover/touch warms that colour's gallery — all at the *exact* trim URL the `<img>` requests, so switches paint from cache.
+  - Card hover/touch warms the first 4 angles at the modal width; landing-page pre-warm now targets the card-width cover. `trimmedProductSrc` bumped to **`v=4`** to bust the immutable trim cache so every image recomputes at the new size/quality. Removed now-dead `src/lib/carousel/next-image.ts`.
+- Quality gate:
+  - `npm run lint` passed
+  - `npm run build` passed (`/carousel` stays static `○`, `/api/img-trim` dynamic `ƒ`)
+- Bundle artifact: not produced in this environment (`npm run backup:bundle` is Windows/PowerShell-only); backup **branches** are the marked rollback anchors (git proxy returns 403 on `refs/tags/*`).
+- Read-safety: pure rendering/caching change — no DB schema or data touched. First request per image post-deploy recomputes once (cold), then is immutable-cached on the edge; preloading hides that behind hover/open intent.
+
 ## 2026-06-20 23:08 (UTC)
 
 - Release: swatch-colour **accuracy** (the dot now matches the colour's own image) + **light-product trim/positioning** fix
