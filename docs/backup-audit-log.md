@@ -1,5 +1,20 @@
 # Backup Audit Log
 
+## 2026-06-21 10:43 (UTC)
+
+- Release: **grid colour-swatch preload** — extend the modal's preload methodology to the catalog card. Picking a colour on a card *in the grid* (before the modal is ever opened) was still cold (one un-warmed `img-trim?w=720` fetch per click); now it paints from cache.
+- Target branch: `master` (production — landing.toptik.co.il)
+- Rollback target: `6de6692` (previous production `master` — the single-pipeline perf release)
+- Pre-release backup branch: `backup/20260621-1043-pre-gridswatch` → `6de6692`
+- Post-release backup branch: `backup/20260621-1043-gridswatch` → release commit
+- Fix (`CarouselGrid.tsx`, same warm-on-intent approach as the modal):
+  - `warmCardImage(path)` warms a single colour at the **card width** (`w=720`) — the exact URL the card renders on swatch click.
+  - `preloadCardSwatches(swatches)` warms **every** swatch of a card; wired into the card's hover/touch/focus handlers (alongside the existing modal-angle warm).
+  - Each colour dot also warms its own colour on `mouseenter`/`focus`/`touchstart`, for an instant head-start on the exact colour about to be clicked.
+  - Net: desktop swatch clicks in the grid are instant (hover precedes click); mobile is instant after the first touch on a card (which warms the whole row), matching the modal's first-interaction-warms-the-set behaviour.
+- Quality gate: `npm run lint` + `npm run build` passed.
+- Read-safety: pure client-side preloading — no DB/schema/data touched; uses the already-deployed `img-trim?w=` tiers (no new cache version).
+
 ## 2026-06-21 10:25 (UTC)
 
 - Release: **product-image loading performance** — modal open, angle switch, and colour switch were taking ~10–13 s; rebuilt the image delivery to a single, preloaded pipeline.

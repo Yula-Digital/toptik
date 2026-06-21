@@ -40,6 +40,23 @@ function preloadAngleImages(item: CarouselItem) {
   }
 }
 
+// Warm a single colour image at the CARD width — the EXACT URL the card renders
+// when that swatch is clicked. Browser-cached (immutable), so repeat warms are
+// free; a subsequent swatch click paints from cache.
+function warmCardImage(path: string | null | undefined) {
+  if (typeof window === "undefined" || !path) return;
+  const image = new window.Image();
+  image.decoding = "async";
+  image.src = trimmedProductSrc(path, CARD_IMG_WIDTH);
+}
+
+// Warm EVERY swatch colour of a card at card width, so picking a colour IN THE
+// GRID (before the modal is ever opened) is instant — the same preload-on-intent
+// methodology used inside the modal. Triggered on card hover/touch/focus.
+function preloadCardSwatches(swatches: ResolvedSwatch[]) {
+  for (const swatch of swatches) warmCardImage(swatch.imagePath);
+}
+
 function extractCatalogNumber(item: CarouselItem) {
   const explicit = item.catalogNumber?.trim();
   if (explicit) return explicit;
@@ -96,9 +113,9 @@ function CatalogCard({
       <div className="catalog-card-visual">
         <div
           className="catalog-card-image-wrap"
-          onMouseEnter={() => preloadAngleImages(item)}
-          onFocus={() => preloadAngleImages(item)}
-          onTouchStart={() => preloadAngleImages(item)}
+          onMouseEnter={() => { preloadAngleImages(item); preloadCardSwatches(swatches); }}
+          onFocus={() => { preloadAngleImages(item); preloadCardSwatches(swatches); }}
+          onTouchStart={() => { preloadAngleImages(item); preloadCardSwatches(swatches); }}
           onClick={() => onOpenItem(item)}
           role="button"
           tabIndex={0}
@@ -155,6 +172,9 @@ function CatalogCard({
                       title={swatch.name}
                       aria-label={swatch.name}
                       aria-pressed={actionable ? colorImage === swatch.imagePath : undefined}
+                      onMouseEnter={() => warmCardImage(swatch.imagePath)}
+                      onFocus={() => warmCardImage(swatch.imagePath)}
+                      onTouchStart={() => warmCardImage(swatch.imagePath)}
                       onClick={(e) => {
                         e.stopPropagation();
                         if (swatch.imagePath) {
