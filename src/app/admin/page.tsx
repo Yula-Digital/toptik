@@ -247,6 +247,28 @@ export default function AdminPage() {
     }
   }
 
+  async function onExportExcel() {
+    try {
+      setStatus("מכין קובץ אקסל...");
+      const XLSX = await import("xlsx");
+      const rows = [...payload.items]
+        .sort((a, b) => a.displayOrder - b.displayOrder)
+        .map((item) => ({
+          "מק״ט": item.catalogNumber ?? "",
+          "שם המוצר": item.title,
+        }));
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      worksheet["!cols"] = [{ wch: 18 }, { wch: 60 }];
+      const workbook = XLSX.utils.book_new();
+      workbook.Workbook = { Views: [{ RTL: true }] };
+      XLSX.utils.book_append_sheet(workbook, worksheet, "מוצרים");
+      XLSX.writeFile(workbook, "toptik-products.xlsx");
+      setStatus(`קובץ אקסל ירד (${rows.length} מוצרים)`);
+    } catch (error) {
+      setStatus(resolveErrorMessage(error, "שגיאה ביצירת קובץ האקסל"));
+    }
+  }
+
   async function onSave() {
     try {
       setIsSaving(true);
@@ -579,6 +601,9 @@ export default function AdminPage() {
                   {isSaving ? "שומר..." : "שמור הכל"}
                 </button>
                 <button onClick={addItem}>הוסף מוצר</button>
+                <button onClick={onExportExcel} disabled={payload.items.length === 0}>
+                  הורד אקסל
+                </button>
               </div>
             </div>
 
