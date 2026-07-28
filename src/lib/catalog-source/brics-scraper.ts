@@ -1,4 +1,4 @@
-import { CatalogSourceProvider, SourceColorImage, SourceProduct } from "@/lib/catalog-source/types";
+import { CatalogSourceProvider, SourceColorVariant, SourceProduct } from "@/lib/catalog-source/types";
 
 const BRICS_BASE_URL = "https://bricstore.com";
 const DEFAULT_HEADERS = {
@@ -19,6 +19,7 @@ type ShopifyOption = {
 };
 
 type ShopifyVariant = {
+  id?: number;
   sku?: string | null;
   title?: string | null;
   option1?: string | null;
@@ -114,14 +115,28 @@ function findProductBySku(products: ShopifyProduct[], catalogNumber: string) {
   return prefixMatch;
 }
 
+function findProductByHandle(products: ShopifyProduct[], handle: string) {
+  return products.find((product) => product.handle === handle) ?? null;
+}
+
+function handleFromSourceUrl(sourceUrl: string | null | undefined): string | null {
+  if (!sourceUrl) return null;
+  const match = sourceUrl.match(/\/products\/([^/?#]+)/);
+  return match?.[1] ?? null;
+}
+
+function optionIndex(product: ShopifyProduct, optionName: string) {
+  return (product.options ?? []).findIndex(
+    (option) => option.name.toLowerCase() === optionName.toLowerCase(),
+  );
+}
+
 function optionValueForVariant(
   product: ShopifyProduct,
   variant: ShopifyVariant,
   optionName: string,
 ) {
-  const index = (product.options ?? []).findIndex(
-    (option) => option.name.toLowerCase() === optionName.toLowerCase(),
-  );
+  const index = optionIndex(product, optionName);
   if (index === -1) return null;
   const key = `option${index + 1}` as "option1" | "option2" | "option3";
   return variant[key] ?? null;
@@ -132,6 +147,13 @@ function optionValues(product: ShopifyProduct, optionName: string) {
     (entry) => entry.name.toLowerCase() === optionName.toLowerCase(),
   );
   return option?.values ?? [];
+}
+
+// SKU suffix = the colour code (BOE58117·`050`).
+function colorCodeFromSku(sku: string | null | undefined): string | null {
+  if (!sku) return null;
+  const segments = sku.split(".");
+  return segments.length > 1 ? segments[segments.length - 1].toUpperCase() : null;
 }
 
 function baseSkuOf(sku: string) {
@@ -145,6 +167,8 @@ function imageFileName(url: string) {
   return (segments[segments.length - 1] ?? "").toUpperCase();
 }
 
+// Bric's image files are named `<baseSku>.<colorCode>.<viewIndex>.jpg`, so a
+// variant's full rotation gallery is every image whose name starts with its SKU.
 function selectVariantImages(product: ShopifyProduct, variantSku: string | null) {
   const images = (product.images ?? [])
     .map((image) => image.src)
@@ -161,35 +185,6 @@ function selectVariantImages(product: ShopifyProduct, variantSku: string | null)
   }
 
   return images;
-}
-
-function collectOtherColorImages(
-  product: ShopifyProduct,
-  currentColor: string | null,
-): SourceColorImage[] {
-  const colorIndex = (product.options ?? []).findIndex(
-    (option) => option.name.toLowerCase() === "color",
-  );
-  if (colorIndex === -1) return [];
-  const optionKey = `option${colorIndex + 1}` as "option1" | "option2" | "option3";
-
-  const result: SourceColorImage[] = [];
-  const seenColors = new Set<string>(currentColor ? [currentColor.toLowerCase()] : []);
-
-  for (const variant of product.variants ?? []) {
-    const variantColor = variant[optionKey]?.trim();
-    const variantSku = variant.sku?.trim();
-    if (!variantColor || !variantSku) continue;
-    if (seenColors.has(variantColor.toLowerCase())) continue;
-
-    const [firstImage] = selectVariantImages(product, variantSku);
-    if (!firstImage) continue;
-
-    seenColors.add(variantColor.toLowerCase());
-    result.push({ color: variantColor, imageUrl: firstImage });
-  }
-
-  return result;
 }
 
 type SpecBlock = {
@@ -265,6 +260,69 @@ function pickSpecBlock(blocks: SpecBlock[], sizeValues: string[], currentSize: s
   return blocks[0];
 }
 
+// ─── Colour variant enumeration (same product, per-colour SKUs) ──────────────
+
+export interface BricsColorEnumerationInput {
+  sourceUrl: string | null;
+  catalogNumber: string | null;
+}
+
+// Unlike Mandarina (a separate product page per colour), Bric's keeps every
+// colour as a variant of ONE Shopify product, so enumeration is a lookup in the
+// already-cached catalog — no extra page fetches.
+export async function enumerateBricsColorVariants(
+  input: BricsColorEnumerationInput,
+): Promise<SourceColorVariant[]> {
+  const products = await fetchCatalogProducts();
+
+  let product: ShopifyProduct | null = null;
+  if (input.catalogNumber) {
+    product = findProductBySku(products, input.catalogNumber)?.product ?? null;
+  }
+  if (!product) {
+    const handle = handleFromSourceUrl(input.sourceUrl);
+    if (handle) product = findProductByHandle(products, handle);
+  }
+  if (!product) return [];
+
+  const colorIdx = optionIndex(product, "color");
+  if (colorIdx === -1) return [];
+  const optionKey = `option${colorIdx + 1}` as "option1" | "option2" | "option3";
+
+  const variants: SourceColorVariant[] = [];
+  const seenColors = new Set<string>();
+
+  for (const variant of product.variants ?? []) {
+    const colorValue = variant[optionKey]?.trim();
+    const sku = variant.sku?.trim();
+    if (!colorValue || !sku) continue;
+    const colorKey = colorValue.toLowerCase();
+    if (seenColors.has(colorKey)) continue;
+
+    const imageUrls = selectVariantImages(product, sku).slice(0, MAX_IMPORTED_IMAGES);
+    if (imageUrls.length === 0) continue;
+
+    seenColors.add(colorKey);
+    const colorCode = colorCodeFromSku(sku);
+    variants.push({
+      colorWord: colorValue.toLowerCase(),
+      colorCode,
+      title: `${product.title} ${colorValue}`,
+      catalogNumber: sku.toUpperCase(),
+      sourceUrl: `${BRICS_BASE_URL}/products/${product.handle}${variant.id ? `?variant=${variant.id}` : ""}`,
+      // Unique per colour; also used as the storage subfolder name, so keep it
+      // path-safe.
+      handle: `${product.handle}-${(colorCode ?? colorKey).toLowerCase().replace(/[^a-z0-9-]/g, "")}`,
+      coverImageUrl: imageUrls[0],
+      imageUrls,
+    });
+  }
+
+  return variants;
+}
+
+// ─── Provider ────────────────────────────────────────────────────────────────
+
 export class BricsStoreScraperProvider implements CatalogSourceProvider {
   async fetchByCatalogNumber(catalogNumber: string): Promise<SourceProduct> {
     const normalizedInput = catalogNumber.trim().toUpperCase();
@@ -313,7 +371,7 @@ export class BricsStoreScraperProvider implements CatalogSourceProvider {
     }
 
     return {
-      catalogNumber: variantSku || normalizedInput,
+      catalogNumber: variantSku?.toUpperCase() || normalizedInput,
       title: product.title?.trim() || `Bric's ${normalizedInput}`,
       description: product.body_html ? stripHtml(product.body_html) : null,
       imageUrls,
@@ -323,7 +381,6 @@ export class BricsStoreScraperProvider implements CatalogSourceProvider {
       weight,
       sizes,
       availableColors,
-      colorImages: collectOtherColorImages(product, color),
     };
   }
 }

@@ -16,6 +16,9 @@ export const COLOR_HEX: Record<string, string> = {
   midnight: "#191970", vanilla: "#f3e5ab", forest: "#2d5a2d",
   emerald: "#2e7d52", pearl: "#eae6da", pecan: "#8a5a3b",
   "pecan nut": "#8a5a3b", "deep blue": "#1c3a6e", "dress blue": "#1a2d5a",
+  // Bric's palette
+  ocean: "#1f4e6b", cappuccino: "#a58a6f", eucalyptus: "#6f8f7f",
+  espresso: "#4a342a", "fire red": "#c22b2b", grafite: "#555555",
 };
 
 export const COLOR_HEBREW: Record<string, string> = {
@@ -32,6 +35,9 @@ export const COLOR_HEBREW: Record<string, string> = {
   midnight: "חצות", "dress blue": "כחול",
   emerald: "אמרלד", pearl: "פנינה", pecan: "פקאן",
   "pecan nut": "אגוז פקאן", "deep blue": "כחול עמוק",
+  // Bric's palette
+  ocean: "אוקיינוס", cappuccino: "קפוצ'ינו", eucalyptus: "אקליפטוס",
+  espresso: "אספרסו", "fire red": "אדום אש", grafite: "גרפיט",
 };
 
 const COLOR_WORDS = new Set(Object.keys(COLOR_HEX));

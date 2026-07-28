@@ -76,6 +76,26 @@ function extractWeightKg(text: string): string | null {
   return `${normalizeNum(m[1])} ק"ג`;
 }
 
+// Returns "X ק\"ג" converted from a lbs measurement (Bric's US site), else null.
+function extractWeightLbs(text: string): string | null {
+  const m = /(\d+(?:[.,]\d+)?)\s*lbs?\b/i.exec(text);
+  if (!m) return null;
+  const kg = Math.round(parseFloat(normalizeNum(m[1])) * 0.45359237 * 10) / 10;
+  return `${kg} ק"ג`;
+}
+
+// Bric's dimension format: `14" w x 21" h x 9" d` (inches, w/h/d suffixes).
+// Returns "A × B × C ס\"מ" converted to centimeters, else null.
+function extractDimensionsInchesWHD(text: string): string | null {
+  const m =
+    /(\d+(?:[.,]\d+)?)\s*(?:"|″|in\b)?\s*w\.?\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(?:"|″|in\b)?\s*h\.?\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(?:"|″|in\b)?\s*d\b/i.exec(
+      text,
+    );
+  if (!m) return null;
+  const toCm = (s: string) => Math.round(parseFloat(normalizeNum(s)) * 2.54);
+  return `${toCm(m[1])} × ${toCm(m[2])} × ${toCm(m[3])} ס"מ`;
+}
+
 // Returns "X ס\"מ" if the text contains a single cm measurement (length/strap/etc).
 function extractLengthCm(text: string): string | null {
   const m = /(\d+(?:[.,]\d+)?)\s*cm\b/i.exec(text);
@@ -421,22 +441,36 @@ function parseAccordions(pageHtml: string): AccordionBlock[] {
   while ((m = detailsRe.exec(pageHtml)) !== null) {
     const inner = m[1];
     const sumMatch = /<summary[^>]*>([\s\S]*?)<\/summary>/i.exec(inner);
-    const contentMatch = /<div[^>]*class="[^"]*accordion__content[^"]*"[^>]*>([\s\S]*?)<\/div>/i.exec(inner);
-    if (!sumMatch || !contentMatch) continue;
+    if (!sumMatch) continue;
+    // Mandarina's theme wraps content in .accordion__content; other themes
+    // (Bric's) don't — fall back to everything after the summary. The capture
+    // is GREEDY (to the last </div>) because the content div can contain nested
+    // divs (Bric's per-size spec blocks) that a lazy match would truncate.
+    const contentMatch = /<div[^>]*class="[^"]*accordion__content[^"]*"[^>]*>([\s\S]*)<\/div>/i.exec(inner);
+    const content = contentMatch?.[1] ?? inner.slice(sumMatch.index + sumMatch[0].length);
     blocks.push({
       heading: clean(sumMatch[1]).toLowerCase(),
-      content: contentMatch[1],
+      content,
     });
   }
   return blocks;
 }
 
 function pickAccordion(blocks: AccordionBlock[], aliases: string[]): string | null {
+  // Exact heading match wins (e.g. Bric's "size and features" alias must beat
+  // the substring pass, where a nav accordion like "shop by size" would match
+  // first purely by page order).
   for (const b of blocks) {
     for (const alias of aliases) {
-      if (b.heading === alias.toLowerCase() || b.heading.includes(alias.toLowerCase())) {
-        return b.content;
-      }
+      if (b.heading === alias.toLowerCase()) return b.content;
+    }
+  }
+  for (const b of blocks) {
+    // Navigation menus are also <details> accordions ("SHOP BY SIZE",
+    // "SHOP BY MATERIAL") — never treat them as product spec sections.
+    if (b.heading.includes("shop")) continue;
+    for (const alias of aliases) {
+      if (b.heading.includes(alias.toLowerCase())) return b.content;
     }
   }
   return null;
@@ -469,9 +503,12 @@ function extractFromDimensionsAccordion(content: string): SpecItem[] {
     // Only inches present — convert
     const toCm = (s: string) => Math.round(parseFloat(normalizeNum(s)) * 2.54 * 10) / 10;
     dim = `${toCm(incMatch[1])} × ${toCm(incMatch[2])} × ${toCm(incMatch[3])} ס"מ`;
+  } else {
+    // Bric's `14" w x 21" h x 9" d` inch format
+    dim = extractDimensionsInchesWHD(text);
   }
 
-  const kg = extractWeightKg(text);
+  const kg = extractWeightKg(text) ?? extractWeightLbs(text);
   if (kg) items.push({ label: "משקל", value: kg });
   if (dim) items.push({ label: "מידות", value: dim });
   const volume = extractVolumeLiters(text);
@@ -505,6 +542,8 @@ const COLOR_NAME_MAP: Record<string, string> = {
   mustard: "חרדל", olive: "זית", cobalt: "קובלט", turquoise: "טורקיז",
   lilac: "לילך", lavender: "לבנדר", rose: "ורד", copper: "נחושת",
   bronze: "ברונזה", charcoal: "פחם", "dress blue": "כחול",
+  ocean: "אוקיינוס", cappuccino: "קפוצ'ינו", eucalyptus: "אקליפטוס",
+  espresso: "אספרסו", "fire red": "אדום אש", grafite: "גרפיט",
 };
 
 const COLOR_HEX_MAP: Record<string, string> = {
@@ -518,6 +557,8 @@ const COLOR_HEX_MAP: Record<string, string> = {
   wine: "#6b1a2c", bordeaux: "#7c1c2c", burgundy: "#800020", latte: "#c4a882",
   vanilla: "#f3e5ab", coral: "#e07060", rust: "#b74e1a", mustard: "#c8a028",
   olive: "#6b7028", cobalt: "#0050a0", charcoal: "#3c3c3c",
+  ocean: "#1f4e6b", cappuccino: "#a58a6f", eucalyptus: "#6f8f7f",
+  espresso: "#4a342a", "fire red": "#c22b2b", grafite: "#555555",
 };
 
 function translateColorName(name: string): string {
@@ -727,8 +768,14 @@ export async function fetchProductDetails(sourceUrl: string): Promise<ProductDet
   const compContent = pickAccordion(accordions, ["composition", "materials", "material"]);
   if (compContent) body.composition.push(...extractFromCompositionAccordion(compContent));
 
-  // Dimensions accordion (e.g. "55x40x20 cm - ... - 2,4 KG / ...")
-  const dimContent = pickAccordion(accordions, ["dimensions", "measurements", "size"]);
+  // Dimensions accordion (e.g. "55x40x20 cm - ... - 2,4 KG / ...";
+  // Bric's uses a "Size and Features" accordion with inch/lbs values)
+  const dimContent = pickAccordion(accordions, [
+    "size and features",
+    "dimensions",
+    "measurements",
+    "size",
+  ]);
   if (dimContent) body.dimensions.push(...extractFromDimensionsAccordion(dimContent));
 
   const sectionItems: Record<string, SpecItem[]> = {

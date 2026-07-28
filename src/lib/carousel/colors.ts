@@ -70,6 +70,49 @@ export function toCarouselColors(
   return colors;
 }
 
+// Bric's colour naming: the colour is a plain English word/phrase from the
+// Shopify "Color" option (Ocean, Bordeaux, Cappuccino...), and the colour code
+// is the SKU suffix (BOE58117·050). Never consult MANDARINA_COLOR_CODES here —
+// Bric's numeric codes can collide with Mandarina's and would resolve to the
+// wrong Hebrew name.
+function bricsColorMeta(colorWord: string | null): { name: string; hex: string | null } {
+  const word = colorWord?.trim().toLowerCase() ?? null;
+  if (!word) return { name: "צבע", hex: null };
+  if (COLOR_HEBREW[word]) return { name: COLOR_HEBREW[word], hex: COLOR_HEX[word] ?? null };
+  const translated = word
+    .split(/\s+/)
+    .map((w) => COLOR_HEBREW[w] ?? w)
+    .join(" ");
+  const hex = word.split(/\s+/).map((w) => COLOR_HEX[w]).find(Boolean) ?? null;
+  return { name: translated !== word ? translated : colorWord!, hex };
+}
+
+export function toBricsCarouselColors(
+  variants: SourceColorVariant[],
+  galleryByHandle: Map<string, string[]>,
+): CarouselColor[] {
+  const colors: CarouselColor[] = [];
+  const seen = new Set<string>();
+  for (const variant of variants) {
+    const angles = galleryByHandle.get(variant.handle) ?? [];
+    if (angles.length === 0) continue;
+    const { name, hex } = bricsColorMeta(variant.colorWord);
+    const key = (variant.colorCode || variant.colorWord || variant.handle).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    colors.push({
+      name,
+      hex,
+      colorCode: variant.colorCode,
+      imagePath: angles[0],
+      angles,
+      sourceUrl: variant.sourceUrl,
+      catalogNumber: variant.catalogNumber,
+    });
+  }
+  return colors;
+}
+
 // Guarantee a product's OWN colour is present — a product always exists at least
 // in the colour it was imported in. Uses the item's existing cover so it never
 // ends up with zero colours even when sibling scraping fails entirely.
@@ -109,10 +152,12 @@ export interface ResolvedSwatch {
   isCurrent: boolean;
 }
 
-// Middle segment of a catalog number = the colour code (P10·QMC01·`465`·TU).
+// Middle segment of a catalog number = the colour code. Handles both catalog
+// styles: Mandarina dash-separated (P10·QMC01·`465`·TU) and Bric's dot-separated
+// (BOE58117·`050`).
 export function colorCodeFromCatalog(catalogNumber: string | null | undefined): string | null {
   if (!catalogNumber) return null;
-  const parts = catalogNumber.toUpperCase().split(/[-_/]/).filter(Boolean);
+  const parts = catalogNumber.toUpperCase().split(/[-_/.]/).filter(Boolean);
   return parts.length >= 2 ? parts[1] : null;
 }
 

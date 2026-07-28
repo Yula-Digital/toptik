@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { enumerateColorVariants } from "@/lib/catalog-source/mandarina-scraper";
+import { enumerateBricsColorVariants } from "@/lib/catalog-source/brics-scraper";
 import { uploadVariantGalleries } from "@/lib/catalog-source/storage";
-import { ensureOwnColor, toCarouselColors } from "@/lib/carousel/colors";
+import { ensureOwnColor, toCarouselColors, toBricsCarouselColors } from "@/lib/carousel/colors";
 import { dominantHexFromUrl } from "@/lib/carousel/dominant-color";
 import type { CarouselColor } from "@/lib/carousel/types";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
@@ -127,17 +128,26 @@ export async function POST(req: NextRequest) {
 
   const results = await Promise.allSettled(
     targets.map(async (item: ColorWarmRow) => {
-      const variants = await enumerateColorVariants({
+      // Vendor-aware: Bric's items enumerate colours from the Shopify variant
+      // list; Mandarina items enumerate sibling colour products.
+      const isBrics = Boolean(item.source_url?.includes("bricstore.com"));
+      const enumerationInput = {
         sourceUrl: item.source_url as string,
         catalogNumber: item.catalog_number,
-      });
+      };
+      const variants = isBrics
+        ? await enumerateBricsColorVariants(enumerationInput)
+        : await enumerateColorVariants(enumerationInput);
 
-      const folder = `imports/mandarina/${item.catalog_number ?? item.id}/colors`;
+      const folder = `imports/${isBrics ? "brics" : "mandarina"}/${item.catalog_number ?? item.id}/colors`;
       const galleryByHandle = await uploadVariantGalleries(folder, variants);
 
       // Always keep the item's own colour so a product never ends up with zero
       // colours, even if sibling enumeration / re-hosting fails entirely.
-      const colors = ensureOwnColor(toCarouselColors(variants, galleryByHandle), {
+      const mapped = isBrics
+        ? toBricsCarouselColors(variants, galleryByHandle)
+        : toCarouselColors(variants, galleryByHandle);
+      const colors = ensureOwnColor(mapped, {
         catalogNumber: item.catalog_number,
         title: item.title,
         coverImagePath: item.cover_image_path,

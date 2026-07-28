@@ -9,6 +9,11 @@ import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
 const STORAGE_KEY = "toptik_admin_token";
 const BATCH_IMPORT_INITIAL = 5;
 const BATCH_IMPORT_INCREMENT = 5;
+type Vendor = "mandarina" | "brics";
+const VENDOR_OPTIONS: Array<{ value: Vendor; label: string; example: string }> = [
+  { value: "mandarina", label: "Mandarina Duck", example: "P10QMC01-465-TU" },
+  { value: "brics", label: "Bric's", example: "BOE58117.050" },
+];
 type ImportFeedbackTone = "info" | "success" | "error";
 type ImportPreview = {
   id: string;
@@ -31,11 +36,18 @@ export default function AdminPage() {
   const [payload, setPayload] = useState<CarouselPayload>(fallbackCarouselPayload);
   const [status, setStatus] = useState<string>("טוען...");
   const [isSaving, setIsSaving] = useState(false);
-  const [batchCatalogInputs, setBatchCatalogInputs] = useState<string[]>(
-    Array.from({ length: BATCH_IMPORT_INITIAL }, () => ""),
-  );
-  const [batchImportStatuses, setBatchImportStatuses] = useState<Record<number, BatchImportStatus>>({});
-  const [isBatchImporting, setIsBatchImporting] = useState(false);
+  const [batchCatalogInputs, setBatchCatalogInputs] = useState<Record<Vendor, string[]>>({
+    mandarina: Array.from({ length: BATCH_IMPORT_INITIAL }, () => ""),
+    brics: Array.from({ length: BATCH_IMPORT_INITIAL }, () => ""),
+  });
+  const [batchImportStatuses, setBatchImportStatuses] = useState<
+    Record<Vendor, Record<number, BatchImportStatus>>
+  >({ mandarina: {}, brics: {} });
+  const [batchImportingVendor, setBatchImportingVendor] = useState<Vendor | null>(null);
+  const isBatchImporting = batchImportingVendor !== null;
+  const [itemCatalogInputs, setItemCatalogInputs] = useState<Record<string, string>>({});
+  const [itemVendorMap, setItemVendorMap] = useState<Record<string, Vendor>>({});
+  const [itemImportingMap, setItemImportingMap] = useState<Record<string, boolean>>({});
   const [importFeedback, setImportFeedback] = useState<{
     tone: ImportFeedbackTone;
     message: string;
@@ -63,8 +75,10 @@ export default function AdminPage() {
       : next.items.findIndex((item) => {
           const byCatalogNumber =
             normalizeCatalogNumber(item.catalogNumber ?? "") === normalizedCatalog;
-          const byCatalogPath = item.angles.some((angle) =>
-            angle.imagePath.includes(`/imports/mandarina/${data.source.catalogNumber}/`),
+          const byCatalogPath = item.angles.some(
+            (angle) =>
+              angle.imagePath.includes(`/imports/mandarina/${data.source.catalogNumber}/`) ||
+              angle.imagePath.includes(`/imports/brics/${data.source.catalogNumber}/`),
           );
           const byTitle = item.title.trim().toLowerCase() === data.item.title.trim().toLowerCase();
           return byCatalogNumber || byCatalogPath || byTitle;
@@ -79,6 +93,8 @@ export default function AdminPage() {
         catalogNumber: data.item.catalogNumber ?? data.source.catalogNumber,
         sourceUrl: data.item.sourceUrl ?? null,
         coverImagePath: data.item.coverImagePath,
+        techSpecs: data.item.techSpecs ?? existing.techSpecs,
+        colors: data.item.colors ?? existing.colors,
         angles: data.item.angles.map((angle) => ({
           ...angle,
           itemId: existing.id,
@@ -95,11 +111,22 @@ export default function AdminPage() {
     return { next, mode: "created" as const };
   }
 
+  function vendorForItem(item: CarouselPayload["items"][number]): Vendor {
+    const explicit = itemVendorMap[item.id];
+    if (explicit) return explicit;
+    return item.sourceUrl?.includes("bricstore") ? "brics" : "mandarina";
+  }
+
+  function vendorLabel(vendor: Vendor) {
+    return VENDOR_OPTIONS.find((option) => option.value === vendor)?.label ?? vendor;
+  }
+
   async function importCatalogNumberFromSource(
+    vendor: Vendor,
     activeCatalogNumber: string,
     targetItemId?: string,
   ): Promise<ImportedItemData> {
-    const res = await fetch("/api/admin/import/mandarina", {
+    const res = await fetch(`/api/admin/import/${vendor}`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -290,8 +317,51 @@ export default function AdminPage() {
     }
   }
 
-  async function onBatchImportAndSave() {
-    const normalizedRows = batchCatalogInputs.map((value, index) => ({
+  function setVendorBatchStatuses(
+    vendor: Vendor,
+    updater: (current: Record<number, BatchImportStatus>) => Record<number, BatchImportStatus>,
+  ) {
+    setBatchImportStatuses((current) => ({
+      ...current,
+      [vendor]: updater(current[vendor]),
+    }));
+  }
+
+  async function onImportIntoItem(itemId: string) {
+    const item = payload.items.find((row) => row.id === itemId);
+    if (!item) return;
+    const vendor = vendorForItem(item);
+    const itemCatalogNumber = normalizeCatalogNumber(itemCatalogInputs[itemId] || "");
+    if (!itemCatalogNumber) {
+      setImportFeedback({ tone: "error", message: "יש להזין מספר קטלוגי ליבוא למוצר זה." });
+      return;
+    }
+
+    try {
+      setItemImportingMap((current) => ({ ...current, [itemId]: true }));
+      setImportFeedback({
+        tone: "info",
+        message: `מייבא ${itemCatalogNumber} מ-${vendorLabel(vendor)} למוצר זה...`,
+      });
+      const data = await importCatalogNumberFromSource(vendor, itemCatalogNumber, itemId);
+      setPayload((current) => upsertImportedItem(current, data, itemId).next);
+      setItemCatalogInputs((current) => ({ ...current, [itemId]: "" }));
+      setImportFeedback({
+        tone: "success",
+        message: `עודכן מוצר (${data.source.catalogNumber}) עם ${data.source.importedImages} תמונות. לחץ "שמור הכל" לקיבוע.`,
+      });
+    } catch (error) {
+      setImportFeedback({
+        tone: "error",
+        message: resolveErrorMessage(error, "שגיאת ייבוא למוצר"),
+      });
+    } finally {
+      setItemImportingMap((current) => ({ ...current, [itemId]: false }));
+    }
+  }
+
+  async function onBatchImportAndSave(vendor: Vendor) {
+    const normalizedRows = batchCatalogInputs[vendor].map((value, index) => ({
       index,
       catalogNumber: normalizeCatalogNumber(value),
     }));
@@ -299,9 +369,9 @@ export default function AdminPage() {
     const nextStatuses: Record<number, BatchImportStatus> = {};
 
     if (filledRows.length === 0) {
-      setBatchImportStatuses({
+      setVendorBatchStatuses(vendor, () => ({
         0: { tone: "error", message: "יש להזין לפחות מק״ט אחד." },
-      });
+      }));
       return;
     }
 
@@ -317,7 +387,7 @@ export default function AdminPage() {
     }
 
     if (Object.keys(nextStatuses).length > 0) {
-      setBatchImportStatuses(nextStatuses);
+      setVendorBatchStatuses(vendor, () => nextStatuses);
       setImportFeedback({
         tone: "error",
         message: "יש מק״טים כפולים. תקן לפני שמירה.",
@@ -326,15 +396,15 @@ export default function AdminPage() {
     }
 
     try {
-      setIsBatchImporting(true);
-      setBatchImportStatuses(
+      setBatchImportingVendor(vendor);
+      setVendorBatchStatuses(vendor, () =>
         Object.fromEntries(
           filledRows.map((row) => [row.index, { tone: "info", message: "ממתין ליבוא..." }]),
         ),
       );
       setImportFeedback({
         tone: "info",
-        message: `מייבא ${filledRows.length} מק״טים ושומר בסיום...`,
+        message: `מייבא ${filledRows.length} מק״טים מ-${vendorLabel(vendor)} ושומר בסיום...`,
       });
 
       let workingPayload = structuredClone(payload);
@@ -342,13 +412,13 @@ export default function AdminPage() {
       let successCount = 0;
 
       for (const row of filledRows) {
-        setBatchImportStatuses((current) => ({
+        setVendorBatchStatuses(vendor, (current) => ({
           ...current,
           [row.index]: { tone: "info", message: "מייבא..." },
         }));
 
         try {
-          const data = await importCatalogNumberFromSource(row.catalogNumber);
+          const data = await importCatalogNumberFromSource(vendor, row.catalogNumber);
           const result = upsertImportedItem(workingPayload, data);
           workingPayload = result.next;
           successCount += 1;
@@ -358,7 +428,7 @@ export default function AdminPage() {
             coverImagePath: data.item.coverImagePath,
             catalogNumber: data.source.catalogNumber,
           });
-          setBatchImportStatuses((current) => ({
+          setVendorBatchStatuses(vendor, (current) => ({
             ...current,
             [row.index]: {
               tone: "success",
@@ -367,7 +437,7 @@ export default function AdminPage() {
           }));
         } catch (error) {
           const message = resolveErrorMessage(error, "לא נמצא מק״ט או שגיאת יבוא");
-          setBatchImportStatuses((current) => ({
+          setVendorBatchStatuses(vendor, (current) => ({
             ...current,
             [row.index]: { tone: "error", message },
           }));
@@ -381,17 +451,17 @@ export default function AdminPage() {
       await persistPayload(workingPayload);
       setPayload(workingPayload);
       setImportPreviews((current) => [...previews, ...current].slice(0, 8));
-      setStatus(`נשמרו ${successCount} מוצרים מייבוא מרובה.`);
+      setStatus(`נשמרו ${successCount} מוצרים מייבוא מרובה (${vendorLabel(vendor)}).`);
       setImportFeedback({
         tone: "success",
-        message: `הייבוא המרובה הסתיים ונשמר: ${successCount}/${filledRows.length} מוצרים הצליחו.`,
+        message: `הייבוא המרובה מ-${vendorLabel(vendor)} הסתיים ונשמר: ${successCount}/${filledRows.length} מוצרים הצליחו.`,
       });
     } catch (error) {
       const message = resolveErrorMessage(error, "שגיאת ייבוא מרובה");
       setStatus(message);
       setImportFeedback({ tone: "error", message });
     } finally {
-      setIsBatchImporting(false);
+      setBatchImportingVendor(null);
     }
   }
 
@@ -439,91 +509,116 @@ export default function AdminPage() {
 
       {authReady && (
         <>
-          <section className="admin-batch-import">
-            <div className="admin-items-head">
-              <h2>ייבוא מרובה לפי מק״טים</h2>
-              <button onClick={onBatchImportAndSave} disabled={isBatchImporting || isSaving}>
-                {isBatchImporting ? "מייבא ושומר..." : "ייבא ושמור הכל"}
-              </button>
-            </div>
-            <p className="admin-import-note">
-              הכנס מק״טים ולחץ &quot;ייבא ושמור הכל&quot;. אפשר להוסיף עוד שדות בלחיצה. המערכת תשלוף ממנדרינה, תיצור/תעדכן מוצרים, ותשמור הכל בפעולה אחת.
-            </p>
-            <div className="admin-batch-grid">
-              {batchCatalogInputs.map((value, index) => {
-                const rowStatus = batchImportStatuses[index];
-                return (
-                  <label key={`batch-catalog-${index}`} className="admin-batch-row">
-                    <span>{index + 1}</span>
-                    <input
-                      value={value}
-                      onChange={(e) => {
-                        const nextValue = e.target.value;
-                        setBatchCatalogInputs((current) =>
-                          current.map((row, rowIndex) => (rowIndex === index ? nextValue : row)),
-                        );
-                        setBatchImportStatuses((current) => {
-                          const next = { ...current };
-                          delete next[index];
+          {VENDOR_OPTIONS.map((vendorOption) => {
+            const vendor = vendorOption.value;
+            const vendorInputs = batchCatalogInputs[vendor];
+            const vendorStatuses = batchImportStatuses[vendor];
+            const isThisVendorImporting = batchImportingVendor === vendor;
+            return (
+              <section key={`batch-${vendor}`} className="admin-batch-import">
+                <div className="admin-items-head">
+                  <h2>ייבוא מרובה — {vendorOption.label}</h2>
+                  <button
+                    onClick={() => onBatchImportAndSave(vendor)}
+                    disabled={isBatchImporting || isSaving}
+                  >
+                    {isThisVendorImporting ? "מייבא ושומר..." : "ייבא ושמור הכל"}
+                  </button>
+                </div>
+                <p className="admin-import-note">
+                  הכנס מק״טים של {vendorOption.label} (למשל{" "}
+                  <span dir="ltr">{vendorOption.example}</span>) ולחץ &quot;ייבא ושמור
+                  הכל&quot;. אפשר להוסיף עוד שדות בלחיצה. המערכת תשלוף, תיצור/תעדכן מוצרים,
+                  ותשמור הכל בפעולה אחת.
+                </p>
+                <div className="admin-batch-grid">
+                  {vendorInputs.map((value, index) => {
+                    const rowStatus = vendorStatuses[index];
+                    return (
+                      <label key={`batch-catalog-${vendor}-${index}`} className="admin-batch-row">
+                        <span>{index + 1}</span>
+                        <input
+                          value={value}
+                          onChange={(e) => {
+                            const nextValue = e.target.value;
+                            setBatchCatalogInputs((current) => ({
+                              ...current,
+                              [vendor]: current[vendor].map((row, rowIndex) =>
+                                rowIndex === index ? nextValue : row,
+                              ),
+                            }));
+                            setVendorBatchStatuses(vendor, (current) => {
+                              const next = { ...current };
+                              delete next[index];
+                              return next;
+                            });
+                          }}
+                          placeholder="מק״ט"
+                          dir="ltr"
+                        />
+                        <em className={rowStatus ? `admin-batch-status admin-batch-status-${rowStatus.tone}` : "admin-batch-status"}>
+                          {rowStatus?.message || ""}
+                        </em>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="admin-batch-actions">
+                  <button
+                    type="button"
+                    className="admin-batch-add"
+                    onClick={() =>
+                      setBatchCatalogInputs((current) => ({
+                        ...current,
+                        [vendor]: [
+                          ...current[vendor],
+                          ...Array.from({ length: BATCH_IMPORT_INCREMENT }, () => ""),
+                        ],
+                      }))
+                    }
+                    disabled={isBatchImporting}
+                  >
+                    + הוסף {BATCH_IMPORT_INCREMENT} שדות
+                  </button>
+                  {vendorInputs.length > BATCH_IMPORT_INITIAL && (
+                    <button
+                      type="button"
+                      className="admin-batch-remove"
+                      onClick={() => {
+                        setBatchCatalogInputs((current) => {
+                          const trimmed = current[vendor].slice(0, -BATCH_IMPORT_INCREMENT);
+                          const nextRows =
+                            trimmed.length < BATCH_IMPORT_INITIAL
+                              ? Array.from(
+                                  { length: BATCH_IMPORT_INITIAL },
+                                  (_, i) => current[vendor][i] ?? "",
+                                )
+                              : trimmed;
+                          return { ...current, [vendor]: nextRows };
+                        });
+                        setVendorBatchStatuses(vendor, (current) => {
+                          const next: typeof current = {};
+                          const newLen = Math.max(
+                            BATCH_IMPORT_INITIAL,
+                            vendorInputs.length - BATCH_IMPORT_INCREMENT,
+                          );
+                          for (const key of Object.keys(current)) {
+                            const idx = Number(key);
+                            if (idx < newLen) next[idx] = current[idx];
+                          }
                           return next;
                         });
                       }}
-                      placeholder="מק״ט"
-                      dir="ltr"
-                    />
-                    <em className={rowStatus ? `admin-batch-status admin-batch-status-${rowStatus.tone}` : "admin-batch-status"}>
-                      {rowStatus?.message || ""}
-                    </em>
-                  </label>
-                );
-              })}
-            </div>
-            <div className="admin-batch-actions">
-              <button
-                type="button"
-                className="admin-batch-add"
-                onClick={() =>
-                  setBatchCatalogInputs((current) => [
-                    ...current,
-                    ...Array.from({ length: BATCH_IMPORT_INCREMENT }, () => ""),
-                  ])
-                }
-                disabled={isBatchImporting}
-              >
-                + הוסף {BATCH_IMPORT_INCREMENT} שדות
-              </button>
-              {batchCatalogInputs.length > BATCH_IMPORT_INITIAL && (
-                <button
-                  type="button"
-                  className="admin-batch-remove"
-                  onClick={() => {
-                    setBatchCatalogInputs((current) => {
-                      const trimmed = current.slice(0, -BATCH_IMPORT_INCREMENT);
-                      return trimmed.length < BATCH_IMPORT_INITIAL
-                        ? Array.from({ length: BATCH_IMPORT_INITIAL }, (_, i) => current[i] ?? "")
-                        : trimmed;
-                    });
-                    setBatchImportStatuses((current) => {
-                      const next: typeof current = {};
-                      const newLen = Math.max(
-                        BATCH_IMPORT_INITIAL,
-                        batchCatalogInputs.length - BATCH_IMPORT_INCREMENT,
-                      );
-                      for (const key of Object.keys(current)) {
-                        const idx = Number(key);
-                        if (idx < newLen) next[idx] = current[idx];
-                      }
-                      return next;
-                    });
-                  }}
-                  disabled={isBatchImporting}
-                >
-                  − הסר {BATCH_IMPORT_INCREMENT} שדות
-                </button>
-              )}
-              <span className="admin-batch-count">סך שדות: {batchCatalogInputs.length}</span>
-            </div>
-          </section>
+                      disabled={isBatchImporting}
+                    >
+                      − הסר {BATCH_IMPORT_INCREMENT} שדות
+                    </button>
+                  )}
+                  <span className="admin-batch-count">סך שדות: {vendorInputs.length}</span>
+                </div>
+              </section>
+            );
+          })}
 
           <section className="admin-settings">
             <h2>הגדרות דפדוף</h2>
@@ -711,6 +806,49 @@ export default function AdminPage() {
                         }}
                       />
                     </label>
+                    <label>
+                      ונדור (מקור המוצר)
+                      <select
+                        value={vendorForItem(item)}
+                        onChange={(e) =>
+                          setItemVendorMap((current) => ({
+                            ...current,
+                            [item.id]: e.target.value as Vendor,
+                          }))
+                        }
+                      >
+                        {VENDOR_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="admin-item-import">
+                      <label>
+                        מספר קטלוגי ליבוא למוצר זה
+                        <input
+                          value={itemCatalogInputs[item.id] || ""}
+                          onChange={(e) =>
+                            setItemCatalogInputs((current) => ({
+                              ...current,
+                              [item.id]: e.target.value,
+                            }))
+                          }
+                          placeholder={
+                            VENDOR_OPTIONS.find((o) => o.value === vendorForItem(item))?.example
+                          }
+                          dir="ltr"
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => onImportIntoItem(item.id)}
+                        disabled={Boolean(itemImportingMap[item.id] || isSaving || isBatchImporting)}
+                      >
+                        {itemImportingMap[item.id] ? "מייבא..." : "ייבא למוצר זה"}
+                      </button>
+                    </div>
                   </div>
 
                   <p className="admin-import-note">
