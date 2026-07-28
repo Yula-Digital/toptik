@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import Image from "next/image";
 import { A11y, Autoplay, Keyboard, Navigation, Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -144,7 +144,7 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem }: CarouselGridProp
                         alt={item.title}
                         width={1200}
                         height={1200}
-                        sizes="(max-width: 767px) 45vw, 22vw"
+                        sizes="(max-width: 767px) 50vw, 420px"
                         className="catalog-card-image"
                       />
                     </div>

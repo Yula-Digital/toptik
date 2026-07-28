@@ -498,10 +498,10 @@ body {
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-columns: minmax(215px, 0.85fr) minmax(0, 1.55fr);
-  grid-template-rows: 1fr auto auto;
+  grid-template-columns: minmax(200px, 0.8fr) minmax(0, 1.2fr);
+  grid-template-rows: minmax(0, 1fr) auto;
   direction: ltr;
-  gap: 4px 8px;
+  gap: 6px 8px;
   overflow: hidden;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
 }
@@ -517,26 +517,30 @@ body {
   min-height: 0;
   height: 100%;
   display: flex;
-  align-items: stretch;
-  justify-content: stretch;
-  padding: 0;
-  background: transparent;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 4px 0;
+  background: #fff;
+  border-radius: 10px;
 }
 
 .catalog-card-image {
   display: block;
   width: 100%;
   height: 100%;
+  max-width: 100%;
+  max-height: 100%;
   margin: 0;
   object-fit: contain;
+  object-position: center center;
   border: var(--card-frame) solid rgba(255, 255, 255, 0.98);
-  border-radius: 10px;
+  border-radius: 8px;
   background: #fff;
 }
 
 .catalog-card-body {
   grid-column: 1;
-  grid-row: 1 / -1;
+  grid-row: 1;
   margin: 0;
   padding: 8px 10px;
   display: flex;
@@ -590,6 +594,9 @@ body {
 .catalog-card-cta {
   grid-column: 2;
   grid-row: 2;
+  align-self: start;
+  justify-self: center;
+  z-index: 1;
   font-size: 12px;
   font-weight: 800;
   color: #6f4f1f;
@@ -602,7 +609,6 @@ body {
   align-items: center;
   gap: 6px;
   justify-content: center;
-  justify-self: center;
   cursor: pointer;
   font-family: inherit;
   width: 182px;
@@ -611,7 +617,7 @@ body {
   min-width: 182px;
   white-space: nowrap;
   overflow: hidden;
-  margin: 0 0 6px;
+  margin: 2px 0 4px;
 }
 
 .catalog-card-cta-icon {
@@ -621,15 +627,16 @@ body {
 }
 
 .catalog-card-specs {
-  grid-column: 2;
-  grid-row: 3;
+  grid-column: 1;
+  grid-row: 2;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 8px 16px 12px;
+  gap: 8px;
+  padding: 6px 10px 8px;
   direction: rtl;
   text-align: right;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
+  align-self: start;
 }
 .catalog-spec-block {
   display: flex;
