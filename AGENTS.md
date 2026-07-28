@@ -4,6 +4,31 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+<!-- BEGIN:deployment-workflow -->
+# Deployment workflow — DO NOT improvise
+
+**Production URL the user verifies on:** the landing page lives on **`https://landing.toptik.co.il`** (since 2026-06-20 the apex `toptik.co.il` was returned to the Shopify store — do NOT verify the landing page there anymore). Deploys from `master`, ~90 s. The legacy `https://toptik-iota.vercel.app` still serves the same production deployment and is the fallback verify URL. Cutover record + DNS values: `docs/LANDING-SUBDOMAIN.md`.
+
+**Vercel preview URLs are GATED by Vercel Authentication** (`https://toptik-git-<branch>-rordan-ais-projects.vercel.app` returns 401 to logged-out visitors). The user has explicitly asked NOT to be sent there to verify visuals — it caused a full day of wasted time.
+
+So the workflow for any visual / user-facing change is:
+
+1. Work on the session's designated feature branch (`claude/...` per the session prompt).
+2. Run `npm run build` locally — must pass.
+3. Fast-forward `master` to the feature branch HEAD, push `master`:
+   ```bash
+   git checkout master
+   git merge --ff-only origin/<feature-branch>
+   git push origin master
+   git checkout <feature-branch>   # stay on feature branch for next task
+   ```
+4. Tell the user: "production updates in ~90 s at `https://landing.toptik.co.il/<path>`" (legacy fallback: `https://toptik-iota.vercel.app/<path>`).
+
+Optional long-term improvement (one-click, user-driven, NOT to be presented as a blocker): the user can disable Vercel Authentication on Preview at `https://vercel.com/rordan-ais-projects/toptik/settings/deployment-protection`. Until then, master is the only public path.
+
+Never push commits to `master` that haven't first landed on the feature branch — that defeats the lint/build verification step. Always feature → ff-merge → push master.
+<!-- END:deployment-workflow -->
+
 <!-- BEGIN:figma-export-rules -->
 # Figma Export — MANDATORY post-capture cleanup
 
@@ -36,3 +61,29 @@ Return counts of what was modified.
 
 This is the difference between a usable Figma file and an unusable one. Never skip it.
 <!-- END:figma-export-rules -->
+
+<!-- BEGIN:carousel-image-rules -->
+# Carousel product images — CSS rules (DO NOT revert)
+
+File: `src/app/globals.css`
+
+The image area in each carousel card holds THREE absolutely-positioned things stacked over one image:
+- the "להגדלה וזוויות נוספות" pill button at the top
+- the product image (`.catalog-card-image`) — flex-centered, `object-fit: contain`
+- the color swatches pill at the bottom
+
+The image MUST NOT touch or visually crowd either pill. Required CSS:
+
+`.catalog-card-image-wrap`:
+- `overflow: hidden`
+- `display: flex; align-items: center; justify-content: center` (not `stretch`)
+- `padding: 52px 12px 44px` on desktop, `padding: 36px 8px 30px` on mobile (`@media max-width: 767px`).
+- The padding is tuned to be the MINIMUM safe distance to the pills: button bottom is at y=46 (desktop) / y=32 (mobile), color pill top is ~38px (desktop) / ~26px (mobile) from the wrap bottom, so the padding sits ~4–6 px outside each pill. Horizontal padding equals the `box-shadow: inset` frame width (12 px desktop / 8 px mobile) so the image rides flush against the inner edge of the white frame.
+- **DO NOT increase padding past these values.** The user explicitly asked for "the largest centered image that fits with only a few pixels gap to the pills". Smaller padding violates the pill safety zone; larger padding wastes image surface.
+
+`.catalog-card-image`:
+- `object-fit: contain`, `mix-blend-mode: multiply`, transparent background (cream wrap blends white product photo whitespace)
+- **No `transform: scale()`** — scale overflows the wrap and crowds the pills. The multiply blend already removes the white halo around products; no extra zoom is needed.
+
+**Do not add `transform: scale(...)` and do not reduce the wrap padding.** Both regressions cause the image to touch or cover the pill buttons. Historical AGENTS.md text mandating `transform: scale(1.4)` was wrong and produced exactly that bug — replaced with this rule on 2026-05-27.
+<!-- END:carousel-image-rules -->

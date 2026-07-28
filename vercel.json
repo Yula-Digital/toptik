@@ -1,0 +1,20 @@
+{
+  "crons": [
+    {
+      "path": "/api/admin/warm-tech-specs?force=1",
+      "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/admin/warm-colors",
+      "schedule": "30 3 * * *"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/mobile-tuner.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0, must-revalidate" }
+      ]
+    }
+  ]
+}

@@ -8,6 +8,25 @@ export interface CarouselAngle {
   angleOrder: number;
 }
 
+export interface CachedTechSpecs {
+  specs: Array<{ heading: string; items: Array<{ label: string; value: string }> }>;
+  colors: Array<{ name: string; hex: string | null; swatchUrl: string | null }>;
+}
+
+// One selectable colour of a product, scraped from Mandarina Duck's sibling
+// colour products. `imagePath` is a Supabase-hosted cover image for that colour;
+// `angles` is that colour's full re-hosted gallery so the product can be rotated
+// while the colour stays selected (clicking the swatch swaps the whole gallery).
+export interface CarouselColor {
+  name: string;               // Hebrew display name
+  hex: string | null;         // swatch fill
+  colorCode: string | null;   // global MD colour code (e.g. "465")
+  imagePath: string;          // Supabase-hosted cover image in this colour (= angles[0])
+  angles?: string[];          // Supabase-hosted gallery for this colour (rotation)
+  sourceUrl: string | null;   // that colour's MD product page
+  catalogNumber: string | null;
+}
+
 export interface CarouselItem {
   id: string;
   title: string;
@@ -23,6 +42,8 @@ export interface CarouselItem {
   sizes?: string[] | null;
   availableColors?: string[] | null;
   angles: CarouselAngle[];
+  techSpecs?: CachedTechSpecs | null;
+  colors?: CarouselColor[] | null;
 }
 
 export interface CarouselSettings {

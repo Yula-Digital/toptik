@@ -2,12 +2,11 @@ import Image from "next/image";
 import homePageImage from "../../images/images_from_mandarina/Home_page.png";
 import MobileLayer from "./MobileLayer";
 import { HomeToCarouselCta } from "@/components/carousel/HomeToCarouselCta";
+import { InfoMenu } from "@/components/InfoMenu";
 import { isCarouselEnabled } from "@/lib/carousel/feature-flag";
 
 const navItems = [
   { href: "#deals", label: "מבצעים" },
-  { href: "#about", label: "אודותינו" },
-  { href: "#stores", label: "סניפים" },
 ];
 
 const bbCategories = [
@@ -52,23 +51,19 @@ export default function Home() {
           src={homePageImage}
           alt="TopTik Hero"
           fill
-          priority
-          quality={100}
-          unoptimized
+          preload
           sizes="100vw"
           className="hero-img hero-desktop"
         />
 
-        {/* Hero — mobile portrait (3 responsive source sizes: 320/375/414) */}
-        <picture className="hero-mobile-picture">
-          <source media="(min-width: 414px)" srcSet="/hero-mobile-sizes/hero-mobile-414.png" />
-          <source media="(min-width: 375px)" srcSet="/hero-mobile-sizes/hero-mobile-375.png" />
-          <img
-            src="/hero-mobile-sizes/hero-mobile-320.png"
-            alt="TopTik Hero Mobile"
-            className="hero-img hero-mobile"
-          />
-        </picture>
+        {/* Hero — mobile portrait — Next image pipeline serves AVIF/WebP at deviceSize widths */}
+        <Image
+          src="/hero-mobile-sizes/hero-mobile-414.png"
+          alt="TopTik Hero Mobile"
+          fill
+          sizes="(max-width: 414px) 100vw, 414px"
+          className="hero-img hero-mobile"
+        />
 
         {/* Top scrim */}
         <div className="scrim-top" aria-hidden />
@@ -89,6 +84,7 @@ export default function Home() {
                 {item.label}
               </a>
             ))}
+            <InfoMenu variant="desktop" />
           </nav>
 
           <div className="cta-actions">
@@ -105,10 +101,9 @@ export default function Home() {
                 <Image
                   src="/whatsapp.png"
                   alt="WhatsApp"
-                  width={1024}
-                  height={1024}
-                  unoptimized
-                  priority
+                  width={96}
+                  height={96}
+                  preload
                 />
               </span>
             </a>

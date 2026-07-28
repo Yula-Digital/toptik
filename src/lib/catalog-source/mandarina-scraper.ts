@@ -1,4 +1,5 @@
-import { CatalogSourceProvider, SourceProduct } from "@/lib/catalog-source/types";
+import { CatalogSourceProvider, SourceColorVariant, SourceProduct } from "@/lib/catalog-source/types";
+import { extractColorWord } from "@/lib/carousel/color-groups";
 
 const MANDARINA_BASE_URL = "https://mandarinaduck.com";
 const DEFAULT_HEADERS = {
@@ -121,29 +122,55 @@ function extractXmlLocEntries(xml: string) {
   return uniqueStrings(locs);
 }
 
-async function fetchProductLinksFromSitemap(catalogNumber: string) {
-  const token = catalogNumber.replace(/[^A-Za-z0-9]/g, "").toLowerCase();
+// The product sitemap is the authoritative, complete list of every product
+// handle (every colour of every model). Cache the index + each file across calls
+// so enumerating many items in one warm/import run fetches each sitemap once.
+let sitemapFilesPromise: Promise<string[]> | null = null;
+const sitemapXmlCache = new Map<string, Promise<string>>();
+
+async function getProductSitemapFiles(): Promise<string[]> {
+  if (!sitemapFilesPromise) {
+    sitemapFilesPromise = (async () => {
+      try {
+        const indexXml = await fetchHtml(`${MANDARINA_BASE_URL}/sitemap.xml`);
+        return extractXmlLocEntries(indexXml)
+          .filter((loc) => loc.includes("sitemap_products"))
+          .slice(0, 12);
+      } catch {
+        return [];
+      }
+    })();
+  }
+  return sitemapFilesPromise;
+}
+
+async function fetchSitemapXml(url: string): Promise<string> {
+  let cached = sitemapXmlCache.get(url);
+  if (!cached) {
+    cached = fetchHtml(url).catch(() => "");
+    sitemapXmlCache.set(url, cached);
+  }
+  return cached;
+}
+
+// Scan EVERY product sitemap file for product URLs whose handle contains the
+// model/catalog token. Deterministic and complete — does not depend on MD's
+// /search returning the full colour set.
+async function fetchProductLinksFromSitemap(tokenSource: string) {
+  const token = tokenSource.replace(/[^A-Za-z0-9]/g, "").toLowerCase();
   if (!token) return [];
 
-  const indexXml = await fetchHtml(`${MANDARINA_BASE_URL}/sitemap.xml`);
-  const sitemapUrls = extractXmlLocEntries(indexXml)
-    .filter((loc) => loc.includes("sitemap_products"))
-    .slice(0, 8);
-
+  const files = await getProductSitemapFiles();
   const productLinks: string[] = [];
-  for (const sitemapUrl of sitemapUrls) {
-    try {
-      const sitemapXml = await fetchHtml(sitemapUrl);
-      const links = extractXmlLocEntries(sitemapXml).filter(
-        (loc) => loc.includes("/products/") && loc.toLowerCase().includes(token),
-      );
-      productLinks.push(...links);
-      if (productLinks.length > 0) break;
-    } catch {
-      // continue to next sitemap file
+  for (const sitemapUrl of files) {
+    const xml = await fetchSitemapXml(sitemapUrl);
+    if (!xml) continue;
+    for (const loc of extractXmlLocEntries(xml)) {
+      if (loc.includes("/products/") && loc.toLowerCase().includes(token)) {
+        productLinks.push(loc);
+      }
     }
   }
-
   return uniqueStrings(productLinks);
 }
 
@@ -318,93 +345,6 @@ function extractTitle(html: string) {
   return "Mandarina Duck Product";
 }
 
-function extractDescription(html: string) {
-  const metaMatch = html.match(/<meta[^>]*name="description"[^>]*content="([^"]+)"/i);
-  if (metaMatch?.[1]) return metaMatch[1].trim();
-  return null;
-}
-
-function extractColor(html: string) {
-  const match = html.match(/variant-option[^>]*>Color:\s*([^<]+)</i);
-  return match?.[1]?.trim() || null;
-}
-
-function extractAccordionSections(html: string) {
-  const matches = [...html.matchAll(/accordion__content[^>]*>([\s\S]*?)<\/div>/gi)];
-  return matches.map((m) => m[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim());
-}
-
-function extractDimensionsFromAccordion(html: string) {
-  const sections = extractAccordionSections(html);
-  const dimSection = sections.find((s) => /\d+[x×X]\d+[x×X]\d+/.test(s) && /cm|inc/i.test(s));
-  if (dimSection) {
-    const match = dimSection.match(/(\d+[x×X]\d+[x×X]\d+(?:\/\d+(?:[.,]\d+)?)?)\s*cm/i);
-    if (match) return `${match[1].replace(/[×X]/g, "x")} cm`;
-  }
-  const breadcrumbMatch = html.match(
-    /(?:cm\s+)?(\d{2,3}\s*[xX×]\s*\d{2,3}\s*[xX×]\s*\d{2,3}(?:\s*\/\s*\d{2,3}(?:[.,]\d+)?)?)\s*(?:cm)?/i,
-  );
-  if (breadcrumbMatch) {
-    const raw = breadcrumbMatch[0].trim();
-    const normalized = raw.replace(/[×X]/g, "x").replace(/\s+/g, " ").replace(/^cm\s+/i, "").trim();
-    return normalized.endsWith("cm") ? normalized : `${normalized} cm`;
-  }
-  return null;
-}
-
-function extractWeight(html: string) {
-  const sections = extractAccordionSections(html);
-  const dimSection = sections.find((s) => /kg/i.test(s));
-  if (dimSection) {
-    const match = dimSection.match(/(\d+[.,]\d+)\s*KG/i);
-    if (match) return `${match[1].replace(",", ".")} kg`;
-  }
-  return null;
-}
-
-function extractAvailableColors(html: string) {
-  const tooltips = [...html.matchAll(/data-tooltip="([^"]+)"/gi)];
-  const colors = tooltips
-    .map((m) => m[1].trim())
-    .filter((c) => c.length > 1 && c.length < 40);
-  return [...new Set(colors)];
-}
-
-function extractSizes(html: string) {
-  const sizeBlocks = [...html.matchAll(
-    /related__content__inner\s+size-([^"]+)"([\s\S]*?)<\/a>/gi,
-  )];
-  if (sizeBlocks.length > 0) {
-    const sizes: string[] = [];
-    for (const block of sizeBlocks) {
-      const text = block[2].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-      const cleanLabel = text.replace(/^>\s*/, "").trim();
-      if (cleanLabel && cleanLabel.length < 40) {
-        const isCurrent = block[2].includes("current");
-        sizes.push(isCurrent ? `*${cleanLabel}` : cleanLabel);
-      }
-    }
-    if (sizes.length > 0) return sizes;
-  }
-
-  const sizeLabels: string[] = [];
-  const sizeButtonMatches = [...html.matchAll(
-    /(?:class="[^"]*size[^"]*"[^>]*>|size-button[^>]*>)\s*([^<]{2,20})\s*</gi,
-  )];
-  for (const m of sizeButtonMatches) {
-    const label = m[1].trim();
-    if (label && !label.includes("{") && !label.includes("<")) {
-      sizeLabels.push(label);
-    }
-  }
-  if (sizeLabels.length === 0) {
-    const cmLabels = [...html.matchAll(/(\d{2,3}\s*cm(?:\s*EXP)?)/gi)];
-    const unique = [...new Set(cmLabels.map((m) => m[1].trim()))];
-    if (unique.length > 0 && unique.length <= 6) return unique;
-  }
-  return [...new Set(sizeLabels)];
-}
-
 function extractProductFromPage(
   catalogNumber: string,
   productUrl: string,
@@ -442,15 +382,10 @@ function extractProductFromPage(
     title: productBlock?.name?.trim() || extractTitle(html),
     description:
       productBlock?.description?.trim()
-        ? stripHtml(productBlock.description)
-        : extractDescription(html),
+        ? stripHtml(productBlock.description).slice(0, 300) || null
+        : null,
     imageUrls: uniqueImageUrls(mergedImages).slice(0, MAX_IMPORTED_IMAGES),
     sourceUrl: productUrl,
-    color: extractColor(html),
-    dimensions: extractDimensionsFromAccordion(html),
-    weight: extractWeight(html),
-    sizes: extractSizes(html),
-    availableColors: extractAvailableColors(html),
   };
 }
 
@@ -461,15 +396,14 @@ export class MandarinaDuckScraperProvider implements CatalogSourceProvider {
       throw new Error("Catalog number is required");
     }
 
-    const fullToken = normalizedCatalog.replace(/[^A-Z0-9]/g, "");
     const searchQueries = uniqueStrings([
       normalizedCatalog,
-      fullToken,
-      fullToken.length >= 8 ? fullToken.slice(0, 8) : "",
+      normalizedCatalog.replace(/[^A-Z0-9]/g, ""),
       normalizedCatalog.slice(0, 6),
+      normalizedCatalog.slice(0, 5),
     ]).filter((query) => query.length >= 3);
 
-    let allProductLinks: string[] = [];
+    let productLinks: string[] = [];
     for (const query of searchQueries) {
       const searchUrl = `${MANDARINA_BASE_URL}/search?q=${encodeURIComponent(
         query,
@@ -477,29 +411,22 @@ export class MandarinaDuckScraperProvider implements CatalogSourceProvider {
       try {
         const searchHtml = await fetchHtml(searchUrl);
         const links = extractProductLinks(searchHtml);
-        allProductLinks.push(...links);
-        if (allProductLinks.length > 0 && query === normalizedCatalog) break;
+        if (links.length > 0) {
+          productLinks = links;
+          break;
+        }
       } catch {
         // try next query variant
       }
     }
 
-    allProductLinks = uniqueStrings(allProductLinks);
-
-    if (allProductLinks.length === 0) {
-      allProductLinks = await fetchProductLinksFromSitemap(normalizedCatalog);
+    if (productLinks.length === 0) {
+      productLinks = await fetchProductLinksFromSitemap(normalizedCatalog);
     }
 
-    if (allProductLinks.length === 0) {
+    if (productLinks.length === 0) {
       throw new Error("Product not found on Mandarina Duck");
     }
-
-    const catalogSlug = fullToken.toLowerCase();
-    const rankedLinks = [...allProductLinks].sort((a, b) => {
-      const aHasCatalog = a.toLowerCase().includes(catalogSlug) ? 1 : 0;
-      const bHasCatalog = b.toLowerCase().includes(catalogSlug) ? 1 : 0;
-      return bHasCatalog - aHasCatalog;
-    });
 
     let bestPage:
       | {
@@ -509,19 +436,15 @@ export class MandarinaDuckScraperProvider implements CatalogSourceProvider {
         }
       | undefined;
 
-    for (const url of rankedLinks.slice(0, 8)) {
+    for (const url of productLinks.slice(0, 6)) {
       try {
         const html = await fetchHtml(url);
-        const upperHtml = html.toUpperCase();
-        const hasExactCatalog = upperHtml.includes(normalizedCatalog) ? 10 : 0;
-        const hasFullToken = upperHtml.includes(fullToken) ? 5 : 0;
-        const slugBonus = url.toLowerCase().includes(catalogSlug) ? 3 : 0;
+        const includesCatalog = html.toUpperCase().includes(normalizedCatalog) ? 2 : 0;
         const hasStructuredProduct = html.includes("application/ld+json") ? 1 : 0;
-        const score = hasExactCatalog + hasFullToken + slugBonus + hasStructuredProduct;
+        const score = includesCatalog + hasStructuredProduct;
         if (!bestPage || score > bestPage.score) {
           bestPage = { url, html, score };
         }
-        if (hasExactCatalog) break;
       } catch {
         // try next candidate
       }
@@ -533,4 +456,213 @@ export class MandarinaDuckScraperProvider implements CatalogSourceProvider {
 
     return extractProductFromPage(normalizedCatalog, bestPage.url, bestPage.html);
   }
+}
+
+// ─── Color-variant enumeration ───────────────────────────────────────────────
+//
+// On Mandarina Duck every colour of a product is a SEPARATE product page with
+// its own handle + catalog number. The handle ends in "<model><colour>" (e.g.
+// "qmc01465" = model QMC01 + colour 465) and the colour code is the middle
+// segment of the catalog number (P10·QMC01·465·TU). So to list every colour of
+// a model we search the 5-char model token — the SAME /search channel the
+// single-product scraper already uses in production — and read each sibling
+// product page. No bespoke theme-swatch HTML parsing required.
+
+function handleFromUrl(url: string): string {
+  const match = url.match(/\/products\/([^/?#]+)/i);
+  return match ? match[1].toLowerCase() : "";
+}
+
+// Trailing "<model><colour>" token → 5-char model code (drop the 3-char colour).
+function modelTokenFromHandle(handle: string): string | null {
+  const tail = handle.split("-").pop() ?? "";
+  if (tail.length < 6 || !/^[a-z]{2,}[a-z0-9]{3,}$/i.test(tail)) return null;
+  return tail.slice(0, -3).toLowerCase();
+}
+
+function colorCodeFromHandle(handle: string): string | null {
+  const tail = handle.split("-").pop() ?? "";
+  if (tail.length < 6) return null;
+  return tail.slice(-3).toUpperCase();
+}
+
+// The handle's colour word(s) sit between the product-type words and the trailing
+// "<model><colour>" token — e.g. "md20-briefcase-deep-blue-qmc0107x". Dropping the
+// last segment leaves a phrase that extractColorWord can scan for the colour.
+function colorTextFromHandle(handle: string): string {
+  const segments = handle.split("-");
+  segments.pop();
+  return segments.join(" ");
+}
+
+// Fallback model token from a catalog number like "P10QMC01-465-TU".
+function modelTokenFromCatalog(catalogNumber: string): string | null {
+  const head = (catalogNumber.toUpperCase().split(/[-_/]/)[0] ?? "").replace(/^P\d+/, "");
+  return head.length >= 4 ? head.toLowerCase() : null;
+}
+
+// Minimal input the enumeration needs — usable from a full SourceProduct (import)
+// or from a stored item row (warmer).
+type ColorEnumerationInput = { sourceUrl: string; catalogNumber?: string | null };
+
+function deriveModelToken(primary: ColorEnumerationInput): string | null {
+  const handle = handleFromUrl(primary.sourceUrl);
+  return (
+    (handle ? modelTokenFromHandle(handle) : null) ??
+    (primary.catalogNumber ? modelTokenFromCatalog(primary.catalogNumber) : null)
+  );
+}
+
+async function fetchVariantHandlesByModel(modelToken: string): Promise<string[]> {
+  const token = modelToken.toLowerCase();
+  const handles = new Set<string>();
+
+  const searchUrl = `${MANDARINA_BASE_URL}/search?q=${encodeURIComponent(
+    modelToken,
+  )}&type=product&options%5Bprefix%5D=last`;
+  try {
+    const html = await fetchHtml(searchUrl);
+    for (const link of extractProductLinks(html)) {
+      const handle = handleFromUrl(link);
+      if (handle.includes(token)) handles.add(handle);
+    }
+  } catch {
+    // fall through to sitemap
+  }
+
+  // ALWAYS union with the sitemap — MD's /search frequently returns only a
+  // subset (or just the queried colour), so the sitemap is what guarantees the
+  // complete same-model colour set.
+  try {
+    for (const link of await fetchProductLinksFromSitemap(modelToken)) {
+      const handle = handleFromUrl(link);
+      if (handle.includes(token)) handles.add(handle);
+    }
+  } catch {
+    // tolerate — any search hits still stand
+  }
+
+  return [...handles];
+}
+
+const MAX_COLOR_VARIANTS = 16;
+const MAX_ANGLES_PER_COLOR = 5;
+
+// Does this handle's trailing "<model><colour>" token belong to `model5`? Every
+// colour of a model shares the same 5-char model prefix in that token (e.g.
+// "qmc01465", "qmc0109k" → model "qmc01"). This is the precise sibling test —
+// it excludes "related product" links of OTHER models that share a title word.
+function handleBelongsToModel(handle: string, model5: string): boolean {
+  const tail = handle.split("-").pop() ?? "";
+  const m = model5.toLowerCase();
+  return tail.length >= m.length + 2 && tail.toLowerCase().startsWith(m);
+}
+
+// Colour code = middle catalog segment (P10·QMC01·`465`·TU). Reliable per-colour key.
+function colorCodeFromCatalogNumber(catalog: string | null): string | null {
+  if (!catalog) return null;
+  const parts = catalog.toUpperCase().split(/[-_/]/).filter(Boolean);
+  return parts.length >= 2 ? parts[1] : null;
+}
+
+// Pull every same-model sibling handle linked anywhere in a product page (the
+// colour-swatch widget renders them as /products/<handle> links). Authoritative
+// and complete — no dependence on MD's search returning the full colour set.
+function extractSiblingHandles(html: string, model5: string): string[] {
+  const handles = new Set<string>();
+  const regex = /\/products\/([a-z0-9][a-z0-9-]*)/gi;
+  let match: RegExpExecArray | null = null;
+  while ((match = regex.exec(html)) !== null) {
+    const handle = match[1].toLowerCase();
+    if (handleBelongsToModel(handle, model5)) handles.add(handle);
+  }
+  return [...handles];
+}
+
+// Given the primary product (one colour), discover every colour of that model and
+// scrape each colour's full gallery (its rotation angles). Sibling discovery is
+// the union of (a) swatch links on the primary page and (b) the model-token search
+// — both filtered to the exact 5-char model so a swatch never resolves to a
+// different product.
+export async function enumerateColorVariants(primary: ColorEnumerationInput): Promise<SourceColorVariant[]> {
+  const model5 = deriveModelToken(primary);
+  if (!model5) return [];
+
+  const primaryHandle = handleFromUrl(primary.sourceUrl);
+
+  // (a) authoritative sibling links from the primary product page
+  let pageHandles: string[] = [];
+  try {
+    pageHandles = extractSiblingHandles(await fetchHtml(primary.sourceUrl), model5);
+  } catch {
+    // page unavailable — rely on search fallback
+  }
+
+  // (b) model-token search, filtered to the exact model
+  const searchHandles = (await fetchVariantHandlesByModel(model5)).filter((h) =>
+    handleBelongsToModel(h, model5),
+  );
+
+  const handles = [...new Set([primaryHandle, ...pageHandles, ...searchHandles])].filter(Boolean);
+
+  const scraped = await Promise.all(
+    handles.slice(0, MAX_COLOR_VARIANTS).map(async (handle): Promise<SourceColorVariant | null> => {
+      const sourceUrl = `${MANDARINA_BASE_URL}/products/${handle}`;
+      try {
+        const html = await fetchHtml(sourceUrl);
+        const title = extractTitle(html);
+        const catalogNumber = extractCatalogNumberFromHtml(html, "") || null;
+        const imageUrls = extractImageUrlsFromProductPage(html, catalogNumber ?? "").slice(
+          0,
+          MAX_ANGLES_PER_COLOR,
+        );
+        if (imageUrls.length === 0) return null;
+        return {
+          colorWord: extractColorWord(title) ?? extractColorWord(colorTextFromHandle(handle)),
+          colorCode: colorCodeFromCatalogNumber(catalogNumber) ?? colorCodeFromHandle(handle),
+          title,
+          catalogNumber,
+          sourceUrl,
+          handle,
+          coverImageUrl: imageUrls[0],
+          imageUrls,
+        };
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  // De-duplicate by colour (code → word → handle), preserving discovery order.
+  const seen = new Set<string>();
+  const variants: SourceColorVariant[] = [];
+  for (const variant of scraped) {
+    if (!variant) continue;
+    const key = (variant.colorCode || variant.colorWord || variant.handle).toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    variants.push(variant);
+  }
+  return variants;
+}
+
+// Convenience used by the diagnostic probe: primary fetch + colour enumeration.
+export async function scrapeColorVariantsByCatalog(
+  catalogNumber: string,
+): Promise<{ primary: SourceProduct; modelToken: string | null; variants: SourceColorVariant[] }> {
+  const primary = await new MandarinaDuckScraperProvider().fetchByCatalogNumber(catalogNumber);
+  const variants = await enumerateColorVariants(primary);
+  return { primary, modelToken: deriveModelToken(primary), variants };
+}
+
+// Lightweight discovery for diagnostics: derive the model token straight from the
+// catalog number and run only the /search step (one request, no per-page fetch),
+// so it returns fast. Returns the sibling colour product handles of the model.
+export async function discoverColorSiblingsByCatalog(
+  catalogNumber: string,
+): Promise<{ modelToken: string | null; handles: string[] }> {
+  const modelToken = modelTokenFromCatalog(catalogNumber.toUpperCase());
+  if (!modelToken) return { modelToken: null, handles: [] };
+  const handles = await fetchVariantHandlesByModel(modelToken);
+  return { modelToken, handles };
 }

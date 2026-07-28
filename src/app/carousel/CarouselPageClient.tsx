@@ -1,18 +1,39 @@
 "use client";
 
-import { CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import carouselTexture from "../../../images/carusell/carucell_backgrownd.svg";
 import { CarouselGrid } from "@/components/carousel/CarouselGrid";
+import { CategoryNav } from "@/components/carousel/CategoryNav";
 import { ProductModal } from "@/components/carousel/ProductModal";
+import { TechSpecsModal } from "@/components/carousel/TechSpecsModal";
 import { CarouselItem, CarouselPayload } from "@/lib/carousel/types";
 import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
+import { buildModelSiblingSwatches, resolveItemSwatches } from "@/lib/carousel/colors";
+import {
+  CategoryKey,
+  filterByCategory,
+  parseCategoryParam,
+} from "@/lib/carousel/categories";
 
 export default function CarouselPageClient() {
   const [payload, setPayload] = useState<CarouselPayload>(fallbackCarouselPayload);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedItem, setSelectedItem] = useState<CarouselItem | null>(null);
-  const [activeAngleIndex, setActiveAngleIndex] = useState(0);
+  const [techSpecsItem, setTechSpecsItem] = useState<CarouselItem | null>(null);
+  const [activeCategory, setActiveCategory] = useState<CategoryKey>(() => {
+    if (typeof window === "undefined") return "all";
+    const param = new URL(window.location.href).searchParams.get("category");
+    return parseCategoryParam(param);
+  });
+
+  const onChangeCategory = useCallback((key: CategoryKey) => {
+    setActiveCategory(key);
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    if (key === "all") url.searchParams.delete("category");
+    else url.searchParams.set("category", key);
+    window.history.replaceState({}, "", url.toString());
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -21,7 +42,23 @@ export default function CarouselPageClient() {
         if (!res.ok) throw new Error("Failed to fetch carousel payload");
         return res.json();
       })
-      .then((data) => setPayload(data))
+      .then((data: CarouselPayload) => {
+        setPayload(data);
+        // Fallback warming: most visitors arrive via the landing page which
+        // already pre-warms. This catches deep-link visits to /carousel.
+        const cold = data.items
+          .filter((it) => it.isActive && it.sourceUrl && !it.techSpecs)
+          .map((it) => it.sourceUrl!);
+        if (cold.length > 0) {
+          void Promise.all(
+            cold.map((url) =>
+              fetch(`/api/product-details?url=${encodeURIComponent(url)}`, {
+                signal: controller.signal,
+              }).catch(() => {}),
+            ),
+          );
+        }
+      })
       .catch((error) => {
         console.warn("Using fallback carousel payload", error);
       })
@@ -29,6 +66,8 @@ export default function CarouselPageClient() {
 
     return () => controller.abort();
   }, []);
+
+  const modelSiblings = useMemo(() => buildModelSiblingSwatches(payload.items.filter(i => i.isActive)), [payload.items]);
 
   const activeItems = useMemo(() => {
     const deduped = new Map<string, CarouselItem>();
@@ -65,39 +104,63 @@ export default function CarouselPageClient() {
   const onOpenItem = useCallback((item: CarouselItem) => {
     const orderedAngles = [...item.angles].sort((a, b) => a.angleOrder - b.angleOrder);
     setSelectedItem({ ...item, angles: orderedAngles });
-    setActiveAngleIndex(0);
   }, []);
 
   const onCloseModal = useCallback(() => setSelectedItem(null), []);
+  const onOpenTechSpecs = useCallback((item: CarouselItem) => setTechSpecsItem(item), []);
+  const onCloseTechSpecs = useCallback(() => setTechSpecsItem(null), []);
 
-  const onNextAngle = useCallback(() => {
-    if (!selectedItem) return;
-    setActiveAngleIndex((current) => (current + 1) % selectedItem.angles.length);
-  }, [selectedItem]);
-
-  const onPrevAngle = useCallback(() => {
-    if (!selectedItem) return;
-    setActiveAngleIndex((current) => (current - 1 + selectedItem.angles.length) % selectedItem.angles.length);
-  }, [selectedItem]);
-
-  const carouselSurfaceStyle = useMemo(
-    () =>
-      ({
-        ["--carousel-bg-url" as string]: `url(${carouselTexture.src})`,
-      }) as CSSProperties,
-    [],
+  const visibleItems = useMemo(
+    () => filterByCategory(activeItems, activeCategory),
+    [activeItems, activeCategory],
   );
 
   return (
-    <main className="carousel-page" style={carouselSurfaceStyle}>
+    <main className="carousel-page">
+      {/* Black-leather background — texture generated entirely by SVG filters
+          (no image asset), with 5 stacked lighting/texture layers above a
+          #070605 base. Sits behind all content. */}
+      <svg width="0" height="0" className="leather-defs" aria-hidden="true">
+        <filter id="leatherGrain" x="0" y="0" width="100%" height="100%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.5 0.5" numOctaves="3" seed="14" stitchTiles="stitch" result="noise" />
+          <feColorMatrix in="noise" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 -1.4 1.1" result="alpha" />
+          <feSpecularLighting in="noise" surfaceScale="4.2" specularConstant="0.9" specularExponent="14" lightingColor="#8a7d6c" result="spec">
+            <feDistantLight azimuth="245" elevation="42" />
+          </feSpecularLighting>
+          <feDiffuseLighting in="noise" surfaceScale="4.0" diffuseConstant="1.15" lightingColor="#6a5e52" result="diff">
+            <feDistantLight azimuth="245" elevation="42" />
+          </feDiffuseLighting>
+          <feComposite in="spec" in2="diff" operator="over" result="emboss" />
+          <feComposite in="emboss" in2="alpha" operator="in" result="grain" />
+        </filter>
+        <filter id="leatherPores" x="0" y="0" width="100%" height="100%">
+          <feTurbulence type="fractalNoise" baseFrequency="1.5 1.5" numOctaves="1" seed="9" stitchTiles="stitch" result="n" />
+          <feDiffuseLighting in="n" surfaceScale="2.0" diffuseConstant="1.1" lightingColor="#4a423a" result="e">
+            <feDistantLight azimuth="245" elevation="55" />
+          </feDiffuseLighting>
+        </filter>
+      </svg>
+      <div className="carousel-leather-bg" aria-hidden="true">
+        <div className="leather-layer leather-grain" />
+        <div className="leather-layer leather-pores" />
+        <div className="leather-layer leather-glow" />
+        <div className="leather-layer leather-rake" />
+        <div className="leather-layer leather-vignette" />
+      </div>
+
+      <Link
+        href="/admin"
+        className="carousel-admin-secret-zone"
+        aria-label="כניסת אדמין"
+      />
       <header className="carousel-header">
-        <h1>קטלוג TOPTIK</h1>
+        <div className="carousel-title-block">
+          <div className="brand-wordmark">MANDARINA DUCK</div>
+          <h1 className="collection-title">קולקציה <span>נבחרת</span></h1>
+        </div>
         <div className="carousel-header-actions">
           <Link className="carousel-back-link" href="/">
             חזרה לדף הבית
-          </Link>
-          <Link className="carousel-admin-link" href="/admin">
-            אדמין
           </Link>
         </div>
       </header>
@@ -105,17 +168,26 @@ export default function CarouselPageClient() {
       {isLoading ? (
         <div className="carousel-loading">טוען מוצרים...</div>
       ) : (
-        <CarouselGrid items={activeItems} autoplayMs={payload.settings.autoplayMs} onOpenItem={onOpenItem} />
+        <div className="carousel-page-body" dir="rtl">
+          <CategoryNav active={activeCategory} onChange={onChangeCategory} />
+          <CarouselGrid
+            items={visibleItems}
+            autoplayMs={payload.settings.autoplayMs}
+            onOpenItem={onOpenItem}
+            onOpenTechSpecs={onOpenTechSpecs}
+          />
+        </div>
       )}
 
       <ProductModal
+        key={selectedItem?.id ?? "none"}
         item={selectedItem}
-        activeAngleIndex={activeAngleIndex}
+        colors={selectedItem ? resolveItemSwatches(selectedItem, modelSiblings.get(selectedItem.id)) : []}
         onClose={onCloseModal}
-        onNextAngle={onNextAngle}
-        onPrevAngle={onPrevAngle}
-        onSelectAngle={setActiveAngleIndex}
+        onOpenTechSpecs={onOpenTechSpecs}
       />
+
+      <TechSpecsModal item={techSpecsItem} onClose={onCloseTechSpecs} />
     </main>
   );
 }

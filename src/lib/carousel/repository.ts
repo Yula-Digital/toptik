@@ -19,11 +19,8 @@ type ItemRow = {
   cover_image_path: string;
   display_order: number;
   is_active: boolean;
-  color?: string | null;
-  dimensions?: string | null;
-  weight?: string | null;
-  sizes?: string[] | null;
-  available_colors?: string[] | null;
+  tech_specs?: import("./types").CachedTechSpecs | null;
+  colors?: import("./types").CarouselColor[] | null;
 };
 
 type AngleRow = {
@@ -99,11 +96,8 @@ export async function getCarouselPayload(
       coverImagePath: item.cover_image_path,
       displayOrder: item.display_order,
       isActive: item.is_active,
-      color: item.color ?? null,
-      dimensions: item.dimensions ?? null,
-      weight: item.weight ?? null,
-      sizes: item.sizes ?? null,
-      availableColors: item.available_colors ?? null,
+      techSpecs: item.tech_specs ?? null,
+      colors: item.colors ?? null,
       angles: (anglesByItem.get(item.id) ?? []).map((angle) => ({
         id: angle.id,
         itemId: angle.item_id,
@@ -151,11 +145,6 @@ export async function saveCarouselPayload(input: unknown) {
     cover_image_path: item.coverImagePath,
     display_order: item.displayOrder,
     is_active: item.isActive,
-    color: item.color ?? null,
-    dimensions: item.dimensions ?? null,
-    weight: item.weight ?? null,
-    sizes: item.sizes ?? null,
-    available_colors: item.availableColors ?? null,
   }));
 
   let { error: itemsError, data: upsertedItems } = await supabase

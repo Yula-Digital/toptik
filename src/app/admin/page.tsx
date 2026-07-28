@@ -7,15 +7,8 @@ import { CarouselPayload, TransitionMode } from "@/lib/carousel/types";
 import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
 
 const STORAGE_KEY = "toptik_admin_token";
-const BATCH_IMPORT_SIZE = 25;
-type Vendor = "mandarina" | "brics";
-const VENDOR_OPTIONS: Array<{ value: Vendor; label: string; example: string }> = [
-  { value: "mandarina", label: "Mandarina Duck", example: "QMT32A74" },
-  { value: "brics", label: "Bric's", example: "BOE58117.050" },
-];
-function emptyBatchInputs() {
-  return Array.from({ length: BATCH_IMPORT_SIZE }, () => "");
-}
+const BATCH_IMPORT_INITIAL = 5;
+const BATCH_IMPORT_INCREMENT = 5;
 type ImportFeedbackTone = "info" | "success" | "error";
 type ImportPreview = {
   id: string;
@@ -38,21 +31,11 @@ export default function AdminPage() {
   const [payload, setPayload] = useState<CarouselPayload>(fallbackCarouselPayload);
   const [status, setStatus] = useState<string>("טוען...");
   const [isSaving, setIsSaving] = useState(false);
-  const [catalogNumber, setCatalogNumber] = useState("");
-  const [importVendor, setImportVendor] = useState<Vendor>("mandarina");
-  const [isImporting, setIsImporting] = useState(false);
-  const [batchCatalogInputs, setBatchCatalogInputs] = useState<Record<Vendor, string[]>>({
-    mandarina: emptyBatchInputs(),
-    brics: emptyBatchInputs(),
-  });
-  const [batchImportStatuses, setBatchImportStatuses] = useState<
-    Record<Vendor, Record<number, BatchImportStatus>>
-  >({ mandarina: {}, brics: {} });
-  const [batchImportingVendor, setBatchImportingVendor] = useState<Vendor | null>(null);
-  const isBatchImporting = batchImportingVendor !== null;
-  const [itemCatalogInputs, setItemCatalogInputs] = useState<Record<string, string>>({});
-  const [itemVendorMap, setItemVendorMap] = useState<Record<string, Vendor>>({});
-  const [itemImportingMap, setItemImportingMap] = useState<Record<string, boolean>>({});
+  const [batchCatalogInputs, setBatchCatalogInputs] = useState<string[]>(
+    Array.from({ length: BATCH_IMPORT_INITIAL }, () => ""),
+  );
+  const [batchImportStatuses, setBatchImportStatuses] = useState<Record<number, BatchImportStatus>>({});
+  const [isBatchImporting, setIsBatchImporting] = useState(false);
   const [importFeedback, setImportFeedback] = useState<{
     tone: ImportFeedbackTone;
     message: string;
@@ -78,10 +61,13 @@ export default function AdminPage() {
     const existingIndex = targetItemId
       ? next.items.findIndex((item) => item.id === targetItemId)
       : next.items.findIndex((item) => {
-          if (!normalizedCatalog) return false;
           const byCatalogNumber =
             normalizeCatalogNumber(item.catalogNumber ?? "") === normalizedCatalog;
-          return byCatalogNumber;
+          const byCatalogPath = item.angles.some((angle) =>
+            angle.imagePath.includes(`/imports/mandarina/${data.source.catalogNumber}/`),
+          );
+          const byTitle = item.title.trim().toLowerCase() === data.item.title.trim().toLowerCase();
+          return byCatalogNumber || byCatalogPath || byTitle;
         });
 
     if (existingIndex >= 0) {
@@ -109,22 +95,11 @@ export default function AdminPage() {
     return { next, mode: "created" as const };
   }
 
-  function vendorForItem(item: CarouselPayload["items"][number]): Vendor {
-    const explicit = itemVendorMap[item.id];
-    if (explicit) return explicit;
-    return item.sourceUrl?.includes("bricstore") ? "brics" : "mandarina";
-  }
-
-  function vendorLabel(vendor: Vendor) {
-    return VENDOR_OPTIONS.find((option) => option.value === vendor)?.label ?? vendor;
-  }
-
   async function importCatalogNumberFromSource(
-    vendor: Vendor,
     activeCatalogNumber: string,
     targetItemId?: string,
   ): Promise<ImportedItemData> {
-    const res = await fetch(`/api/admin/import/${vendor}`, {
+    const res = await fetch("/api/admin/import/mandarina", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -217,7 +192,7 @@ export default function AdminPage() {
         sourceUrl: null,
         coverImagePath: "/hero-web-airport.png",
         displayOrder: next.items.length + 1,
-        isActive: false,
+        isActive: true,
         angles: [
           {
             id: crypto.randomUUID(),
@@ -272,20 +247,33 @@ export default function AdminPage() {
     }
   }
 
+  async function onExportExcel() {
+    try {
+      setStatus("מכין קובץ אקסל...");
+      const XLSX = await import("xlsx");
+      const rows = [...payload.items]
+        .sort((a, b) => a.displayOrder - b.displayOrder)
+        .map((item) => ({
+          "מק״ט": item.catalogNumber ?? "",
+          "שם המוצר": item.title,
+        }));
+      const worksheet = XLSX.utils.json_to_sheet(rows);
+      worksheet["!cols"] = [{ wch: 18 }, { wch: 60 }];
+      const workbook = XLSX.utils.book_new();
+      workbook.Workbook = { Views: [{ RTL: true }] };
+      XLSX.utils.book_append_sheet(workbook, worksheet, "מוצרים");
+      XLSX.writeFile(workbook, "toptik-products.xlsx");
+      setStatus(`קובץ אקסל ירד (${rows.length} מוצרים)`);
+    } catch (error) {
+      setStatus(resolveErrorMessage(error, "שגיאה ביצירת קובץ האקסל"));
+    }
+  }
+
   async function onSave() {
     try {
       setIsSaving(true);
       setStatus("שומר...");
-      const cleanedPayload = {
-        ...payload,
-        items: payload.items.filter(
-          (item) => item.catalogNumber?.trim() || !item.coverImagePath.includes("hero-web-airport"),
-        ),
-      };
-      if (cleanedPayload.items.length < payload.items.length) {
-        setPayload(cleanedPayload);
-      }
-      await persistPayload(cleanedPayload);
+      await persistPayload(payload);
       setStatus("נשמר בהצלחה");
       setImportFeedback({
         tone: "success",
@@ -302,124 +290,8 @@ export default function AdminPage() {
     }
   }
 
-  async function onImportByCatalog() {
-    if (!catalogNumber.trim()) {
-      setStatus("יש להזין מספר קטלוגי");
-      setImportFeedback({
-        tone: "error",
-        message: "יש להזין מספר קטלוגי ליבוא.",
-      });
-      return;
-    }
-
-    try {
-      setIsImporting(true);
-      setStatus("מייבא מוצר לפי מספר קטלוגי...");
-      setImportFeedback({
-        tone: "info",
-        message: "מתבצע ייבוא, נא להמתין...",
-      });
-      const data = await importCatalogNumberFromSource(importVendor, catalogNumber);
-
-      setPayload((current) => {
-        return upsertImportedItem(current, data).next;
-      });
-
-      setStatus(
-        `ייבוא הושלם: ${data.source.catalogNumber} עם ${data.source.importedImages} תמונות. לחץ "שמור הכל" לקיבוע.`,
-      );
-      setImportFeedback({
-        tone: "success",
-        message: `הייבוא הצליח: ${data.source.catalogNumber} (${data.source.importedImages} תמונות). עכשיו לחץ שמור הכל.`,
-      });
-      setImportPreviews((current) => [
-        {
-          id: crypto.randomUUID(),
-          title: data.item.title,
-          coverImagePath: data.item.coverImagePath,
-          catalogNumber: data.source.catalogNumber,
-        },
-        ...current,
-      ].slice(0, 8));
-      setCatalogNumber("");
-    } catch (error) {
-      const message = resolveErrorMessage(error, "שגיאת ייבוא לפי מספר קטלוגי");
-      setStatus(message);
-      setImportFeedback({
-        tone: "error",
-        message,
-      });
-    } finally {
-      setIsImporting(false);
-    }
-  }
-
-  async function onImportIntoExistingItem(itemId: string, vendor: Vendor) {
-    const itemCatalogNumber = (itemCatalogInputs[itemId] || "").trim();
-    if (!itemCatalogNumber) {
-      setStatus("יש להזין מספר קטלוגי ליבוא למוצר");
-      setImportFeedback({
-        tone: "error",
-        message: "יש להזין מספר קטלוגי ליבוא למוצר זה.",
-      });
-      return;
-    }
-
-    try {
-      setItemImportingMap((current) => ({ ...current, [itemId]: true }));
-      setStatus(`מייבא למוצר קיים: ${itemCatalogNumber}...`);
-      setImportFeedback({
-        tone: "info",
-        message: `מתבצע ייבוא למוצר קיים (${itemCatalogNumber})...`,
-      });
-
-      const data = await importCatalogNumberFromSource(vendor, itemCatalogNumber, itemId);
-
-      setPayload((current) => {
-        return upsertImportedItem(current, data, itemId).next;
-      });
-
-      setItemCatalogInputs((current) => ({ ...current, [itemId]: "" }));
-      setStatus(
-        `ייבוא למוצר קיים הושלם: ${data.source.catalogNumber} עם ${data.source.importedImages} תמונות. לחץ "שמור הכל".`,
-      );
-      setImportFeedback({
-        tone: "success",
-        message: `עודכן מוצר קיים (${data.source.catalogNumber}) עם ${data.source.importedImages} תמונות. לחץ שמור הכל.`,
-      });
-      setImportPreviews((current) => [
-        {
-          id: crypto.randomUUID(),
-          title: data.item.title,
-          coverImagePath: data.item.coverImagePath,
-          catalogNumber: data.source.catalogNumber,
-        },
-        ...current,
-      ].slice(0, 8));
-    } catch (error) {
-      const message = resolveErrorMessage(error, "שגיאת ייבוא למוצר קיים");
-      setStatus(message);
-      setImportFeedback({
-        tone: "error",
-        message,
-      });
-    } finally {
-      setItemImportingMap((current) => ({ ...current, [itemId]: false }));
-    }
-  }
-
-  function setVendorBatchStatuses(
-    vendor: Vendor,
-    updater: (current: Record<number, BatchImportStatus>) => Record<number, BatchImportStatus>,
-  ) {
-    setBatchImportStatuses((current) => ({
-      ...current,
-      [vendor]: updater(current[vendor]),
-    }));
-  }
-
-  async function onBatchImportAndSave(vendor: Vendor) {
-    const normalizedRows = batchCatalogInputs[vendor].map((value, index) => ({
+  async function onBatchImportAndSave() {
+    const normalizedRows = batchCatalogInputs.map((value, index) => ({
       index,
       catalogNumber: normalizeCatalogNumber(value),
     }));
@@ -427,9 +299,9 @@ export default function AdminPage() {
     const nextStatuses: Record<number, BatchImportStatus> = {};
 
     if (filledRows.length === 0) {
-      setVendorBatchStatuses(vendor, () => ({
+      setBatchImportStatuses({
         0: { tone: "error", message: "יש להזין לפחות מק״ט אחד." },
-      }));
+      });
       return;
     }
 
@@ -445,7 +317,7 @@ export default function AdminPage() {
     }
 
     if (Object.keys(nextStatuses).length > 0) {
-      setVendorBatchStatuses(vendor, () => nextStatuses);
+      setBatchImportStatuses(nextStatuses);
       setImportFeedback({
         tone: "error",
         message: "יש מק״טים כפולים. תקן לפני שמירה.",
@@ -454,15 +326,15 @@ export default function AdminPage() {
     }
 
     try {
-      setBatchImportingVendor(vendor);
-      setVendorBatchStatuses(vendor, () =>
+      setIsBatchImporting(true);
+      setBatchImportStatuses(
         Object.fromEntries(
           filledRows.map((row) => [row.index, { tone: "info", message: "ממתין ליבוא..." }]),
         ),
       );
       setImportFeedback({
         tone: "info",
-        message: `מייבא ${filledRows.length} מק״טים מ-${vendorLabel(vendor)} ושומר בסיום...`,
+        message: `מייבא ${filledRows.length} מק״טים ושומר בסיום...`,
       });
 
       let workingPayload = structuredClone(payload);
@@ -470,13 +342,13 @@ export default function AdminPage() {
       let successCount = 0;
 
       for (const row of filledRows) {
-        setVendorBatchStatuses(vendor, (current) => ({
+        setBatchImportStatuses((current) => ({
           ...current,
           [row.index]: { tone: "info", message: "מייבא..." },
         }));
 
         try {
-          const data = await importCatalogNumberFromSource(vendor, row.catalogNumber);
+          const data = await importCatalogNumberFromSource(row.catalogNumber);
           const result = upsertImportedItem(workingPayload, data);
           workingPayload = result.next;
           successCount += 1;
@@ -486,7 +358,7 @@ export default function AdminPage() {
             coverImagePath: data.item.coverImagePath,
             catalogNumber: data.source.catalogNumber,
           });
-          setVendorBatchStatuses(vendor, (current) => ({
+          setBatchImportStatuses((current) => ({
             ...current,
             [row.index]: {
               tone: "success",
@@ -495,7 +367,7 @@ export default function AdminPage() {
           }));
         } catch (error) {
           const message = resolveErrorMessage(error, "לא נמצא מק״ט או שגיאת יבוא");
-          setVendorBatchStatuses(vendor, (current) => ({
+          setBatchImportStatuses((current) => ({
             ...current,
             [row.index]: { tone: "error", message },
           }));
@@ -509,17 +381,17 @@ export default function AdminPage() {
       await persistPayload(workingPayload);
       setPayload(workingPayload);
       setImportPreviews((current) => [...previews, ...current].slice(0, 8));
-      setStatus(`נשמרו ${successCount} מוצרים מייבוא מרובה (${vendorLabel(vendor)}).`);
+      setStatus(`נשמרו ${successCount} מוצרים מייבוא מרובה.`);
       setImportFeedback({
         tone: "success",
-        message: `הייבוא המרובה מ-${vendorLabel(vendor)} הסתיים ונשמר: ${successCount}/${filledRows.length} מוצרים הצליחו.`,
+        message: `הייבוא המרובה הסתיים ונשמר: ${successCount}/${filledRows.length} מוצרים הצליחו.`,
       });
     } catch (error) {
       const message = resolveErrorMessage(error, "שגיאת ייבוא מרובה");
       setStatus(message);
       setImportFeedback({ tone: "error", message });
     } finally {
-      setBatchImportingVendor(null);
+      setIsBatchImporting(false);
     }
   }
 
@@ -530,92 +402,128 @@ export default function AdminPage() {
 
   return (
     <main className="admin-page">
-      <header className="admin-header">
-        <h1>TOPTIK Admin</h1>
-        <Link href="/" className="admin-back-link">
-          חזרה לבית
-        </Link>
-      </header>
+      {!authReady && (
+        <div className="admin-secret-backdrop" role="dialog" aria-modal="true">
+          <form
+            className="admin-secret-modal"
+            dir="rtl"
+            onSubmit={(e) => {
+              e.preventDefault();
+              window.localStorage.setItem(STORAGE_KEY, token);
+              loadData(token);
+            }}
+          >
+            <input
+              type="password"
+              value={token}
+              autoFocus
+              onChange={(e) => setToken(e.target.value)}
+              placeholder="סיסמת אדמין"
+            />
+            <button type="submit">כניסה</button>
+            {status && status !== "מחובר" && (
+              <div className="admin-secret-status">{status}</div>
+            )}
+          </form>
+        </div>
+      )}
 
-      <section className="admin-auth">
-        <label>
-          Admin Token
-          <input
-            type="password"
-            value={token}
-            onChange={(e) => setToken(e.target.value)}
-            placeholder="הזן ADMIN_PANEL_TOKEN"
-          />
-        </label>
-        <button
-          onClick={() => {
-            window.localStorage.setItem(STORAGE_KEY, token);
-            loadData(token);
-          }}
-        >
-          התחבר
-        </button>
-        <div className="admin-status">{status}</div>
-      </section>
+      {authReady && (
+        <header className="admin-header">
+          <h1>TOPTIK Admin</h1>
+          <Link href="/" className="admin-back-link">
+            חזרה לבית
+          </Link>
+        </header>
+      )}
 
       {authReady && (
         <>
-          {VENDOR_OPTIONS.map((vendorOption) => {
-            const vendor = vendorOption.value;
-            const vendorInputs = batchCatalogInputs[vendor];
-            const vendorStatuses = batchImportStatuses[vendor];
-            const isThisVendorImporting = batchImportingVendor === vendor;
-            return (
-              <section key={`batch-import-${vendor}`} className="admin-batch-import">
-                <div className="admin-items-head">
-                  <h2>ייבוא מרובה — {vendorOption.label}</h2>
-                  <button
-                    onClick={() => onBatchImportAndSave(vendor)}
-                    disabled={isBatchImporting || isSaving || isImporting}
-                  >
-                    {isThisVendorImporting ? "מייבא ושומר..." : "ייבא ושמור הכל"}
-                  </button>
-                </div>
-                <p className="admin-import-note">
-                  הכנס עד {BATCH_IMPORT_SIZE} מק״טים (למשל{" "}
-                  <span dir="ltr">{vendorOption.example}</span>). המערכת תשלוף מ-
-                  {vendorOption.label}, תיצור/תעדכן מוצרים, ותשמור הכל בפעולה אחת.
-                </p>
-                <div className="admin-batch-grid">
-                  {vendorInputs.map((value, index) => {
-                    const rowStatus = vendorStatuses[index];
-                    return (
-                      <label key={`batch-catalog-${vendor}-${index}`} className="admin-batch-row">
-                        <span>{index + 1}</span>
-                        <input
-                          value={value}
-                          onChange={(e) => {
-                            const nextValue = e.target.value;
-                            setBatchCatalogInputs((current) => ({
-                              ...current,
-                              [vendor]: current[vendor].map((row, rowIndex) =>
-                                rowIndex === index ? nextValue : row,
-                              ),
-                            }));
-                            setVendorBatchStatuses(vendor, (current) => {
-                              const next = { ...current };
-                              delete next[index];
-                              return next;
-                            });
-                          }}
-                          placeholder="מק״ט"
-                          dir="ltr"
-                        />
-                        <em className={rowStatus ? `admin-batch-status admin-batch-status-${rowStatus.tone}` : "admin-batch-status"}>
-                          {rowStatus?.message || ""}
-                        </em>
-                      </label>
-                    );
-                  })}
-                </div>
-              </section>
-            );
-          })}
+          <section className="admin-batch-import">
+            <div className="admin-items-head">
+              <h2>ייבוא מרובה לפי מק״טים</h2>
+              <button onClick={onBatchImportAndSave} disabled={isBatchImporting || isSaving}>
+                {isBatchImporting ? "מייבא ושומר..." : "ייבא ושמור הכל"}
+              </button>
+            </div>
+            <p className="admin-import-note">
+              הכנס מק״טים ולחץ &quot;ייבא ושמור הכל&quot;. אפשר להוסיף עוד שדות בלחיצה. המערכת תשלוף ממנדרינה, תיצור/תעדכן מוצרים, ותשמור הכל בפעולה אחת.
+            </p>
+            <div className="admin-batch-grid">
+              {batchCatalogInputs.map((value, index) => {
+                const rowStatus = batchImportStatuses[index];
+                return (
+                  <label key={`batch-catalog-${index}`} className="admin-batch-row">
+                    <span>{index + 1}</span>
+                    <input
+                      value={value}
+                      onChange={(e) => {
+                        const nextValue = e.target.value;
+                        setBatchCatalogInputs((current) =>
+                          current.map((row, rowIndex) => (rowIndex === index ? nextValue : row)),
+                        );
+                        setBatchImportStatuses((current) => {
+                          const next = { ...current };
+                          delete next[index];
+                          return next;
+                        });
+                      }}
+                      placeholder="מק״ט"
+                      dir="ltr"
+                    />
+                    <em className={rowStatus ? `admin-batch-status admin-batch-status-${rowStatus.tone}` : "admin-batch-status"}>
+                      {rowStatus?.message || ""}
+                    </em>
+                  </label>
+                );
+              })}
+            </div>
+            <div className="admin-batch-actions">
+              <button
+                type="button"
+                className="admin-batch-add"
+                onClick={() =>
+                  setBatchCatalogInputs((current) => [
+                    ...current,
+                    ...Array.from({ length: BATCH_IMPORT_INCREMENT }, () => ""),
+                  ])
+                }
+                disabled={isBatchImporting}
+              >
+                + הוסף {BATCH_IMPORT_INCREMENT} שדות
+              </button>
+              {batchCatalogInputs.length > BATCH_IMPORT_INITIAL && (
+                <button
+                  type="button"
+                  className="admin-batch-remove"
+                  onClick={() => {
+                    setBatchCatalogInputs((current) => {
+                      const trimmed = current.slice(0, -BATCH_IMPORT_INCREMENT);
+                      return trimmed.length < BATCH_IMPORT_INITIAL
+                        ? Array.from({ length: BATCH_IMPORT_INITIAL }, (_, i) => current[i] ?? "")
+                        : trimmed;
+                    });
+                    setBatchImportStatuses((current) => {
+                      const next: typeof current = {};
+                      const newLen = Math.max(
+                        BATCH_IMPORT_INITIAL,
+                        batchCatalogInputs.length - BATCH_IMPORT_INCREMENT,
+                      );
+                      for (const key of Object.keys(current)) {
+                        const idx = Number(key);
+                        if (idx < newLen) next[idx] = current[idx];
+                      }
+                      return next;
+                    });
+                  }}
+                  disabled={isBatchImporting}
+                >
+                  − הסר {BATCH_IMPORT_INCREMENT} שדות
+                </button>
+              )}
+              <span className="admin-batch-count">סך שדות: {batchCatalogInputs.length}</span>
+            </div>
+          </section>
 
           <section className="admin-settings">
             <h2>הגדרות דפדוף</h2>
@@ -654,76 +562,49 @@ export default function AdminPage() {
             </label>
           </section>
 
-          <section className="admin-import">
-            <h2>ייבוא אוטומטי לפי מק״ט</h2>
-            <div className="admin-import-prompt">בחר ונדור והכנס מספר קטלוגי ליבוא</div>
-            <div className="admin-import-row">
-              <label className="admin-import-field">
-                <span>ונדור (מקור)</span>
-                <select
-                  value={importVendor}
-                  onChange={(e) => setImportVendor(e.target.value as Vendor)}
-                >
-                  {VENDOR_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="admin-import-field">
-                <span>מספר קטלוגי</span>
-                <input
-                  value={catalogNumber}
-                  onChange={(e) => setCatalogNumber(e.target.value)}
-                  placeholder="הכנס מספר קטלוגי ליבוא"
-                />
-              </label>
-              <div className="admin-import-actions">
-                <button onClick={onImportByCatalog} disabled={isImporting || isSaving || isBatchImporting}>
-                  {isImporting ? "מייבא..." : "ייבא לפי מספר קטלוגי"}
-                </button>
-                <button className="admin-save-inline-btn" onClick={onSave} disabled={isSaving || isImporting || isBatchImporting}>
-                  {isSaving ? "שומר..." : "שמור הכל"}
-                </button>
-              </div>
+          {importFeedback && (
+            <div className={`admin-import-feedback admin-import-feedback-${importFeedback.tone}`}>
+              {importFeedback.message}
             </div>
-            <p className="admin-import-note">
-              דוגמה: <span dir="ltr">QMT32A74</span> (Mandarina) או{" "}
-              <span dir="ltr">BOE58117.050</span> (Bric&#39;s). אחרי הייבוא לחץ &#34;שמור
-              הכל&#34; כדי לקבע.
-            </p>
-            {importFeedback && (
-              <div className={`admin-import-feedback admin-import-feedback-${importFeedback.tone}`}>
-                {importFeedback.message}
-              </div>
-            )}
-            {importPreviews.length > 0 && (
-              <div className="admin-import-preview-list" aria-label="מוצרים שיובאו בהצלחה">
-                {importPreviews.map((preview) => (
-                  <div key={preview.id} className="admin-import-preview-item">
-                    {/* preview thumb helps identify imported product quickly */}
-                    <Image
-                      src={preview.coverImagePath}
-                      alt={preview.title}
-                      width={52}
-                      height={52}
-                      className="admin-import-preview-image"
-                    />
-                    <div className="admin-import-preview-meta">
-                      <div className="admin-import-preview-catalog">{preview.catalogNumber}</div>
-                      <div className="admin-import-preview-title">{preview.title}</div>
-                    </div>
+          )}
+
+          {importPreviews.length > 0 && (
+            <div className="admin-import-preview-list" aria-label="מוצרים שיובאו בהצלחה">
+              {importPreviews.map((preview) => (
+                <div key={preview.id} className="admin-import-preview-item">
+                  <Image
+                    src={preview.coverImagePath}
+                    alt={preview.title}
+                    width={52}
+                    height={52}
+                    className="admin-import-preview-image"
+                    unoptimized
+                  />
+                  <div className="admin-import-preview-meta">
+                    <div className="admin-import-preview-catalog">{preview.catalogNumber}</div>
+                    <div className="admin-import-preview-title">{preview.title}</div>
                   </div>
-                ))}
-              </div>
-            )}
-          </section>
+                </div>
+              ))}
+            </div>
+          )}
 
           <section className="admin-items">
             <div className="admin-items-head">
               <h2>מוצרים</h2>
-              <button onClick={addItem}>הוסף מוצר</button>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  className="admin-save-inline-btn"
+                  onClick={onSave}
+                  disabled={isSaving || isBatchImporting}
+                >
+                  {isSaving ? "שומר..." : "שמור הכל"}
+                </button>
+                <button onClick={addItem}>הוסף מוצר</button>
+                <button onClick={onExportExcel} disabled={payload.items.length === 0}>
+                  הורד אקסל
+                </button>
+              </div>
             </div>
 
             {sortedItems.map((item) => {
@@ -731,6 +612,20 @@ export default function AdminPage() {
               return (
                 <article key={item.id} className="admin-item-card">
                   <div className="admin-item-head">
+                    {item.coverImagePath ? (
+                      <Image
+                        src={item.coverImagePath}
+                        alt={item.title}
+                        width={64}
+                        height={64}
+                        className="admin-item-thumb"
+                        unoptimized
+                      />
+                    ) : (
+                      <div className="admin-item-thumb admin-item-thumb-empty" aria-hidden>
+                        ?
+                      </div>
+                    )}
                     <h3>{item.title}</h3>
                     <button className="admin-danger-btn" onClick={() => removeItem(item.id)}>
                       מחק מוצר
@@ -767,8 +662,10 @@ export default function AdminPage() {
                         onChange={(e) => updateItemField(itemIndex, "displayOrder", Number(e.target.value))}
                       />
                     </label>
-                    <label className="checkbox-line">
-                      פעיל
+                    <label className={`checkbox-line admin-active-toggle ${item.isActive ? "is-active" : "is-inactive"}`}>
+                      <span className="admin-active-label">
+                        {item.isActive ? "פעיל" : "לא פעיל"}
+                      </span>
                       <input
                         type="checkbox"
                         checked={item.isActive}
@@ -814,46 +711,6 @@ export default function AdminPage() {
                         }}
                       />
                     </label>
-                    <div className="admin-item-import">
-                      <label>
-                        ונדור (מקור המוצר)
-                        <select
-                          value={vendorForItem(item)}
-                          onChange={(e) =>
-                            setItemVendorMap((current) => ({
-                              ...current,
-                              [item.id]: e.target.value as Vendor,
-                            }))
-                          }
-                        >
-                          {VENDOR_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <label>
-                        הכנס מספר קטלוגי ליבוא למוצר זה
-                        <input
-                          value={itemCatalogInputs[item.id] || ""}
-                          onChange={(e) =>
-                            setItemCatalogInputs((current) => ({
-                              ...current,
-                              [item.id]: e.target.value,
-                            }))
-                          }
-                          placeholder="מספר קטלוגי למוצר זה"
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => onImportIntoExistingItem(item.id, vendorForItem(item))}
-                        disabled={Boolean(itemImportingMap[item.id] || isImporting || isSaving || isBatchImporting)}
-                      >
-                        {itemImportingMap[item.id] ? "מייבא..." : "ייבא למוצר זה"}
-                      </button>
-                    </div>
                   </div>
 
                   <p className="admin-import-note">
