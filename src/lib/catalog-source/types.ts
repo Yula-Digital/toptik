@@ -1,3 +1,8 @@
+export interface SourceColorImage {
+  color: string;
+  imageUrl: string;
+}
+
 export interface SourceProduct {
   catalogNumber: string;
   title: string;
@@ -9,6 +14,8 @@ export interface SourceProduct {
   weight?: string | null;
   sizes?: string[];
   availableColors?: string[];
+  /** One representative image per additional color, so the UI can preview other colors. */
+  colorImages?: SourceColorImage[];
 }
 
 export interface CatalogSourceProvider {

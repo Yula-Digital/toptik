@@ -1,4 +1,4 @@
-import { CatalogSourceProvider, SourceProduct } from "@/lib/catalog-source/types";
+import { CatalogSourceProvider, SourceColorImage, SourceProduct } from "@/lib/catalog-source/types";
 
 const BRICS_BASE_URL = "https://bricstore.com";
 const DEFAULT_HEADERS = {
@@ -163,6 +163,35 @@ function selectVariantImages(product: ShopifyProduct, variantSku: string | null)
   return images;
 }
 
+function collectOtherColorImages(
+  product: ShopifyProduct,
+  currentColor: string | null,
+): SourceColorImage[] {
+  const colorIndex = (product.options ?? []).findIndex(
+    (option) => option.name.toLowerCase() === "color",
+  );
+  if (colorIndex === -1) return [];
+  const optionKey = `option${colorIndex + 1}` as "option1" | "option2" | "option3";
+
+  const result: SourceColorImage[] = [];
+  const seenColors = new Set<string>(currentColor ? [currentColor.toLowerCase()] : []);
+
+  for (const variant of product.variants ?? []) {
+    const variantColor = variant[optionKey]?.trim();
+    const variantSku = variant.sku?.trim();
+    if (!variantColor || !variantSku) continue;
+    if (seenColors.has(variantColor.toLowerCase())) continue;
+
+    const [firstImage] = selectVariantImages(product, variantSku);
+    if (!firstImage) continue;
+
+    seenColors.add(variantColor.toLowerCase());
+    result.push({ color: variantColor, imageUrl: firstImage });
+  }
+
+  return result;
+}
+
 type SpecBlock = {
   dimensions: string | null;
   weight: string | null;
@@ -294,6 +323,7 @@ export class BricsStoreScraperProvider implements CatalogSourceProvider {
       weight,
       sizes,
       availableColors,
+      colorImages: collectOtherColorImages(product, color),
     };
   }
 }

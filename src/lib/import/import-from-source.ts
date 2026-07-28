@@ -61,34 +61,83 @@ function angleKeyByIndex(index: number) {
   return defaults[index] ?? `view-${index + 1}`;
 }
 
+const HEBREW_CHAR_REGEX = /[֐-׿]/;
+const LATIN_WORD_REGEX = /[A-Za-z]{3,}/;
+const TRANSLATION_CHUNK_MAX_LENGTH = 1000;
+const TRANSLATION_ATTEMPTS_PER_CHUNK = 3;
+
+function splitIntoTranslationChunks(text: string) {
+  const sentences = text.match(/[^.!?]+[.!?]*\s*/g) ?? [text];
+  const chunks: string[] = [];
+  let current = "";
+  for (const sentence of sentences) {
+    if (current && current.length + sentence.length > TRANSLATION_CHUNK_MAX_LENGTH) {
+      chunks.push(current.trim());
+      current = "";
+    }
+    current += sentence;
+  }
+  if (current.trim()) chunks.push(current.trim());
+  return chunks;
+}
+
+async function requestTranslation(input: string): Promise<string | null> {
+  const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=he&dt=t&q=${encodeURIComponent(
+    input,
+  )}`;
+  const res = await fetch(url, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(10000),
+    headers: {
+      "user-agent":
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    },
+  });
+  if (!res.ok) return null;
+  const data = (await res.json()) as unknown;
+
+  if (!Array.isArray(data) || !Array.isArray(data[0])) return null;
+  const segments = data[0] as unknown[];
+  const translated = segments
+    .map((segment) => (Array.isArray(segment) ? String(segment[0] ?? "") : ""))
+    .join("")
+    .trim();
+  return translated || null;
+}
+
+// The public translate endpoint is flaky on long inputs (returns partially
+// translated text mid-sentence). Translate sentence-sized chunks and verify
+// each result actually came back in Hebrew before accepting it.
 async function translateToHebrew(input: string | null) {
   if (!input?.trim()) return input;
 
-  try {
-    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=he&dt=t&q=${encodeURIComponent(
-      input,
-    )}`;
-    const res = await fetch(url, {
-      cache: "no-store",
-      signal: AbortSignal.timeout(10000),
-      headers: {
-        "user-agent":
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-      },
-    });
-    if (!res.ok) return input;
-    const data = (await res.json()) as unknown;
+  const chunks = splitIntoTranslationChunks(input);
+  const translatedChunks: string[] = [];
 
-    if (!Array.isArray(data) || !Array.isArray(data[0])) return input;
-    const segments = data[0] as unknown[];
-    const translated = segments
-      .map((segment) => (Array.isArray(segment) ? String(segment[0] ?? "") : ""))
-      .join("")
-      .trim();
-    return translated || input;
-  } catch {
-    return input;
+  for (const chunk of chunks) {
+    const needsTranslation = LATIN_WORD_REGEX.test(chunk);
+    if (!needsTranslation) {
+      translatedChunks.push(chunk);
+      continue;
+    }
+
+    let accepted: string | null = null;
+    for (let attempt = 0; attempt < TRANSLATION_ATTEMPTS_PER_CHUNK; attempt += 1) {
+      try {
+        const candidate = await requestTranslation(chunk);
+        if (candidate && HEBREW_CHAR_REGEX.test(candidate)) {
+          accepted = candidate;
+          break;
+        }
+      } catch {
+        // retry below
+      }
+    }
+    translatedChunks.push(accepted ?? chunk);
   }
+
+  const result = translatedChunks.join(" ").replace(/\s+/g, " ").trim();
+  return result || input;
 }
 
 async function uploadRemoteImageToStorage(
@@ -150,22 +199,36 @@ export function createImportRouteHandler(vendor: CatalogVendor) {
       const sourceProduct = await provider.fetchByCatalogNumber(catalogNumber);
       const normalizedCatalogNumber = sourceProduct.catalogNumber || catalogNumber;
 
-      const uploadedUrls: string[] = [];
-      for (const [index, imageUrl] of sourceProduct.imageUrls.entries()) {
+      // Total angles are capped at 20 (validation limit); reserve room for one
+      // representative image per additional color so the UI can preview them.
+      const colorImages = (sourceProduct.colorImages ?? []).slice(0, 6);
+      const maxMainImages = Math.max(1, 20 - colorImages.length);
+      const uploadPlan: Array<{ imageUrl: string; angleKey: string }> = [
+        ...sourceProduct.imageUrls
+          .slice(0, maxMainImages)
+          .map((imageUrl, index) => ({ imageUrl, angleKey: angleKeyByIndex(index) })),
+        ...colorImages.map((entry) => ({
+          imageUrl: entry.imageUrl,
+          angleKey: `c:${entry.color}`.slice(0, 32),
+        })),
+      ];
+
+      const uploadedAngles: Array<{ imagePath: string; angleKey: string }> = [];
+      for (const [index, planEntry] of uploadPlan.entries()) {
         try {
           const publicUrl = await uploadRemoteImageToStorage(
             vendorConfig,
             normalizedCatalogNumber,
-            imageUrl,
+            planEntry.imageUrl,
             index,
           );
-          uploadedUrls.push(publicUrl);
+          uploadedAngles.push({ imagePath: publicUrl, angleKey: planEntry.angleKey });
         } catch (error) {
-          console.warn("Image import skipped", imageUrl, error);
+          console.warn("Image import skipped", planEntry.imageUrl, error);
         }
       }
 
-      if (uploadedUrls.length === 0) {
+      if (uploadedAngles.length === 0 || !uploadedAngles.some((a) => !a.angleKey.startsWith("c:"))) {
         throw new Error("Import failed: no images were saved to storage");
       }
 
@@ -175,13 +238,14 @@ export function createImportRouteHandler(vendor: CatalogVendor) {
       const importedItem: CarouselItem = {
         id: itemId,
         title: sourceProduct.title || `${vendorConfig.label} ${catalogNumber}`,
-        description:
+        description: (
           translatedDescription ||
           sourceProduct.description ||
-          `ייבוא אוטומטי לפי מק״ט ${catalogNumber} ממקור ${vendorConfig.label}`,
+          `ייבוא אוטומטי לפי מק״ט ${catalogNumber} ממקור ${vendorConfig.label}`
+        ).slice(0, 2000),
         catalogNumber: normalizedCatalogNumber,
         sourceUrl: sourceProduct.sourceUrl,
-        coverImagePath: uploadedUrls[0],
+        coverImagePath: uploadedAngles[0].imagePath,
         displayOrder: 1,
         isActive: true,
         color: sourceProduct.color || null,
@@ -191,11 +255,11 @@ export function createImportRouteHandler(vendor: CatalogVendor) {
         availableColors: sourceProduct.availableColors?.length
           ? sourceProduct.availableColors
           : null,
-        angles: uploadedUrls.map((imagePath, index) => ({
+        angles: uploadedAngles.map((angle, index) => ({
           id: crypto.randomUUID(),
           itemId,
-          angleKey: angleKeyByIndex(index),
-          imagePath,
+          angleKey: angle.angleKey,
+          imagePath: angle.imagePath,
           angleOrder: index + 1,
         })),
       };
@@ -207,7 +271,7 @@ export function createImportRouteHandler(vendor: CatalogVendor) {
           vendor,
           catalogNumber: normalizedCatalogNumber,
           sourceUrl: sourceProduct.sourceUrl,
-          importedImages: uploadedUrls.length,
+          importedImages: uploadedAngles.length,
         },
       });
     } catch (error) {
