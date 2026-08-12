@@ -135,7 +135,7 @@ async function getProductSitemapFiles(): Promise<string[]> {
         const indexXml = await fetchHtml(`${MANDARINA_BASE_URL}/sitemap.xml`);
         return extractXmlLocEntries(indexXml)
           .filter((loc) => loc.includes("sitemap_products"))
-          .slice(0, 12);
+          .slice(0, 64);
       } catch {
         return [];
       }
@@ -389,16 +389,44 @@ function extractProductFromPage(
   };
 }
 
+// Rebuild the canonical dashed Mandarina catalog (P10XXXXX-YYY-TU) from any
+// separator style: "P10SZV2405J", "P10-SZV24-05J", "p10 szv24 05j tu"...
+// Format: P + 2 digits, 5-char model token, 3-char colour code, optional TU.
+// Returns null when the token doesn't fit the format (input used as-is then).
+export function canonicalMandarinaCatalog(input: string): string | null {
+  const token = input
+    .toUpperCase()
+    .replace(/[^A-Z0-9]/g, "")
+    .replace(/TU$/, "");
+  const match = /^(P\d{2})([A-Z0-9]{5})([A-Z0-9]{3})$/.exec(token);
+  if (!match) return null;
+  return `${match[1]}${match[2]}-${match[3]}-TU`;
+}
+
 export class MandarinaDuckScraperProvider implements CatalogSourceProvider {
   async fetchByCatalogNumber(catalogNumber: string): Promise<SourceProduct> {
-    const normalizedCatalog = catalogNumber.trim().toUpperCase();
-    if (!normalizedCatalog) {
+    const rawInput = catalogNumber.trim().toUpperCase();
+    if (!rawInput) {
       throw new Error("Catalog number is required");
     }
 
+    // Accept any separator style (P10SZV2405J, P10 SZV24 05J, with/without the
+    // -TU suffix) by rebuilding the canonical dashed catalog the site indexes.
+    const canonical = canonicalMandarinaCatalog(rawInput);
+    const normalizedCatalog = canonical ?? rawInput;
+    const alnumCatalog = normalizedCatalog.replace(/[^A-Z0-9]/g, "");
+    // Every MD product handle embeds model+colour (…-szv24a83) without the P10
+    // prefix or TU suffix — the reliable key for validating links and for the
+    // sitemap lookup.
+    const slugToken = alnumCatalog
+      .replace(/^P\d{2}/, "")
+      .replace(/TU$/, "")
+      .toLowerCase();
+
     const searchQueries = uniqueStrings([
       normalizedCatalog,
-      normalizedCatalog.replace(/[^A-Z0-9]/g, ""),
+      rawInput,
+      alnumCatalog,
       normalizedCatalog.slice(0, 6),
       normalizedCatalog.slice(0, 5),
     ]).filter((query) => query.length >= 3);
@@ -410,7 +438,12 @@ export class MandarinaDuckScraperProvider implements CatalogSourceProvider {
       )}&type=product&options%5Bprefix%5D=last`;
       try {
         const searchHtml = await fetchHtml(searchUrl);
-        const links = extractProductLinks(searchHtml);
+        // The search page renders generic/recommended products when it has no
+        // real match, so only links whose handle contains the model+colour
+        // token count as results (prevents importing the wrong product).
+        const links = extractProductLinks(searchHtml).filter(
+          (link) => slugToken.length >= 5 && link.toLowerCase().includes(slugToken),
+        );
         if (links.length > 0) {
           productLinks = links;
           break;
@@ -421,7 +454,7 @@ export class MandarinaDuckScraperProvider implements CatalogSourceProvider {
     }
 
     if (productLinks.length === 0) {
-      productLinks = await fetchProductLinksFromSitemap(normalizedCatalog);
+      productLinks = await fetchProductLinksFromSitemap(slugToken);
     }
 
     if (productLinks.length === 0) {

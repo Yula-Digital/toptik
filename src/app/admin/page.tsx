@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { CarouselPayload, TransitionMode } from "@/lib/carousel/types";
 import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
+import { detectVendorFromCatalog, normalizeCatalogKey } from "@/lib/catalog-source/vendor-detect";
 
 const STORAGE_KEY = "toptik_admin_token";
 const BATCH_IMPORT_INITIAL = 5;
@@ -73,8 +74,14 @@ export default function AdminPage() {
     const existingIndex = targetItemId
       ? next.items.findIndex((item) => item.id === targetItemId)
       : next.items.findIndex((item) => {
+          // Separator-insensitive match: "P10SZV2405J" hits "P10SZV24-05J-TU"
+          // (either side may be the shorter legacy form).
+          const itemKey = normalizeCatalogKey(item.catalogNumber ?? "");
+          const sourceKey = normalizeCatalogKey(normalizedCatalog);
           const byCatalogNumber =
-            normalizeCatalogNumber(item.catalogNumber ?? "") === normalizedCatalog;
+            itemKey !== "" &&
+            sourceKey !== "" &&
+            (itemKey.startsWith(sourceKey) || sourceKey.startsWith(itemKey));
           const byCatalogPath = item.angles.some(
             (angle) =>
               angle.imagePath.includes(`/imports/mandarina/${data.source.catalogNumber}/`) ||
@@ -344,7 +351,15 @@ export default function AdminPage() {
         throw new Error('לא נמצאו מק״טים בקובץ (שורה ראשונה = כותרת עמודה, מתחתיה מק״טים בעמודה הראשונה)');
       }
 
-      const unique = [...new Set(catalogNumbers.map((value) => value.toUpperCase()))];
+      // Dedupe on the separator-insensitive key, keep the first-seen spelling.
+      const seenKeys = new Set<string>();
+      const unique: string[] = [];
+      for (const value of catalogNumbers) {
+        const key = normalizeCatalogKey(value);
+        if (!key || seenKeys.has(key)) continue;
+        seenKeys.add(key);
+        unique.push(value.toUpperCase());
+      }
       const MAX_BATCH_ROWS = 80; // the catalog payload is capped at 80 items
       const loaded = unique.slice(0, MAX_BATCH_ROWS);
       const padded =
@@ -384,12 +399,13 @@ export default function AdminPage() {
   async function onImportIntoItem(itemId: string) {
     const item = payload.items.find((row) => row.id === itemId);
     if (!item) return;
-    const vendor = vendorForItem(item);
     const itemCatalogNumber = normalizeCatalogNumber(itemCatalogInputs[itemId] || "");
     if (!itemCatalogNumber) {
       setImportFeedback({ tone: "error", message: "יש להזין מספר קטלוגי ליבוא למוצר זה." });
       return;
     }
+    // The typed catalog number decides the vendor (the select is a hint only).
+    const vendor = detectVendorFromCatalog(itemCatalogNumber);
 
     try {
       setItemImportingMap((current) => ({ ...current, [itemId]: true }));
@@ -431,12 +447,14 @@ export default function AdminPage() {
 
     const seen = new Map<string, number>();
     for (const row of filledRows) {
-      const firstIndex = seen.get(row.catalogNumber);
+      // Duplicate detection ignores separators: BXL58117.101 == BXL58117101.
+      const key = normalizeCatalogKey(row.catalogNumber);
+      const firstIndex = seen.get(key);
       if (firstIndex !== undefined) {
         nextStatuses[row.index] = { tone: "error", message: `מק״ט כפול בשורה ${firstIndex + 1}` };
         nextStatuses[firstIndex] = { tone: "error", message: `מק״ט כפול בשורה ${row.index + 1}` };
       } else {
-        seen.set(row.catalogNumber, row.index);
+        seen.set(key, row.index);
       }
     }
 
@@ -465,14 +483,19 @@ export default function AdminPage() {
       const previews: ImportPreview[] = [];
       let successCount = 0;
 
+      const failedRows: string[] = [];
       for (const row of filledRows) {
+        // The vendor is detected from the catalog number itself, so a mixed
+        // file works from either section — the section is just a starting
+        // point, not a routing decision.
+        const detectedVendor = detectVendorFromCatalog(row.catalogNumber);
         setVendorBatchStatuses(vendor, (current) => ({
           ...current,
-          [row.index]: { tone: "info", message: "מייבא..." },
+          [row.index]: { tone: "info", message: `מייבא מ-${vendorLabel(detectedVendor)}...` },
         }));
 
         try {
-          const data = await importCatalogNumberFromSource(vendor, row.catalogNumber);
+          const data = await importCatalogNumberFromSource(detectedVendor, row.catalogNumber);
           const result = upsertImportedItem(workingPayload, data);
           workingPayload = result.next;
           successCount += 1;
@@ -486,14 +509,18 @@ export default function AdminPage() {
             ...current,
             [row.index]: {
               tone: "success",
-              message: result.mode === "updated" ? "עודכן מוצר קיים" : "נוצר מוצר חדש",
+              message: `${result.mode === "updated" ? "עודכן מוצר קיים" : "נוצר מוצר חדש"} (${vendorLabel(detectedVendor)})`,
             },
           }));
         } catch (error) {
-          const message = resolveErrorMessage(error, "לא נמצא מק״ט או שגיאת יבוא");
+          failedRows.push(row.catalogNumber);
+          const reason = resolveErrorMessage(error, "שגיאת יבוא");
           setVendorBatchStatuses(vendor, (current) => ({
             ...current,
-            [row.index]: { tone: "error", message },
+            [row.index]: {
+              tone: "error",
+              message: `נכשל ב-${vendorLabel(detectedVendor)}: ${reason}`,
+            },
           }));
         }
       }
@@ -505,10 +532,13 @@ export default function AdminPage() {
       await persistPayload(workingPayload);
       setPayload(workingPayload);
       setImportPreviews((current) => [...previews, ...current].slice(0, 8));
-      setStatus(`נשמרו ${successCount} מוצרים מייבוא מרובה (${vendorLabel(vendor)}).`);
+      setStatus(`נשמרו ${successCount} מוצרים מייבוא מרובה.`);
       setImportFeedback({
-        tone: "success",
-        message: `הייבוא המרובה מ-${vendorLabel(vendor)} הסתיים ונשמר: ${successCount}/${filledRows.length} מוצרים הצליחו.`,
+        tone: failedRows.length > 0 ? "error" : "success",
+        message:
+          failedRows.length > 0
+            ? `הייבוא הסתיים חלקית: ${successCount}/${filledRows.length} הצליחו ונשמרו. נכשלו: ${failedRows.join(", ")} — ראה פירוט ליד כל שורה.`
+            : `הייבוא המרובה הסתיים ונשמר: ${successCount}/${filledRows.length} מוצרים הצליחו.`,
       });
     } catch (error) {
       const message = resolveErrorMessage(error, "שגיאת ייבוא מרובה");
@@ -580,10 +610,11 @@ export default function AdminPage() {
                   </button>
                 </div>
                 <p className="admin-import-note">
-                  הכנס מק״טים של {vendorOption.label} (למשל{" "}
-                  <span dir="ltr">{vendorOption.example}</span>) ולחץ &quot;ייבא ושמור
-                  הכל&quot;. אפשר להוסיף עוד שדות בלחיצה. המערכת תשלוף, תיצור/תעדכן מוצרים,
-                  ותשמור הכל בפעולה אחת.
+                  הכנס מק״טים (למשל <span dir="ltr">{vendorOption.example}</span>) או טען
+                  קובץ אקסל, ולחץ &quot;ייבא ושמור הכל&quot;. המערכת מזהה אוטומטית לכל מק״ט
+                  אם הוא Mandarina Duck או Bric&apos;s — אפשר לערבב, ולא משנה מאיזה סקשן
+                  מייבאים. כל צורת כתיבה מתקבלת (עם/בלי נקודות ומקפים). ליד כל שורה יוצג
+                  חיווי הצלחה/כישלון מפורט.
                 </p>
                 <div className="admin-batch-grid">
                   {vendorInputs.map((value, index) => {
