@@ -1,6 +1,11 @@
 import { CatalogSourceProvider, SourceColorVariant, SourceProduct } from "@/lib/catalog-source/types";
 
 const BRICS_BASE_URL = "https://bricstore.com";
+// Secondary Bric's source: an official stockist whose Shopify catalog carries
+// Bric's models that bricstore.com doesn't list (e.g. BXL38124101). Product
+// images there use the SAME official Bric's file naming (BXL38124.101.01.jpg),
+// and each colour is its own single-variant product.
+const HUNT_BASE_URL = "https://huntleather.com";
 const DEFAULT_HEADERS = {
   "user-agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -35,6 +40,7 @@ type ShopifyImage = {
 type ShopifyProduct = {
   title: string;
   handle: string;
+  vendor?: string | null;
   body_html?: string | null;
   options?: ShopifyOption[];
   variants?: ShopifyVariant[];
@@ -42,6 +48,7 @@ type ShopifyProduct = {
 };
 
 let catalogCache: { products: ShopifyProduct[]; fetchedAt: number } | null = null;
+let huntCatalogCache: { products: ShopifyProduct[]; fetchedAt: number } | null = null;
 
 function normalizeSku(value: string) {
   return value.replace(/[^A-Za-z0-9]/g, "").toUpperCase();
@@ -90,6 +97,67 @@ async function fetchCatalogProducts(): Promise<ShopifyProduct[]> {
     catalogCache = { products, fetchedAt: Date.now() };
   }
   return products;
+}
+
+async function fetchHuntCatalogProducts(): Promise<ShopifyProduct[]> {
+  if (huntCatalogCache && Date.now() - huntCatalogCache.fetchedAt < CATALOG_CACHE_TTL_MS) {
+    return huntCatalogCache.products;
+  }
+
+  const products: ShopifyProduct[] = [];
+  for (let page = 1; page <= MAX_CATALOG_PAGES; page += 1) {
+    const res = await fetchWithTimeout(`${HUNT_BASE_URL}/products.json?limit=250&page=${page}`);
+    const data = (await res.json()) as { products?: ShopifyProduct[] };
+    const batch = data.products ?? [];
+    products.push(...batch);
+    if (batch.length < 250) break;
+  }
+
+  if (products.length > 0) {
+    huntCatalogCache = { products, fetchedAt: Date.now() };
+  }
+  return products;
+}
+
+// Hunt titles end with the colour ("Bric's X-Travel Pilot Cabin Case - Black").
+function huntColorFromTitle(title: string): string | null {
+  const match = title.match(/-\s*([^-]+)\s*$/);
+  return match ? match[1].trim() : null;
+}
+
+// Bric's SKU convention: 8-char base (model) + 3-char colour code, with or
+// without a separating dot (BXL38124.101 / BXL38124101).
+function bricsBaseSku(sku: string) {
+  return normalizeSku(sku).slice(0, 8);
+}
+
+function bricsColorCode(sku: string): string | null {
+  const code = normalizeSku(sku).slice(8, 11);
+  return code.length === 3 ? code : null;
+}
+
+function huntSpecsFromBody(bodyText: string): SpecBlock {
+  const dims =
+    /(\d+(?:[.,]\d+)?)\s*(?:cm)?\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*(?:cm)?\s*[x×]\s*(\d+(?:[.,]\d+)?)\s*cm/i.exec(
+      bodyText,
+    );
+  const kg = /(\d+(?:[.,]\d+)?)\s*kg\b/i.exec(bodyText);
+  return {
+    dimensions: dims
+      ? `${dims[1].replace(",", ".")}x${dims[2].replace(",", ".")}x${dims[3].replace(",", ".")} cm`
+      : null,
+    weight: kg ? `${kg[1].replace(",", ".")} kg` : null,
+  };
+}
+
+// Colour-sibling products on Hunt: same 8-char SKU base, different colour code.
+function huntColorSiblings(products: ShopifyProduct[], baseSku: string) {
+  return products.filter((product) =>
+    (product.variants ?? []).some((variant) => {
+      const sku = variant.sku?.trim();
+      return Boolean(sku && bricsBaseSku(sku) === baseSku);
+    }),
+  );
 }
 
 function findProductBySku(products: ShopifyProduct[], catalogNumber: string) {
@@ -273,7 +341,7 @@ export interface BricsColorEnumerationInput {
 export async function enumerateBricsColorVariants(
   input: BricsColorEnumerationInput,
 ): Promise<SourceColorVariant[]> {
-  const products = await fetchCatalogProducts();
+  const products = await fetchCatalogProducts().catch(() => [] as ShopifyProduct[]);
 
   let product: ShopifyProduct | null = null;
   if (input.catalogNumber) {
@@ -283,7 +351,7 @@ export async function enumerateBricsColorVariants(
     const handle = handleFromSourceUrl(input.sourceUrl);
     if (handle) product = findProductByHandle(products, handle);
   }
-  if (!product) return [];
+  if (!product) return enumerateHuntColorVariants(input);
 
   const colorIdx = optionIndex(product, "color");
   if (colorIdx === -1) return [];
@@ -321,6 +389,61 @@ export async function enumerateBricsColorVariants(
   return variants;
 }
 
+// Hunt colour enumeration: each colour is a separate single-variant product
+// sharing the 8-char SKU base — like Mandarina's sibling pages, but resolvable
+// from the already-cached catalog JSON.
+async function enumerateHuntColorVariants(
+  input: BricsColorEnumerationInput,
+): Promise<SourceColorVariant[]> {
+  const products = await fetchHuntCatalogProducts().catch(() => [] as ShopifyProduct[]);
+  if (products.length === 0) return [];
+
+  let product: ShopifyProduct | null = null;
+  if (input.catalogNumber) {
+    product = findProductBySku(products, input.catalogNumber)?.product ?? null;
+  }
+  if (!product) {
+    const handle = handleFromSourceUrl(input.sourceUrl);
+    if (handle) product = findProductByHandle(products, handle);
+  }
+  if (!product) return [];
+
+  const primarySku = product.variants?.[0]?.sku?.trim();
+  if (!primarySku) return [];
+
+  const variants: SourceColorVariant[] = [];
+  const seenColors = new Set<string>();
+
+  for (const sibling of huntColorSiblings(products, bricsBaseSku(primarySku))) {
+    const sku = sibling.variants?.[0]?.sku?.trim();
+    const colorValue = huntColorFromTitle(sibling.title);
+    if (!sku || !colorValue) continue;
+    const colorKey = colorValue.toLowerCase();
+    if (seenColors.has(colorKey)) continue;
+
+    const imageUrls = (sibling.images ?? [])
+      .map((image) => image.src)
+      .filter((src) => /^https?:\/\//i.test(src))
+      .slice(0, MAX_IMPORTED_IMAGES);
+    if (imageUrls.length === 0) continue;
+
+    seenColors.add(colorKey);
+    const colorCode = bricsColorCode(sku);
+    variants.push({
+      colorWord: colorKey,
+      colorCode,
+      title: sibling.title,
+      catalogNumber: normalizeSku(sku),
+      sourceUrl: `${HUNT_BASE_URL}/products/${sibling.handle}`,
+      handle: `${sibling.handle}-${(colorCode ?? colorKey).toLowerCase().replace(/[^a-z0-9-]/g, "")}`,
+      coverImageUrl: imageUrls[0],
+      imageUrls,
+    });
+  }
+
+  return variants;
+}
+
 // ─── Provider ────────────────────────────────────────────────────────────────
 
 export class BricsStoreScraperProvider implements CatalogSourceProvider {
@@ -330,14 +453,14 @@ export class BricsStoreScraperProvider implements CatalogSourceProvider {
       throw new Error("Catalog number is required");
     }
 
-    const products = await fetchCatalogProducts();
-    if (products.length === 0) {
-      throw new Error("Failed to load Brics catalog");
-    }
-
+    const products = await fetchCatalogProducts().catch(() => [] as ShopifyProduct[]);
     const match = findProductBySku(products, normalizedInput);
     if (!match) {
-      throw new Error("Product not found on Bric's store");
+      // Secondary source: official stockist carrying Bric's models that
+      // bricstore.com doesn't list.
+      const huntProduct = await this.fetchFromHunt(normalizedInput);
+      if (huntProduct) return huntProduct;
+      throw new Error("Product not found on Bric's sources (bricstore.com / huntleather.com)");
     }
 
     const { product, variant } = match;
@@ -381,6 +504,48 @@ export class BricsStoreScraperProvider implements CatalogSourceProvider {
       weight,
       sizes,
       availableColors,
+    };
+  }
+
+  private async fetchFromHunt(normalizedInput: string): Promise<SourceProduct | null> {
+    const products = await fetchHuntCatalogProducts().catch(() => [] as ShopifyProduct[]);
+    if (products.length === 0) return null;
+
+    const match = findProductBySku(products, normalizedInput);
+    if (!match) return null;
+
+    const { product, variant } = match;
+    const variantSku = variant.sku?.trim() || normalizedInput;
+    const sourceUrl = `${HUNT_BASE_URL}/products/${product.handle}`;
+
+    const imageUrls = (product.images ?? [])
+      .map((image) => image.src)
+      .filter((src) => /^https?:\/\//i.test(src))
+      .slice(0, MAX_IMPORTED_IMAGES);
+    if (imageUrls.length === 0) {
+      return null;
+    }
+
+    const color = huntColorFromTitle(product.title);
+    const bodyText = product.body_html ? stripHtml(product.body_html) : "";
+    const spec = huntSpecsFromBody(bodyText);
+
+    // Available colours = the colour-sibling products of the same SKU base.
+    const availableColors = huntColorSiblings(products, bricsBaseSku(variantSku))
+      .map((sibling) => huntColorFromTitle(sibling.title))
+      .filter((value): value is string => Boolean(value));
+
+    return {
+      catalogNumber: normalizeSku(variantSku),
+      title: product.title.replace(/\s*-\s*[^-]+\s*$/, "").trim() || product.title,
+      description: bodyText || null,
+      imageUrls,
+      sourceUrl,
+      color,
+      dimensions: spec.dimensions,
+      weight: spec.weight,
+      sizes: [],
+      availableColors: [...new Set(availableColors)],
     };
   }
 }

@@ -108,6 +108,20 @@ export function createImportRouteHandler(vendor: CatalogVendor) {
         }
       }
 
+      // Non-Shopify sources (e.g. Amazon fallback) can't be parsed by the
+      // generic details scraper — synthesize the מידות section from the fields
+      // the vendor scraper itself extracted, so the tech-specs modal is never
+      // empty when we do know dimensions/weight.
+      if ((!techSpecs || techSpecs.specs.length === 0) && (sourceProduct.dimensions || sourceProduct.weight)) {
+        const items: Array<{ label: string; value: string }> = [];
+        if (sourceProduct.weight) items.push({ label: "משקל", value: sourceProduct.weight });
+        if (sourceProduct.dimensions) items.push({ label: "מידות", value: sourceProduct.dimensions });
+        techSpecs = {
+          specs: [{ heading: "מידות", items }],
+          colors: techSpecs?.colors ?? [],
+        };
+      }
+
       // Enumerate every colour of this model and re-host a gallery per colour,
       // so a swatch click can swap the displayed product image. Non-fatal: a
       // failure just leaves the item without scraped colours (the colour warmer
@@ -145,6 +159,13 @@ export function createImportRouteHandler(vendor: CatalogVendor) {
         coverImagePath: uploadedUrls[0],
         displayOrder: 1,
         isActive: true,
+        color: sourceProduct.color || null,
+        dimensions: sourceProduct.dimensions || null,
+        weight: sourceProduct.weight || null,
+        sizes: sourceProduct.sizes?.length ? sourceProduct.sizes : null,
+        availableColors: sourceProduct.availableColors?.length
+          ? sourceProduct.availableColors
+          : null,
         techSpecs,
         colors,
         angles: uploadedUrls.map((imagePath, index) => ({

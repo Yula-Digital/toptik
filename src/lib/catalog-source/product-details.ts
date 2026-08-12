@@ -598,6 +598,8 @@ function extractColorsFromPageHtml(html: string): ColorSwatch[] {
   while ((variantMatch = variantRegex.exec(html)) !== null) {
     const colorName = variantMatch[1].trim();
     if (!colorName || seenColors.has(colorName.toLowerCase())) continue;
+    // Single-variant Shopify products expose "Default Title" as option1.
+    if (/^default title$/i.test(colorName)) continue;
     seenColors.add(colorName.toLowerCase());
     swatches.push({
       name: translateColorName(colorName),
