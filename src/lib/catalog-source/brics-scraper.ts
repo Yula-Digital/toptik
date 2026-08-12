@@ -471,19 +471,28 @@ export async function fetchBricsByUrl(url: string): Promise<SourceProduct | null
     return buildHuntSourceProduct(product);
   }
 
-  // bricstore: pick the variant — by ?variant=<id> when given, else the first
-  // variant that has a SKU.
+  // bricstore: pick the DISPLAYED colour variant. Priority:
+  //   1. ?variant=<id> (what the site puts in the URL when a colour is chosen)
+  //   2. a SKU/colour-catalog embedded anywhere in the URL (query/hash/path) —
+  //      e.g. a pasted "…spinner?variant=BBG38303.078" or "…spinner#BBG38303078"
+  //   3. the first variant that has a SKU
   let variantId: number | null = null;
   try {
     const parsed = new URL(url);
     const raw = parsed.searchParams.get("variant");
-    if (raw) variantId = Number.parseInt(raw, 10) || null;
+    if (raw && /^\d+$/.test(raw)) variantId = Number.parseInt(raw, 10) || null;
   } catch {
     // keep null
   }
   const variants = product.variants ?? [];
+  const urlKey = normalizeSku(decodeURIComponent(url));
+  const bySkuInUrl = variants.find((v) => {
+    const sku = v.sku?.trim();
+    return Boolean(sku && normalizeSku(sku).length >= 8 && urlKey.includes(normalizeSku(sku)));
+  });
   const variant =
     (variantId ? variants.find((v) => v.id === variantId) : null) ??
+    bySkuInUrl ??
     variants.find((v) => v.sku?.trim()) ??
     variants[0];
   if (!variant?.sku?.trim()) return null;
