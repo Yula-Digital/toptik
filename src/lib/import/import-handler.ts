@@ -61,21 +61,23 @@ function angleKeyByIndex(index: number) {
   return defaults[index] ?? `view-${index + 1}`;
 }
 
-export function createImportRouteHandler(vendor: CatalogVendor) {
+// The full import pipeline for an already-fetched source product: re-host
+// images, warm tech specs, enumerate + re-host colour galleries, translate the
+// description, and build the draft CarouselItem. Shared by the catalog-number
+// route handlers and the import-by-URL route.
+export async function importSourceProduct(
+  vendor: CatalogVendor,
+  sourceProduct: import("@/lib/catalog-source/types").SourceProduct,
+  targetItemId: string | undefined,
+  inputLabel: string,
+) {
   const vendorConfig = VENDOR_CONFIG[vendor];
-
-  return async function POST(req: NextRequest) {
-    if (!isAuthorized(req)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    try {
-      const body = await req.json();
-      const { catalogNumber, targetItemId } = importCatalogSchema.parse(body);
-
-      const provider = createCatalogSourceProvider(vendor);
-      const sourceProduct = await provider.fetchByCatalogNumber(catalogNumber);
-      const normalizedCatalogNumber = sourceProduct.catalogNumber || catalogNumber;
+  {
+    {
+      const catalogNumber = inputLabel;
+      const normalizedCatalogNumber = (sourceProduct.catalogNumber || catalogNumber)
+        // Storage folder name must stay path-safe whatever the source gave us.
+        .replace(/[^A-Za-z0-9._-]/g, "-");
 
       const uploadedUrls: string[] = [];
       for (const [index, imageUrl] of sourceProduct.imageUrls.entries()) {
@@ -192,7 +194,7 @@ export function createImportRouteHandler(vendor: CatalogVendor) {
         }
       }
 
-      return NextResponse.json({
+      return {
         ok: true,
         item: importedItem,
         source: {
@@ -201,7 +203,25 @@ export function createImportRouteHandler(vendor: CatalogVendor) {
           sourceUrl: sourceProduct.sourceUrl,
           importedImages: uploadedUrls.length,
         },
-      });
+      };
+    }
+  }
+}
+
+export function createImportRouteHandler(vendor: CatalogVendor) {
+  return async function POST(req: NextRequest) {
+    if (!isAuthorized(req)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    try {
+      const body = await req.json();
+      const { catalogNumber, targetItemId } = importCatalogSchema.parse(body);
+
+      const provider = createCatalogSourceProvider(vendor);
+      const sourceProduct = await provider.fetchByCatalogNumber(catalogNumber);
+      const result = await importSourceProduct(vendor, sourceProduct, targetItemId, catalogNumber);
+      return NextResponse.json(result);
     } catch (error) {
       console.error(`POST /api/admin/import/${vendor} failed`, error);
       const message = error instanceof Error ? error.message : "Import failed";

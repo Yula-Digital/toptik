@@ -115,6 +115,57 @@ function extractColor(html: string): string | null {
   return row ? stripTags(row[1]) : null;
 }
 
+function extractModelNumber(html: string): string | null {
+  const row =
+    /(?:Herstellernummer|Modellnummer|Item model number|Artikelnummer)[\s\S]{0,260}?<(?:td|span)[^>]*>\s*([A-Za-z0-9._\/\-]{4,40})\s*</i.exec(
+      html,
+    );
+  return row ? row[1].trim().toUpperCase() : null;
+}
+
+function asinFromUrl(url: string): string | null {
+  const match = /\/(?:dp|gp\/product)\/([A-Z0-9]{10})/i.exec(url);
+  return match ? match[1].toUpperCase() : null;
+}
+
+// Import straight from a user-supplied Amazon product URL — no search, no
+// brand gate (the human picked the exact page). Returns null only when the
+// page can't be fetched/parsed (bot gate, no images).
+export async function fetchAmazonByUrl(url: string): Promise<SourceProduct | null> {
+  const asin = asinFromUrl(url);
+  if (!asin) return null;
+  let host = "www.amazon.de";
+  try {
+    host = new URL(url).host;
+  } catch {
+    // keep default
+  }
+  const productUrl = `https://${host}/dp/${asin}`;
+
+  const html = await fetchHtml(productUrl);
+  if (!html) return null;
+
+  const title = extractTitle(html);
+  const imageUrls = extractImages(html);
+  if (!title || imageUrls.length === 0) return null;
+
+  const bullets = extractBullets(html);
+  const pageText = stripTags(html);
+
+  return {
+    catalogNumber: extractModelNumber(html) ?? asin,
+    title,
+    description: bullets || null,
+    imageUrls,
+    sourceUrl: productUrl,
+    color: extractColor(html),
+    dimensions: extractDimensionsCm(bullets) ?? extractDimensionsCm(pageText),
+    weight: extractWeightKg(bullets) ?? extractWeightKg(pageText),
+    sizes: [],
+    availableColors: [],
+  };
+}
+
 // Search amazon.de for the catalog number, then verify each candidate product
 // page actually belongs to that model (brand mentioned + the model/colour token
 // present) before trusting it — Amazon search happily returns lookalikes.

@@ -1,0 +1,105 @@
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { importSourceProduct } from "@/lib/import/import-handler";
+import { fetchMandarinaByUrl } from "@/lib/catalog-source/mandarina-scraper";
+import { fetchBricsByUrl } from "@/lib/catalog-source/brics-scraper";
+import { fetchAmazonByUrl } from "@/lib/catalog-source/amazon-scraper";
+import { detectVendorFromCatalog } from "@/lib/catalog-source/vendor-detect";
+import { supabaseEnv } from "@/lib/supabase/env";
+import type { SourceProduct } from "@/lib/catalog-source/types";
+import type { CatalogVendor } from "@/lib/catalog-source/provider";
+
+// Import a product from a direct product-page URL. Only known sources are
+// allowed (SSRF guard) — the server fetches the URL, so an open fetch would be
+// a proxy into arbitrary hosts.
+export const runtime = "nodejs";
+export const maxDuration = 120;
+
+const importByUrlSchema = z.object({
+  url: z.string().trim().url().max(600),
+  targetItemId: z.string().uuid().optional(),
+});
+
+function isAuthorized(req: NextRequest) {
+  const token = req.headers.get("x-admin-token");
+  return Boolean(token && supabaseEnv.adminToken && token === supabaseEnv.adminToken);
+}
+
+type UrlSource = {
+  label: string;
+  matches: (host: string) => boolean;
+  fetch: (url: string) => Promise<SourceProduct | null>;
+  // Which vendor pipeline handles storage-folder + colour enumeration; null =
+  // detect from the extracted catalog number.
+  vendor: CatalogVendor | null;
+};
+
+const URL_SOURCES: UrlSource[] = [
+  {
+    label: "Mandarina Duck",
+    matches: (host) => host.endsWith("mandarinaduck.com"),
+    fetch: fetchMandarinaByUrl,
+    vendor: "mandarina",
+  },
+  {
+    label: "Bric's Store",
+    matches: (host) => host.endsWith("bricstore.com"),
+    fetch: fetchBricsByUrl,
+    vendor: "brics",
+  },
+  {
+    label: "Hunt Leather",
+    matches: (host) => host.endsWith("huntleather.com"),
+    fetch: fetchBricsByUrl,
+    vendor: "brics",
+  },
+  {
+    label: "Amazon",
+    matches: (host) => /(^|\.)amazon\.(de|com|co\.uk|it|fr|es)$/.test(host),
+    fetch: fetchAmazonByUrl,
+    vendor: null,
+  },
+];
+
+export async function POST(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  try {
+    const body = await req.json();
+    const { url, targetItemId } = importByUrlSchema.parse(body);
+
+    let host: string;
+    try {
+      host = new URL(url).host.toLowerCase();
+    } catch {
+      throw new Error("כתובת לא תקינה");
+    }
+
+    const source = URL_SOURCES.find((entry) => entry.matches(host));
+    if (!source) {
+      throw new Error(
+        `האתר ${host} אינו נתמך. אתרים נתמכים: mandarinaduck.com, bricstore.com, huntleather.com, amazon.de`,
+      );
+    }
+
+    const sourceProduct = await source.fetch(url);
+    if (!sourceProduct) {
+      throw new Error(`לא הצלחתי לחלץ מוצר מהעמוד ב-${source.label}. ודא שזו כתובת של עמוד מוצר.`);
+    }
+
+    const vendor = source.vendor ?? detectVendorFromCatalog(sourceProduct.catalogNumber);
+    const result = await importSourceProduct(
+      vendor,
+      sourceProduct,
+      targetItemId,
+      sourceProduct.catalogNumber,
+    );
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("POST /api/admin/import/by-url failed", error);
+    const message = error instanceof Error ? error.message : "Import failed";
+    return NextResponse.json({ error: message }, { status: 400 });
+  }
+}

@@ -1852,6 +1852,18 @@ body {
   flex-wrap: wrap;
 }
 
+.admin-url-import-row input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid #b6c0cc;
+  border-radius: 6px;
+  font-size: 13px;
+  background: #fff;
+}
+.admin-url-import-row input:disabled {
+  opacity: 0.6;
+}
+
 .admin-batch-upload {
   background: #fff;
   border: 1px dashed #8aa07a;

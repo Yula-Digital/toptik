@@ -404,6 +404,32 @@ export function canonicalMandarinaCatalog(input: string): string | null {
   return `${match[1]}${match[2]}-${match[3]}-TU`;
 }
 
+// Import straight from a mandarinaduck.com product URL: fetch the page and run
+// the existing extraction (title, gallery, SKU, specs) on it directly.
+export async function fetchMandarinaByUrl(url: string): Promise<SourceProduct | null> {
+  const handleMatch = /\/products\/([^/?#]+)/.exec(url);
+  if (!handleMatch) return null;
+  const productUrl = `${MANDARINA_BASE_URL}/products/${handleMatch[1]}`;
+
+  let html: string;
+  try {
+    html = await fetchHtml(productUrl);
+  } catch {
+    return null;
+  }
+
+  // Best-effort catalog guess from the handle's trailing model+colour token
+  // (…-szv24a83) — the page-level SKU extraction overrides it when present.
+  const tokenMatch = /-([a-z]{2,5}\d{2}[a-z0-9]{3})$/i.exec(handleMatch[1]);
+  const fallbackCatalog = tokenMatch ? tokenMatch[1].toUpperCase() : "";
+
+  try {
+    return extractProductFromPage(fallbackCatalog, productUrl, html);
+  } catch {
+    return null;
+  }
+}
+
 export class MandarinaDuckScraperProvider implements CatalogSourceProvider {
   async fetchByCatalogNumber(catalogNumber: string): Promise<SourceProduct> {
     const rawInput = catalogNumber.trim().toUpperCase();

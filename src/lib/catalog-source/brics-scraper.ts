@@ -444,7 +444,141 @@ async function enumerateHuntColorVariants(
   return variants;
 }
 
+// ─── Import by direct product URL ────────────────────────────────────────────
+
+async function fetchSingleProductJson(baseUrl: string, handle: string): Promise<ShopifyProduct | null> {
+  try {
+    const res = await fetchWithTimeout(`${baseUrl}/products/${handle}.json`);
+    const data = (await res.json()) as { product?: ShopifyProduct };
+    return data.product ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// Build a SourceProduct straight from a bricstore.com or huntleather.com
+// product URL (optionally with ?variant=<id> to pick a colour on bricstore).
+export async function fetchBricsByUrl(url: string): Promise<SourceProduct | null> {
+  const handle = handleFromSourceUrl(url);
+  if (!handle) return null;
+  const isHunt = url.includes("huntleather.com");
+  const baseUrl = isHunt ? HUNT_BASE_URL : BRICS_BASE_URL;
+
+  const product = await fetchSingleProductJson(baseUrl, handle);
+  if (!product) return null;
+
+  if (isHunt) {
+    return buildHuntSourceProduct(product);
+  }
+
+  // bricstore: pick the variant — by ?variant=<id> when given, else the first
+  // variant that has a SKU.
+  let variantId: number | null = null;
+  try {
+    const parsed = new URL(url);
+    const raw = parsed.searchParams.get("variant");
+    if (raw) variantId = Number.parseInt(raw, 10) || null;
+  } catch {
+    // keep null
+  }
+  const variants = product.variants ?? [];
+  const variant =
+    (variantId ? variants.find((v) => v.id === variantId) : null) ??
+    variants.find((v) => v.sku?.trim()) ??
+    variants[0];
+  if (!variant?.sku?.trim()) return null;
+
+  return buildBricstoreSourceProduct(product, variant);
+}
+
 // ─── Provider ────────────────────────────────────────────────────────────────
+
+// Shared builder for a bricstore.com product+variant → SourceProduct.
+async function buildBricstoreSourceProduct(
+  product: ShopifyProduct,
+  variant: ShopifyVariant,
+): Promise<SourceProduct> {
+  const variantSku = variant.sku?.trim() || null;
+  const sourceUrl = `${BRICS_BASE_URL}/products/${product.handle}`;
+
+  const imageUrls = selectVariantImages(product, variantSku).slice(0, MAX_IMPORTED_IMAGES);
+  if (imageUrls.length === 0) {
+    throw new Error("No product gallery images detected on source page");
+  }
+
+  const color = optionValueForVariant(product, variant, "color");
+  const availableColors = optionValues(product, "color");
+  const sizeValues = optionValues(product, "size");
+  const currentSize = optionValueForVariant(product, variant, "size");
+  const sizes = sizeValues.map((value) =>
+    currentSize && value.toLowerCase() === currentSize.toLowerCase() ? `*${value}` : value,
+  );
+
+  let dimensions: string | null = null;
+  let weight: string | null = null;
+  try {
+    const pageRes = await fetchWithTimeout(sourceUrl);
+    const pageHtml = await pageRes.text();
+    const specBlocks = parseSpecBlocks(pageHtml);
+    const spec = pickSpecBlock(specBlocks, sizeValues, currentSize);
+    dimensions = spec.dimensions;
+    weight = spec.weight;
+  } catch {
+    // specs are best-effort; the import should not fail because of them
+  }
+
+  return {
+    catalogNumber: variantSku?.toUpperCase() || normalizeSku(product.handle),
+    title: product.title?.trim() || `Bric's ${product.handle}`,
+    description: product.body_html ? stripHtml(product.body_html) : null,
+    imageUrls,
+    sourceUrl,
+    color,
+    dimensions,
+    weight,
+    sizes,
+    availableColors,
+  };
+}
+
+// Shared builder for a huntleather.com single-variant product → SourceProduct.
+// The full catalog (cached) supplies the colour-sibling list.
+async function buildHuntSourceProduct(product: ShopifyProduct): Promise<SourceProduct | null> {
+  const variantSku = product.variants?.[0]?.sku?.trim();
+  if (!variantSku) return null;
+  const sourceUrl = `${HUNT_BASE_URL}/products/${product.handle}`;
+
+  const imageUrls = (product.images ?? [])
+    .map((image) => image.src)
+    .filter((src) => /^https?:\/\//i.test(src))
+    .slice(0, MAX_IMPORTED_IMAGES);
+  if (imageUrls.length === 0) {
+    return null;
+  }
+
+  const color = huntColorFromTitle(product.title);
+  const bodyText = product.body_html ? stripHtml(product.body_html) : "";
+  const spec = huntSpecsFromBody(bodyText);
+
+  // Available colours = the colour-sibling products of the same SKU base.
+  const catalog = await fetchHuntCatalogProducts().catch(() => [] as ShopifyProduct[]);
+  const availableColors = huntColorSiblings(catalog, bricsBaseSku(variantSku))
+    .map((sibling) => huntColorFromTitle(sibling.title))
+    .filter((value): value is string => Boolean(value));
+
+  return {
+    catalogNumber: normalizeSku(variantSku),
+    title: product.title.replace(/\s*-\s*[^-]+\s*$/, "").trim() || product.title,
+    description: bodyText || null,
+    imageUrls,
+    sourceUrl,
+    color,
+    dimensions: spec.dimensions,
+    weight: spec.weight,
+    sizes: [],
+    availableColors: [...new Set(availableColors)],
+  };
+}
 
 export class BricsStoreScraperProvider implements CatalogSourceProvider {
   async fetchByCatalogNumber(catalogNumber: string): Promise<SourceProduct> {
@@ -458,94 +592,13 @@ export class BricsStoreScraperProvider implements CatalogSourceProvider {
     if (!match) {
       // Secondary source: official stockist carrying Bric's models that
       // bricstore.com doesn't list.
-      const huntProduct = await this.fetchFromHunt(normalizedInput);
+      const huntProducts = await fetchHuntCatalogProducts().catch(() => [] as ShopifyProduct[]);
+      const huntMatch = findProductBySku(huntProducts, normalizedInput);
+      const huntProduct = huntMatch ? await buildHuntSourceProduct(huntMatch.product) : null;
       if (huntProduct) return huntProduct;
       throw new Error("Product not found on Bric's sources (bricstore.com / huntleather.com)");
     }
 
-    const { product, variant } = match;
-    const variantSku = variant.sku?.trim() || null;
-    const sourceUrl = `${BRICS_BASE_URL}/products/${product.handle}`;
-
-    const imageUrls = selectVariantImages(product, variantSku).slice(0, MAX_IMPORTED_IMAGES);
-    if (imageUrls.length === 0) {
-      throw new Error("No product gallery images detected on source page");
-    }
-
-    const color = optionValueForVariant(product, variant, "color");
-    const availableColors = optionValues(product, "color");
-    const sizeValues = optionValues(product, "size");
-    const currentSize = optionValueForVariant(product, variant, "size");
-    const sizes = sizeValues.map((value) =>
-      currentSize && value.toLowerCase() === currentSize.toLowerCase() ? `*${value}` : value,
-    );
-
-    let dimensions: string | null = null;
-    let weight: string | null = null;
-    try {
-      const pageRes = await fetchWithTimeout(sourceUrl);
-      const pageHtml = await pageRes.text();
-      const specBlocks = parseSpecBlocks(pageHtml);
-      const spec = pickSpecBlock(specBlocks, sizeValues, currentSize);
-      dimensions = spec.dimensions;
-      weight = spec.weight;
-    } catch {
-      // specs are best-effort; the import should not fail because of them
-    }
-
-    return {
-      catalogNumber: variantSku?.toUpperCase() || normalizedInput,
-      title: product.title?.trim() || `Bric's ${normalizedInput}`,
-      description: product.body_html ? stripHtml(product.body_html) : null,
-      imageUrls,
-      sourceUrl,
-      color,
-      dimensions,
-      weight,
-      sizes,
-      availableColors,
-    };
-  }
-
-  private async fetchFromHunt(normalizedInput: string): Promise<SourceProduct | null> {
-    const products = await fetchHuntCatalogProducts().catch(() => [] as ShopifyProduct[]);
-    if (products.length === 0) return null;
-
-    const match = findProductBySku(products, normalizedInput);
-    if (!match) return null;
-
-    const { product, variant } = match;
-    const variantSku = variant.sku?.trim() || normalizedInput;
-    const sourceUrl = `${HUNT_BASE_URL}/products/${product.handle}`;
-
-    const imageUrls = (product.images ?? [])
-      .map((image) => image.src)
-      .filter((src) => /^https?:\/\//i.test(src))
-      .slice(0, MAX_IMPORTED_IMAGES);
-    if (imageUrls.length === 0) {
-      return null;
-    }
-
-    const color = huntColorFromTitle(product.title);
-    const bodyText = product.body_html ? stripHtml(product.body_html) : "";
-    const spec = huntSpecsFromBody(bodyText);
-
-    // Available colours = the colour-sibling products of the same SKU base.
-    const availableColors = huntColorSiblings(products, bricsBaseSku(variantSku))
-      .map((sibling) => huntColorFromTitle(sibling.title))
-      .filter((value): value is string => Boolean(value));
-
-    return {
-      catalogNumber: normalizeSku(variantSku),
-      title: product.title.replace(/\s*-\s*[^-]+\s*$/, "").trim() || product.title,
-      description: bodyText || null,
-      imageUrls,
-      sourceUrl,
-      color,
-      dimensions: spec.dimensions,
-      weight: spec.weight,
-      sizes: [],
-      availableColors: [...new Set(availableColors)],
-    };
+    return buildBricstoreSourceProduct(match.product, match.variant);
   }
 }

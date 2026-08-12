@@ -46,6 +46,8 @@ export default function AdminPage() {
   >({ mandarina: {}, brics: {} });
   const [batchImportingVendor, setBatchImportingVendor] = useState<Vendor | null>(null);
   const isBatchImporting = batchImportingVendor !== null;
+  const [urlImportValue, setUrlImportValue] = useState("");
+  const [isUrlImporting, setIsUrlImporting] = useState(false);
   const [itemCatalogInputs, setItemCatalogInputs] = useState<Record<string, string>>({});
   const [itemVendorMap, setItemVendorMap] = useState<Record<string, Vendor>>({});
   const [itemImportingMap, setItemImportingMap] = useState<Record<string, boolean>>({});
@@ -396,6 +398,60 @@ export default function AdminPage() {
     }));
   }
 
+  // Import a product straight from a product-page URL (supported sources:
+  // mandarinaduck.com / bricstore.com / huntleather.com / amazon). Imports and
+  // saves in one action, like the batch flow.
+  async function onImportByUrl() {
+    const url = urlImportValue.trim();
+    if (!url) {
+      setImportFeedback({ tone: "error", message: "יש להדביק כתובת של עמוד מוצר." });
+      return;
+    }
+
+    try {
+      setIsUrlImporting(true);
+      setImportFeedback({ tone: "info", message: "מייבא מהכתובת... זה עשוי לקחת עד דקה-שתיים." });
+
+      const res = await fetch("/api/admin/import/by-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-token": token },
+        body: JSON.stringify({ url }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error || "Import failed");
+      }
+      const data = (await res.json()) as ImportedItemData;
+
+      const result = upsertImportedItem(payload, data);
+      await persistPayload(result.next);
+      setPayload(result.next);
+      setImportPreviews((current) =>
+        [
+          {
+            id: crypto.randomUUID(),
+            title: data.item.title,
+            coverImagePath: data.item.coverImagePath,
+            catalogNumber: data.source.catalogNumber,
+          },
+          ...current,
+        ].slice(0, 8),
+      );
+      setUrlImportValue("");
+      setImportFeedback({
+        tone: "success",
+        message: `${result.mode === "updated" ? "עודכן מוצר קיים" : "נוצר מוצר חדש"} ונשמר: ${data.item.title} (מק״ט ${data.source.catalogNumber}, ${data.source.importedImages} תמונות).`,
+      });
+    } catch (error) {
+      setImportFeedback({
+        tone: "error",
+        message: resolveErrorMessage(error, "שגיאת ייבוא מכתובת"),
+      });
+    } finally {
+      setIsUrlImporting(false);
+    }
+  }
+
   async function onImportIntoItem(itemId: string) {
     const item = payload.items.find((row) => row.id === itemId);
     if (!item) return;
@@ -593,6 +649,32 @@ export default function AdminPage() {
 
       {authReady && (
         <>
+          <section className="admin-batch-import">
+            <div className="admin-items-head">
+              <h2>ייבוא לפי כתובת מוצר (URL)</h2>
+              <button onClick={onImportByUrl} disabled={isUrlImporting || isSaving || isBatchImporting}>
+                {isUrlImporting ? "מייבא ושומר..." : "ייבא ושמור"}
+              </button>
+            </div>
+            <p className="admin-import-note">
+              הדבק כתובת של עמוד מוצר והמערכת תייבא אותו עם כל הפרטים (תמונות מכל הזוויות,
+              צבעים, מפרט טכני ותיאור מתורגם). אתרים נתמכים:{" "}
+              <span dir="ltr">mandarinaduck.com · bricstore.com · huntleather.com · amazon.de</span>
+            </p>
+            <div className="admin-url-import-row">
+              <input
+                value={urlImportValue}
+                onChange={(e) => setUrlImportValue(e.target.value)}
+                placeholder="https://bricstore.com/products/..."
+                dir="ltr"
+                disabled={isUrlImporting}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !isUrlImporting) onImportByUrl();
+                }}
+              />
+            </div>
+          </section>
+
           {VENDOR_OPTIONS.map((vendorOption) => {
             const vendor = vendorOption.value;
             const vendorInputs = batchCatalogInputs[vendor];
