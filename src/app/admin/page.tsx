@@ -48,6 +48,7 @@ export default function AdminPage() {
   const isBatchImporting = batchImportingVendor !== null;
   const [urlImportValue, setUrlImportValue] = useState("");
   const [isUrlImporting, setIsUrlImporting] = useState(false);
+  const [urlImportStatus, setUrlImportStatus] = useState<BatchImportStatus | null>(null);
   const [itemCatalogInputs, setItemCatalogInputs] = useState<Record<string, string>>({});
   const [itemVendorMap, setItemVendorMap] = useState<Record<string, Vendor>>({});
   const [itemImportingMap, setItemImportingMap] = useState<Record<string, boolean>>({});
@@ -404,13 +405,14 @@ export default function AdminPage() {
   async function onImportByUrl() {
     const url = urlImportValue.trim();
     if (!url) {
-      setImportFeedback({ tone: "error", message: "יש להדביק כתובת של עמוד מוצר." });
+      setUrlImportStatus({ tone: "error", message: "יש להדביק כתובת של עמוד מוצר." });
       return;
     }
 
     try {
       setIsUrlImporting(true);
-      setImportFeedback({ tone: "info", message: "מייבא מהכתובת... זה עשוי לקחת עד דקה-שתיים." });
+      setUrlImportStatus({ tone: "info", message: "מייבא מהכתובת... זה עשוי לקחת עד דקה-שתיים." });
+      setImportFeedback(null);
 
       const res = await fetch("/api/admin/import/by-url", {
         method: "POST",
@@ -438,15 +440,13 @@ export default function AdminPage() {
         ].slice(0, 8),
       );
       setUrlImportValue("");
-      setImportFeedback({
-        tone: "success",
-        message: `${result.mode === "updated" ? "עודכן מוצר קיים" : "נוצר מוצר חדש"} ונשמר: ${data.item.title} (מק״ט ${data.source.catalogNumber}, ${data.source.importedImages} תמונות).`,
-      });
+      const successMessage = `✅ הצלחה — ${result.mode === "updated" ? "עודכן מוצר קיים" : "נוצר מוצר חדש"} ונשמר: ${data.item.title} (מק״ט ${data.source.catalogNumber}, ${data.source.importedImages} תמונות).`;
+      setUrlImportStatus({ tone: "success", message: successMessage });
+      setImportFeedback({ tone: "success", message: successMessage });
     } catch (error) {
-      setImportFeedback({
-        tone: "error",
-        message: resolveErrorMessage(error, "שגיאת ייבוא מכתובת"),
-      });
+      const failureMessage = `❌ כישלון — ${resolveErrorMessage(error, "שגיאת ייבוא מכתובת")}`;
+      setUrlImportStatus({ tone: "error", message: failureMessage });
+      setImportFeedback({ tone: "error", message: failureMessage });
     } finally {
       setIsUrlImporting(false);
     }
@@ -664,7 +664,10 @@ export default function AdminPage() {
             <div className="admin-url-import-row">
               <input
                 value={urlImportValue}
-                onChange={(e) => setUrlImportValue(e.target.value)}
+                onChange={(e) => {
+                  setUrlImportValue(e.target.value);
+                  setUrlImportStatus(null);
+                }}
                 placeholder="https://bricstore.com/products/..."
                 dir="ltr"
                 disabled={isUrlImporting}
@@ -673,6 +676,14 @@ export default function AdminPage() {
                 }}
               />
             </div>
+            {urlImportStatus && (
+              <div
+                className={`admin-import-feedback admin-import-feedback-${urlImportStatus.tone}`}
+                role="status"
+              >
+                {urlImportStatus.message}
+              </div>
+            )}
           </section>
 
           {VENDOR_OPTIONS.map((vendorOption) => {
