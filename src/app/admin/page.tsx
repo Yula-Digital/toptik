@@ -317,6 +317,60 @@ export default function AdminPage() {
     }
   }
 
+  // Load catalog numbers from an uploaded Excel file into a vendor's batch
+  // grid. Expected layout: first row = column header, every row below it = one
+  // catalog number in the first column. Nothing is imported yet — the user
+  // reviews the filled grid and clicks "ייבא ושמור הכל".
+  async function onExcelUpload(vendor: Vendor, file: File) {
+    try {
+      const XLSX = await import("xlsx");
+      const workbook = XLSX.read(await file.arrayBuffer());
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      if (!sheet) throw new Error("קובץ האקסל ריק");
+
+      // raw:false returns the DISPLAYED cell text, so numeric-looking catalog
+      // numbers (e.g. 58117.050) keep their exact formatting.
+      const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+        header: 1,
+        raw: false,
+        blankrows: false,
+      });
+      const catalogNumbers = rows
+        .slice(1) // first row is the column header
+        .map((row) => String(row?.[0] ?? "").trim())
+        .filter(Boolean);
+
+      if (catalogNumbers.length === 0) {
+        throw new Error('לא נמצאו מק״טים בקובץ (שורה ראשונה = כותרת עמודה, מתחתיה מק״טים בעמודה הראשונה)');
+      }
+
+      const unique = [...new Set(catalogNumbers.map((value) => value.toUpperCase()))];
+      const MAX_BATCH_ROWS = 80; // the catalog payload is capped at 80 items
+      const loaded = unique.slice(0, MAX_BATCH_ROWS);
+      const padded =
+        loaded.length < BATCH_IMPORT_INITIAL
+          ? [...loaded, ...Array.from({ length: BATCH_IMPORT_INITIAL - loaded.length }, () => "")]
+          : loaded;
+
+      setBatchCatalogInputs((current) => ({ ...current, [vendor]: padded }));
+      setVendorBatchStatuses(vendor, () => ({}));
+
+      const notes: string[] = [];
+      const duplicateCount = catalogNumbers.length - unique.length;
+      if (duplicateCount > 0) notes.push(`${duplicateCount} כפולים הוסרו`);
+      if (unique.length > MAX_BATCH_ROWS) notes.push(`נחתכו ${unique.length - MAX_BATCH_ROWS} מעבר לתקרה של ${MAX_BATCH_ROWS}`);
+      setImportFeedback({
+        tone: "info",
+        message: `נטענו ${loaded.length} מק״טים מהקובץ לסקשן ${vendorLabel(vendor)}${notes.length ? ` (${notes.join(", ")})` : ""}. בדוק את הרשימה ולחץ "ייבא ושמור הכל".`,
+      });
+    } catch (error) {
+      setImportFeedback({
+        tone: "error",
+        message: resolveErrorMessage(error, "שגיאה בקריאת קובץ האקסל"),
+      });
+    }
+  }
+
   function setVendorBatchStatuses(
     vendor: Vendor,
     updater: (current: Record<number, BatchImportStatus>) => Record<number, BatchImportStatus>,
@@ -564,6 +618,19 @@ export default function AdminPage() {
                   })}
                 </div>
                 <div className="admin-batch-actions">
+                  <label className={`admin-batch-upload${isBatchImporting ? " is-disabled" : ""}`}>
+                    📄 טעינה מקובץ אקסל
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,.csv"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void onExcelUpload(vendor, file);
+                        e.target.value = "";
+                      }}
+                      disabled={isBatchImporting}
+                    />
+                  </label>
                   <button
                     type="button"
                     className="admin-batch-add"

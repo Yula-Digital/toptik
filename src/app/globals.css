@@ -1852,6 +1852,32 @@ body {
   flex-wrap: wrap;
 }
 
+.admin-batch-upload {
+  background: #fff;
+  border: 1px dashed #8aa07a;
+  color: #2c5222;
+  padding: 7px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.15s, border-color 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.admin-batch-upload:hover:not(.is-disabled) {
+  background: #f4f8f1;
+  border-color: #2c5222;
+}
+.admin-batch-upload.is-disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.admin-batch-upload input[type="file"] {
+  display: none;
+}
+
 .admin-batch-add,
 .admin-batch-remove {
   background: #fff;
