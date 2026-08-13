@@ -12,6 +12,35 @@ export const carouselAngleInputSchema = z.object({
   imagePath: z.string().min(1),
 });
 
+// Scraped colour swatch (drives the per-colour gallery swap). Kept lenient so
+// an import's colours survive the save round-trip untouched.
+const carouselColorSchema = z.object({
+  name: z.string().max(80),
+  hex: z.string().max(16).nullable(),
+  colorCode: z.string().max(16).nullable(),
+  imagePath: z.string().min(1),
+  angles: z.array(z.string()).max(30).optional(),
+  sourceUrl: z.string().max(2000).nullable(),
+  catalogNumber: z.string().max(64).nullable(),
+});
+
+// Cached tech-specs blob (the נתונים טכניים modal).
+const cachedTechSpecsSchema = z.object({
+  specs: z.array(
+    z.object({
+      heading: z.string().max(60),
+      items: z.array(z.object({ label: z.string().max(200), value: z.string().max(200) })).max(60),
+    }),
+  ).max(20),
+  colors: z.array(
+    z.object({
+      name: z.string().max(80),
+      hex: z.string().max(16).nullable(),
+      swatchUrl: z.string().max(2000).nullable(),
+    }),
+  ).max(40),
+});
+
 export const carouselItemInputSchema = z.object({
   id: z.string().uuid().optional(),
   title: z.string().min(1).max(120),
@@ -26,7 +55,9 @@ export const carouselItemInputSchema = z.object({
   weight: z.string().max(30).nullable().optional(),
   sizes: z.array(z.string().max(30)).max(10).nullable().optional(),
   availableColors: z.array(z.string().max(40)).max(20).nullable().optional(),
-  angles: z.array(carouselAngleInputSchema).min(1).max(20),
+  colors: z.array(carouselColorSchema).max(40).nullable().optional(),
+  techSpecs: cachedTechSpecsSchema.nullable().optional(),
+  angles: z.array(carouselAngleInputSchema).min(1).max(30),
 });
 
 export const adminCarouselPayloadSchema = z.object({

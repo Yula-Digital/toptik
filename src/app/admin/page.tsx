@@ -74,35 +74,27 @@ export default function AdminPage() {
   ) {
     const next = structuredClone(current);
     const normalizedCatalog = normalizeCatalogNumber(data.source.catalogNumber);
+    // Match an existing row ONLY by exact (separator-insensitive) catalog
+    // number. Matching by title used to silently MERGE distinct colour SKUs
+    // that share a title (e.g. three "Taormina Expandable Checked" colours),
+    // so only one card survived and the rest vanished with a false "success".
+    // Each distinct catalog number now becomes its own card.
+    const sourceKey = normalizeCatalogKey(normalizedCatalog);
     const existingIndex = targetItemId
       ? next.items.findIndex((item) => item.id === targetItemId)
-      : next.items.findIndex((item) => {
-          // Separator-insensitive match: "P10SZV2405J" hits "P10SZV24-05J-TU"
-          // (either side may be the shorter legacy form).
-          const itemKey = normalizeCatalogKey(item.catalogNumber ?? "");
-          const sourceKey = normalizeCatalogKey(normalizedCatalog);
-          const byCatalogNumber =
-            itemKey !== "" &&
-            sourceKey !== "" &&
-            (itemKey.startsWith(sourceKey) || sourceKey.startsWith(itemKey));
-          const byCatalogPath = item.angles.some(
-            (angle) =>
-              angle.imagePath.includes(`/imports/mandarina/${data.source.catalogNumber}/`) ||
-              angle.imagePath.includes(`/imports/brics/${data.source.catalogNumber}/`),
-          );
-          const byTitle = item.title.trim().toLowerCase() === data.item.title.trim().toLowerCase();
-          return byCatalogNumber || byCatalogPath || byTitle;
-        });
+      : next.items.findIndex(
+          (item) => sourceKey !== "" && normalizeCatalogKey(item.catalogNumber ?? "") === sourceKey,
+        );
 
     if (existingIndex >= 0) {
       const existing = next.items[existingIndex];
+      // Re-import overwrites with the fresh scrape but keeps the row's id,
+      // display order and active flag.
       next.items[existingIndex] = {
-        ...existing,
-        title: data.item.title,
-        description: data.item.description,
-        catalogNumber: data.item.catalogNumber ?? data.source.catalogNumber,
-        sourceUrl: data.item.sourceUrl ?? null,
-        coverImagePath: data.item.coverImagePath,
+        ...data.item,
+        id: existing.id,
+        displayOrder: existing.displayOrder,
+        isActive: existing.isActive,
         techSpecs: data.item.techSpecs ?? existing.techSpecs,
         colors: data.item.colors ?? existing.colors,
         angles: data.item.angles.map((angle) => ({
