@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { CarouselPayload, TransitionMode } from "@/lib/carousel/types";
@@ -62,6 +62,38 @@ export default function AdminPage() {
   const [failedImports, setFailedImports] = useState<Array<{ catalog: string; reason: string }>>([]);
   const [showFailedModal, setShowFailedModal] = useState(false);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  // Persist the failed list across page reloads (until every catalog is imported
+  // OK — which empties + clears it — or the admin clears it manually). State
+  // starts empty to match SSR; localStorage is read after mount to avoid a
+  // hydration mismatch, and the first save is skipped so the load isn't wiped.
+  const FAILED_STORAGE_KEY = "toptik_failed_imports";
+  const firstFailedSaveRef = useRef(true);
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(FAILED_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) setFailedImports(parsed);
+      }
+    } catch {
+      // ignore malformed storage
+    }
+  }, []);
+  useEffect(() => {
+    if (firstFailedSaveRef.current) {
+      firstFailedSaveRef.current = false;
+      return;
+    }
+    try {
+      if (failedImports.length > 0) {
+        window.localStorage.setItem(FAILED_STORAGE_KEY, JSON.stringify(failedImports));
+      } else {
+        window.localStorage.removeItem(FAILED_STORAGE_KEY);
+      }
+    } catch {
+      // ignore quota/security errors
+    }
+  }, [failedImports]);
 
   // Merge a batch of results into the persistent failed list: drop catalogs that
   // succeeded this round, add/replace the ones that failed.
