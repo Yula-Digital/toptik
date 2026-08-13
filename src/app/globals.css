@@ -2674,7 +2674,7 @@ body {
   }
 
   .catalog-card-description {
-    max-height: calc(1.35em * 2);
+    max-height: none;
   }
 
   .catalog-card-cta {
@@ -2695,7 +2695,7 @@ body {
   }
 
   .catalog-card-description {
-    max-height: calc(1.35em * 3);
+    max-height: none;
   }
 }
 
@@ -2711,7 +2711,7 @@ body {
   }
 
   .catalog-card-description {
-    max-height: calc(1.35em * 4);
+    max-height: none;
   }
 }
 
