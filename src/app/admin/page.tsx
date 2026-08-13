@@ -52,6 +52,7 @@ export default function AdminPage() {
   const [itemCatalogInputs, setItemCatalogInputs] = useState<Record<string, string>>({});
   const [itemVendorMap, setItemVendorMap] = useState<Record<string, Vendor>>({});
   const [itemImportingMap, setItemImportingMap] = useState<Record<string, boolean>>({});
+  const [translatingItemId, setTranslatingItemId] = useState<string | null>(null);
   const [importFeedback, setImportFeedback] = useState<{
     tone: ImportFeedbackTone;
     message: string;
@@ -395,6 +396,41 @@ export default function AdminPage() {
         .map((a, i) => ({ ...a, angleOrder: i + 1 }));
       return next;
     });
+  }
+
+  // Translate a hand-entered description to Hebrew with the SAME engine the
+  // scraper uses, so a pasted English description ends up like an imported one.
+  async function onTranslateDescription(itemIndex: number) {
+    const item = payload.items[itemIndex];
+    const text = (item.description ?? "").trim();
+    if (!text) {
+      setStatus("אין טקסט לתרגום");
+      return;
+    }
+    try {
+      setTranslatingItemId(item.id);
+      setStatus("מתרגם לעברית...");
+      const res = await fetch("/api/admin/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-token": token },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error || "Translate failed");
+      }
+      const data = (await res.json()) as { text: string };
+      setPayload((current) => {
+        const next = structuredClone(current);
+        next.items[itemIndex].description = data.text;
+        return next;
+      });
+      setStatus("התיאור תורגם לעברית");
+    } catch (error) {
+      setStatus(resolveErrorMessage(error, "שגיאת תרגום"));
+    } finally {
+      setTranslatingItemId(null);
+    }
   }
 
   // Dimensions/weight are stored inside item.techSpecs (the "מידות" section).
@@ -1170,6 +1206,18 @@ export default function AdminPage() {
                         placeholder="תיאור המוצר (יופיע בכרטיסייה ובחלון המוצר)"
                       />
                     </label>
+                    <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: -4 }}>
+                      <button
+                        type="button"
+                        onClick={() => onTranslateDescription(itemIndex)}
+                        disabled={translatingItemId === item.id || !(item.description ?? "").trim()}
+                      >
+                        {translatingItemId === item.id ? "מתרגם..." : "תרגם לעברית"}
+                      </button>
+                      <span className="admin-import-note" style={{ margin: 0 }}>
+                        הדבק תיאור באנגלית ולחץ — אותו מנוע תרגום כמו בסקרייפינג.
+                      </span>
+                    </div>
                     <label>
                       מידות
                       <input
