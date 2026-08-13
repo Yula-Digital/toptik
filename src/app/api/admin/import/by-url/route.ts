@@ -4,6 +4,7 @@ import { importSourceProduct } from "@/lib/import/import-handler";
 import { fetchMandarinaByUrl } from "@/lib/catalog-source/mandarina-scraper";
 import { fetchBricsByUrl } from "@/lib/catalog-source/brics-scraper";
 import { fetchAmazonByUrl } from "@/lib/catalog-source/amazon-scraper";
+import { fetchEmagByUrl } from "@/lib/catalog-source/emag-scraper";
 import { detectVendorFromCatalog } from "@/lib/catalog-source/vendor-detect";
 import { supabaseEnv } from "@/lib/supabase/env";
 import type { SourceProduct } from "@/lib/catalog-source/types";
@@ -59,6 +60,12 @@ const URL_SOURCES: UrlSource[] = [
     fetch: fetchAmazonByUrl,
     vendor: null,
   },
+  {
+    label: "eMAG",
+    matches: (host) => /(^|\.)emag\.(hu|ro|bg|pl)$/.test(host),
+    fetch: fetchEmagByUrl,
+    vendor: null,
+  },
 ];
 
 export async function POST(req: NextRequest) {
@@ -80,7 +87,7 @@ export async function POST(req: NextRequest) {
     const source = URL_SOURCES.find((entry) => entry.matches(host));
     if (!source) {
       throw new Error(
-        `האתר ${host} אינו נתמך. אתרים נתמכים: mandarinaduck.com, bricstore.com, huntleather.com, amazon.de`,
+        `האתר ${host} אינו נתמך. אתרים נתמכים: mandarinaduck.com, bricstore.com, huntleather.com, amazon.de, emag.hu`,
       );
     }
 
