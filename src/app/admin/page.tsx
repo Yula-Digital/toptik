@@ -184,6 +184,29 @@ export default function AdminPage() {
     return VENDOR_OPTIONS.find((option) => option.value === vendor)?.label ?? vendor;
   }
 
+  function isUrlValue(value: string) {
+    return /^https?:\/\//i.test(value.trim());
+  }
+
+  // A batch/Excel row may be a catalog number OR a full product URL. URLs must
+  // keep their exact case (paths are case-sensitive); catalogs are uppercased.
+  function normalizeRowValue(value: string) {
+    return isUrlValue(value) ? value.trim() : value.trim().toUpperCase();
+  }
+
+  async function importByUrlFromSource(url: string, targetItemId?: string): Promise<ImportedItemData> {
+    const res = await fetch("/api/admin/import/by-url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-token": token },
+      body: JSON.stringify({ url, targetItemId }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => null)) as { error?: string } | null;
+      throw new Error(data?.error || "Import failed");
+    }
+    return (await res.json()) as ImportedItemData;
+  }
+
   async function importCatalogNumberFromSource(
     vendor: Vendor,
     activeCatalogNumber: string,
@@ -408,13 +431,14 @@ export default function AdminPage() {
       }
 
       // Dedupe on the separator-insensitive key, keep the first-seen spelling.
+      // Rows may be catalog numbers or full product URLs (URLs keep their case).
       const seenKeys = new Set<string>();
       const unique: string[] = [];
       for (const value of catalogNumbers) {
         const key = normalizeCatalogKey(value);
         if (!key || seenKeys.has(key)) continue;
         seenKeys.add(key);
-        unique.push(value.toUpperCase());
+        unique.push(normalizeRowValue(value));
       }
       const MAX_BATCH_ROWS = 80; // the catalog payload is capped at 80 items
       const loaded = unique.slice(0, MAX_BATCH_ROWS);
@@ -542,7 +566,7 @@ export default function AdminPage() {
   async function onBatchImportAndSave(vendor: Vendor) {
     const normalizedRows = batchCatalogInputs[vendor].map((value, index) => ({
       index,
-      catalogNumber: normalizeCatalogNumber(value),
+      catalogNumber: normalizeRowValue(value),
     }));
     const filledRows = normalizedRows.filter((row) => row.catalogNumber);
     const nextStatuses: Record<number, BatchImportStatus> = {};
@@ -596,17 +620,24 @@ export default function AdminPage() {
       const failedDetails: Array<{ catalog: string; reason: string }> = [];
       const succeededCatalogs: string[] = [];
       for (const row of filledRows) {
-        // The vendor is detected from the catalog number itself, so a mixed
-        // file works from either section — the section is just a starting
-        // point, not a routing decision.
-        const detectedVendor = detectVendorFromCatalog(row.catalogNumber);
+        // Each row is routed by its own content: a full URL is scraped directly
+        // (eMAG / Amazon / bricstore / …), a catalog number goes through the
+        // vendor source-chain (detected from the number). So a single batch can
+        // mix catalogs and URLs — the section is just a starting point.
+        const rowIsUrl = isUrlValue(row.catalogNumber);
+        const rowLabel = rowIsUrl ? "כתובת" : vendorLabel(detectVendorFromCatalog(row.catalogNumber));
         setVendorBatchStatuses(vendor, (current) => ({
           ...current,
-          [row.index]: { tone: "info", message: `מייבא מ-${vendorLabel(detectedVendor)}...` },
+          [row.index]: { tone: "info", message: `מייבא מ-${rowLabel}...` },
         }));
 
         try {
-          const data = await importCatalogNumberFromSource(detectedVendor, row.catalogNumber);
+          const data = rowIsUrl
+            ? await importByUrlFromSource(row.catalogNumber)
+            : await importCatalogNumberFromSource(
+                detectVendorFromCatalog(row.catalogNumber),
+                row.catalogNumber,
+              );
           const result = upsertImportedItem(workingPayload, data);
           workingPayload = result.next;
           successCount += 1;
@@ -621,7 +652,7 @@ export default function AdminPage() {
             ...current,
             [row.index]: {
               tone: "success",
-              message: `${result.mode === "updated" ? "עודכן מוצר קיים" : "נוצר מוצר חדש"} (${vendorLabel(detectedVendor)})`,
+              message: `${result.mode === "updated" ? "עודכן מוצר קיים" : "נוצר מוצר חדש"} (${rowIsUrl ? data.source.catalogNumber : rowLabel})`,
             },
           }));
         } catch (error) {
@@ -632,7 +663,7 @@ export default function AdminPage() {
             ...current,
             [row.index]: {
               tone: "error",
-              message: `נכשל ב-${vendorLabel(detectedVendor)}: ${reason}`,
+              message: `נכשל ב-${rowLabel}: ${reason}`,
             },
           }));
         }
@@ -834,8 +865,11 @@ export default function AdminPage() {
                   הכנס מק״טים (למשל <span dir="ltr">{vendorOption.example}</span>) או טען
                   קובץ אקסל, ולחץ &quot;ייבא ושמור הכל&quot;. המערכת מזהה אוטומטית לכל מק״ט
                   אם הוא Mandarina Duck או Bric&apos;s — אפשר לערבב, ולא משנה מאיזה סקשן
-                  מייבאים. כל צורת כתיבה מתקבלת (עם/בלי נקודות ומקפים). ליד כל שורה יוצג
-                  חיווי הצלחה/כישלון מפורט.
+                  מייבאים. כל צורת כתיבה מתקבלת (עם/בלי נקודות ומקפים). <b>אפשר גם להדביק
+                  בשורה כתובת URL מלאה של מוצר</b> (<span dir="ltr">emag.hu · amazon.de ·
+                  bricstore.com · huntleather.com · mandarinaduck.com</span>) והיא תיסרק
+                  ישירות — כך שבייבוא אחד אפשר לערבב מק״טים וכתובות. ליד כל שורה יוצג חיווי
+                  הצלחה/כישלון מפורט.
                 </p>
                 <div className="admin-batch-grid">
                   {vendorInputs.map((value, index) => {

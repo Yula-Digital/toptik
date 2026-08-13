@@ -9,7 +9,10 @@ import type { SourceColorVariant } from "@/lib/catalog-source/types";
 const DOWNLOAD_HEADERS = {
   "user-agent":
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-  accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
+  // Do NOT advertise image/avif: content-negotiating CDNs (e.g. eMAG/akamai)
+  // would then serve AVIF, which the Supabase storage bucket rejects. Ask for
+  // jpeg/png/webp only so every source returns a bucket-supported format.
+  accept: "image/jpeg,image/png,image/webp;q=0.9,*/*;q=0.5",
   referer: "https://mandarinaduck.com/",
 };
 
