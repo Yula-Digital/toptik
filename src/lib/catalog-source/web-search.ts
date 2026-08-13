@@ -22,14 +22,24 @@ export function hasWebSearch(): boolean {
 async function searchUrls(query: string): Promise<string[]> {
   const key = process.env.GOOGLE_CSE_KEY;
   const cx = process.env.GOOGLE_CSE_ID;
-  if (!key || !cx) return [];
+  if (!key || !cx) {
+    console.warn("[web-search] missing env", { hasKey: Boolean(key), hasCx: Boolean(cx) });
+    return [];
+  }
   try {
     const url = `${CSE_ENDPOINT}?key=${key}&cx=${cx}&num=8&q=${encodeURIComponent(query)}`;
     const res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(10000) });
-    if (!res.ok) return [];
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.warn("[web-search] CSE error", res.status, body.slice(0, 300));
+      return [];
+    }
     const data = (await res.json()) as { items?: Array<{ link?: string }> };
-    return (data.items ?? []).map((i) => i.link).filter((l): l is string => Boolean(l));
-  } catch {
+    const links = (data.items ?? []).map((i) => i.link).filter((l): l is string => Boolean(l));
+    console.warn("[web-search] CSE ok", { query, count: links.length, first: links[0] });
+    return links;
+  } catch (e) {
+    console.warn("[web-search] CSE threw", String(e));
     return [];
   }
 }
