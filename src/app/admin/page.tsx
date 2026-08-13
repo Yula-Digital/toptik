@@ -818,7 +818,8 @@ export default function AdminPage() {
             <p className="admin-import-note">
               הדבק כתובת של עמוד מוצר והמערכת תייבא אותו עם כל הפרטים (תמונות מכל הזוויות,
               צבעים, מפרט טכני ותיאור מתורגם). אתרים נתמכים:{" "}
-              <span dir="ltr">mandarinaduck.com · bricstore.com · huntleather.com · amazon.de · emag.hu</span>
+              <span dir="ltr">mandarinaduck.com · bricstore.com · huntleather.com · amazon.de · emag.hu</span>{" "}
+              וכל חנות Shopify (כתובת עם /products/...)
             </p>
             <div className="admin-url-import-row">
               <input

@@ -5,6 +5,7 @@ import { fetchMandarinaByUrl } from "@/lib/catalog-source/mandarina-scraper";
 import { fetchBricsByUrl } from "@/lib/catalog-source/brics-scraper";
 import { fetchAmazonByUrl } from "@/lib/catalog-source/amazon-scraper";
 import { fetchEmagByUrl } from "@/lib/catalog-source/emag-scraper";
+import { fetchShopifyByUrl } from "@/lib/catalog-source/shopify-scraper";
 import { detectVendorFromCatalog } from "@/lib/catalog-source/vendor-detect";
 import { supabaseEnv } from "@/lib/supabase/env";
 import type { SourceProduct } from "@/lib/catalog-source/types";
@@ -84,19 +85,27 @@ export async function POST(req: NextRequest) {
       throw new Error("כתובת לא תקינה");
     }
 
+    // Known source for this host (specialised scraper); else null and we fall
+    // back to the generic Shopify scraper below.
     const source = URL_SOURCES.find((entry) => entry.matches(host));
-    if (!source) {
+
+    let sourceProduct = source ? await source.fetch(url) : null;
+    // Generic fallback: ANY Shopify storefront exposes /products/<handle>.json,
+    // so a product URL on an unknown (or a failed specialised) host is scraped
+    // generically — no per-retailer code needed.
+    if (!sourceProduct) {
+      sourceProduct = await fetchShopifyByUrl(url);
+    }
+
+    if (!sourceProduct) {
       throw new Error(
-        `האתר ${host} אינו נתמך. אתרים נתמכים: mandarinaduck.com, bricstore.com, huntleather.com, amazon.de, emag.hu`,
+        source
+          ? `לא הצלחתי לחלץ מוצר מהעמוד ב-${source.label}. ודא שזו כתובת של עמוד מוצר.`
+          : `לא הצלחתי לחלץ מוצר מהעמוד ב-${host}. נתמכים: mandarinaduck.com, bricstore.com, huntleather.com, amazon.de, emag.hu, וכל חנות Shopify (כתובת /products/...).`,
       );
     }
 
-    const sourceProduct = await source.fetch(url);
-    if (!sourceProduct) {
-      throw new Error(`לא הצלחתי לחלץ מוצר מהעמוד ב-${source.label}. ודא שזו כתובת של עמוד מוצר.`);
-    }
-
-    const vendor = source.vendor ?? detectVendorFromCatalog(sourceProduct.catalogNumber);
+    const vendor = source?.vendor ?? detectVendorFromCatalog(sourceProduct.catalogNumber);
     const result = await importSourceProduct(
       vendor,
       sourceProduct,
