@@ -1,12 +1,25 @@
-// Canonical source: docs/legal/{about,terms,privacy,accessibility}.md
+// Canonical source: docs/legal/{about,terms,privacy,accessibility,accessibility-details}.md
 // Renderable structure: each doc exposes a React fragment for the InfoModal.
 
 import type { ReactNode } from "react";
 import { StoresPanel, type Store } from "@/components/StoresPanel";
 
-export type DocId = "stores" | "accessibility" | "terms" | "privacy" | "about";
+export type DocId =
+  | "stores"
+  | "accessibility"
+  | "webAccessibility"
+  | "terms"
+  | "privacy"
+  | "about";
 
-export const DOC_ORDER: DocId[] = ["stores", "accessibility", "terms", "privacy", "about"];
+export const DOC_ORDER: DocId[] = [
+  "stores",
+  "accessibility",
+  "webAccessibility",
+  "terms",
+  "privacy",
+  "about",
+];
 
 type Doc = { title: string; body: ReactNode };
 
@@ -128,7 +141,16 @@ const AccessibilityBody = (
       </table>
     </div>
 
-    <h2>נגישות באינטרנט</h2>
+    <p>
+      פרטים על הנגשת אתר האינטרנט של החברה, ותפריט הנגישות הזמין בכל עמוד, מרוכזים בפריט הנפרד{" "}
+      <strong>&quot;פרטי נגישות&quot;</strong>.
+    </p>
+  </>
+);
+
+const WebAccessibilityBody = (
+  <>
+    <h2>נגישות אתר האינטרנט</h2>
     <p>
       חברת טופטיק רואה חשיבות עליונה בהנגשת אתר האינטרנט שלה לאנשים עם מוגבלות. אתר נגיש משפר את
       הנוחות וקלות השימוש בו לאנשים עם מוגבלות. האתר נבנה בהתאם לתקנות שוויון זכויות לאנשים עם
@@ -136,28 +158,52 @@ const AccessibilityBody = (
       (W3C), רמת AA.
     </p>
 
-    <h3>תפריט נגישות</h3>
-    <p>בתחילת כל עמוד תמצאו תפריט נגישות המאפשר לכם:</p>
+    <h3>תפריט הנגישות באתר</h3>
+    <p>
+      בכל עמוד באתר תמצאו כפתור נגישות קבוע (בפינה התחתונה) הפותח תפריט נגישות. התפריט מאפשר לכם,
+      וההעדפות נשמרות אוטומטית לביקורים הבאים:
+    </p>
     <ul>
-      <li>לשנות את גודל הגופן.</li>
-      <li>לשנות את ניגודיות הצבעים.</li>
-      <li>לדלג ישירות לתוכן העמוד, לתפריט הראשי ולחיפוש, באמצעות שימוש במקלדת.</li>
-      <li>לעצור תנועה של טקסטים ותמונות, לצמצום עומס והסחות דעת.</li>
-      <li>להפעיל מנגנון סינון טבלאות נגיש המאפשר סינון ערכים בטבלאות.</li>
-      <li>להפעיל קו תחתון לקישורים.</li>
-      <li>להציג שכבת סיוע לתמונות.</li>
+      <li>
+        <strong>הגדלה והקטנה של גודל הטקסט</strong> באתר.
+      </li>
+      <li>
+        <strong>הפעלת ניגודיות גבוהה</strong> להבלטת התוכן.
+      </li>
+      <li>
+        <strong>מעבר לגווני אפור</strong> להפחתת עומס חזותי.
+      </li>
+      <li>
+        <strong>הדגשת קישורים</strong> באמצעות קו תחתון.
+      </li>
+      <li>
+        <strong>עצירת אנימציות ותנועה</strong> לצמצום הסחות דעת.
+      </li>
+      <li>
+        <strong>מעבר לגופן קריא</strong> וברור.
+      </li>
+      <li>
+        <strong>הגדלת סמן העכבר</strong>.
+      </li>
+      <li>
+        <strong>דילוג ישיר לתוכן הראשי</strong> של העמוד.
+      </li>
+      <li>
+        <strong>איפוס</strong> כלל הגדרות הנגישות בלחיצה אחת.
+      </li>
     </ul>
 
     <h3>ניווט באמצעות מקלדת</h3>
     <p>
-      כל הפעולות באתר ניתנות לביצוע באמצעות מקלדת באופן הבא: לחיצה על מקש Tab מעבירה לקישור הבא,
-      לחיצה על מקש Enter מפעילה את הקישור, ולחיצה על Shift+Tab מעבירה לקישור הקודם.
+      כל הפעולות באתר ניתנות לביצוע באמצעות מקלדת באופן הבא: לחיצה על מקש Tab מעבירה לרכיב הבא,
+      לחיצה על מקש Enter או רווח מפעילה את הרכיב, לחיצה על Shift+Tab מעבירה לרכיב הקודם, ולחיצה על
+      Esc סוגרת חלונות ותפריטים.
     </p>
 
     <h3>התאמות למשתמשים עיוורים</h3>
     <p>האתר מותאם לגולשים המשתמשים בתוכנות קורא מסך, וכולל:</p>
     <ul>
-      <li>כותרות.</li>
+      <li>כותרות היררכיות.</li>
       <li>טקסטים חלופיים לתמונות.</li>
       <li>חלוקת האתר לאזורי ניווט ולאזור תוכן מרכזי, ואפשרות לדילוג ביניהם.</li>
       <li>שימוש ב-ARIA לשיפור יכולת הפירוש של קורא המסך.</li>
@@ -186,7 +232,7 @@ const AccessibilityBody = (
       </li>
     </ul>
 
-    <h2>דרכי יצירת קשר</h2>
+    <h2>רכז הנגישות ודרכי יצירת קשר</h2>
     <p>
       החברה תשמח לקבל פניות לקבלת מידע ו/או הצעות לשיפור על מנת לשפר את השירות ללקוח. לפניות ומידע
       בנושא נגישות ניתן ליצור קשר עם רכז הנגישות של החברה, מר טל נוסל, באחת מן הדרכים הבאות:
@@ -521,6 +567,7 @@ const AboutBody = (
 export const DOCS: Record<DocId, Doc> = {
   stores: { title: "סניפים", body: StoresBody },
   accessibility: { title: "נגישות בחנויות", body: AccessibilityBody },
+  webAccessibility: { title: "פרטי נגישות", body: WebAccessibilityBody },
   terms: { title: "תקנון", body: TermsBody },
   privacy: { title: "מדיניות פרטיות", body: PrivacyBody },
   about: { title: "אודותנו", body: AboutBody },
