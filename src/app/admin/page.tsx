@@ -57,6 +57,35 @@ export default function AdminPage() {
     message: string;
   } | null>(null);
   const [importPreviews, setImportPreviews] = useState<ImportPreview[]>([]);
+  // Catalog numbers that failed to import, kept AFTER the import run so the admin
+  // can review/copy them. A catalog is removed once it later imports OK.
+  const [failedImports, setFailedImports] = useState<Array<{ catalog: string; reason: string }>>([]);
+  const [showFailedModal, setShowFailedModal] = useState(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Merge a batch of results into the persistent failed list: drop catalogs that
+  // succeeded this round, add/replace the ones that failed.
+  function recordImportResults(
+    succeeded: string[],
+    failed: Array<{ catalog: string; reason: string }>,
+  ) {
+    setFailedImports((prev) => {
+      const byKey = new Map(prev.map((f) => [normalizeCatalogKey(f.catalog), f]));
+      for (const c of succeeded) byKey.delete(normalizeCatalogKey(c));
+      for (const f of failed) byKey.set(normalizeCatalogKey(f.catalog), f);
+      return [...byKey.values()];
+    });
+  }
+
+  async function copyToClipboard(text: string, key: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedKey(key);
+      window.setTimeout(() => setCopiedKey((k) => (k === key ? null : k)), 1500);
+    } catch {
+      setImportFeedback({ tone: "error", message: "ההעתקה נכשלה — העתק ידנית." });
+    }
+  }
 
   function resolveErrorMessage(error: unknown, fallback: string) {
     if (error instanceof Error && error.message) return error.message;
@@ -464,15 +493,15 @@ export default function AdminPage() {
       const data = await importCatalogNumberFromSource(vendor, itemCatalogNumber, itemId);
       setPayload((current) => upsertImportedItem(current, data, itemId).next);
       setItemCatalogInputs((current) => ({ ...current, [itemId]: "" }));
+      recordImportResults([itemCatalogNumber], []);
       setImportFeedback({
         tone: "success",
         message: `עודכן מוצר (${data.source.catalogNumber}) עם ${data.source.importedImages} תמונות. לחץ "שמור הכל" לקיבוע.`,
       });
     } catch (error) {
-      setImportFeedback({
-        tone: "error",
-        message: resolveErrorMessage(error, "שגיאת ייבוא למוצר"),
-      });
+      const reason = resolveErrorMessage(error, "שגיאת ייבוא למוצר");
+      recordImportResults([], [{ catalog: itemCatalogNumber, reason }]);
+      setImportFeedback({ tone: "error", message: reason });
     } finally {
       setItemImportingMap((current) => ({ ...current, [itemId]: false }));
     }
@@ -532,6 +561,8 @@ export default function AdminPage() {
       let successCount = 0;
 
       const failedRows: string[] = [];
+      const failedDetails: Array<{ catalog: string; reason: string }> = [];
+      const succeededCatalogs: string[] = [];
       for (const row of filledRows) {
         // The vendor is detected from the catalog number itself, so a mixed
         // file works from either section — the section is just a starting
@@ -547,6 +578,7 @@ export default function AdminPage() {
           const result = upsertImportedItem(workingPayload, data);
           workingPayload = result.next;
           successCount += 1;
+          succeededCatalogs.push(row.catalogNumber);
           previews.push({
             id: crypto.randomUUID(),
             title: data.item.title,
@@ -563,6 +595,7 @@ export default function AdminPage() {
         } catch (error) {
           failedRows.push(row.catalogNumber);
           const reason = resolveErrorMessage(error, "שגיאת יבוא");
+          failedDetails.push({ catalog: row.catalogNumber, reason });
           setVendorBatchStatuses(vendor, (current) => ({
             ...current,
             [row.index]: {
@@ -572,6 +605,10 @@ export default function AdminPage() {
           }));
         }
       }
+
+      // Persist the failed catalogs so the admin can review/copy them after the
+      // import section is closed; drop any that succeeded this round.
+      recordImportResults(succeededCatalogs, failedDetails);
 
       if (successCount === 0) {
         throw new Error("לא יובא אף מוצר. לא נשמרו שינויים.");
@@ -633,10 +670,77 @@ export default function AdminPage() {
       {authReady && (
         <header className="admin-header">
           <h1>TOPTIK Admin</h1>
-          <Link href="/" className="admin-back-link">
-            חזרה לבית
-          </Link>
+          <div className="admin-header-actions">
+            {failedImports.length > 0 && (
+              <button
+                type="button"
+                className="admin-failed-btn"
+                onClick={() => setShowFailedModal(true)}
+              >
+                ⚠ העלאת מוצר אחד או יותר נכשלו ({failedImports.length})
+              </button>
+            )}
+            <Link href="/" className="admin-back-link">
+              חזרה לבית
+            </Link>
+          </div>
         </header>
+      )}
+
+      {showFailedModal && (
+        <div
+          className="admin-failed-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="מק״טים שנכשלו בייבוא"
+          onClick={() => setShowFailedModal(false)}
+        >
+          <div className="admin-failed-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-failed-modal-head">
+              <h2>מק״טים שלא עלו ({failedImports.length})</h2>
+              <button
+                type="button"
+                className="admin-failed-copy-all"
+                onClick={() =>
+                  copyToClipboard(failedImports.map((f) => f.catalog).join("\n"), "__all__")
+                }
+              >
+                {copiedKey === "__all__" ? "✓ הועתק" : "העתק הכל"}
+              </button>
+            </div>
+            <ul className="admin-failed-list">
+              {failedImports.map((f) => (
+                <li key={f.catalog} className="admin-failed-row">
+                  <button
+                    type="button"
+                    className="admin-failed-copy"
+                    onClick={() => copyToClipboard(f.catalog, f.catalog)}
+                    aria-label={`העתק ${f.catalog}`}
+                  >
+                    {copiedKey === f.catalog ? "✓" : "העתק"}
+                  </button>
+                  <span className="admin-failed-catalog" dir="ltr">{f.catalog}</span>
+                  <span className="admin-failed-reason">{f.reason}</span>
+                </li>
+              ))}
+            </ul>
+            <div className="admin-failed-modal-foot">
+              <button
+                type="button"
+                className="admin-failed-clear"
+                onClick={() => {
+                  setFailedImports([]);
+                  setShowFailedModal(false);
+                }}
+              >
+                נקה רשימה
+              </button>
+              <button type="button" onClick={() => setShowFailedModal(false)}>
+                סגור
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {authReady && (
