@@ -383,11 +383,52 @@ function extractProductFromPage(
     title: productBlock?.name?.trim() || extractTitle(html),
     description:
       productBlock?.description?.trim()
-        ? stripHtml(productBlock.description).slice(0, 300) || null
-        : null,
+        ? stripHtml(productBlock.description) || null
+        : extractMetaDescription(html),
     imageUrls: uniqueImageUrls(mergedImages).slice(0, MAX_IMPORTED_IMAGES),
     sourceUrl: productUrl,
   };
+}
+
+// og:description / meta description — a sync fallback when JSON-LD has none.
+function extractMetaDescription(html: string): string | null {
+  const og = /<meta[^>]+property="og:description"[^>]+content="([^"]+)"/i.exec(html);
+  if (og?.[1]?.trim()) return stripHtml(og[1]).trim() || null;
+  const meta = /<meta[^>]+name="description"[^>]+content="([^"]+)"/i.exec(html);
+  if (meta?.[1]?.trim()) return stripHtml(meta[1]).trim() || null;
+  return null;
+}
+
+// Full product description from the Shopify product JSON body_html — the same
+// rich source bricstore/hunt use. Used to enrich a Mandarina product whose page
+// only exposed a short/blank JSON-LD or meta description.
+async function fetchMandarinaBodyDescription(productUrl: string): Promise<string | null> {
+  const handle = handleFromUrl(productUrl);
+  if (!handle) return null;
+  try {
+    const res = await fetch(`${MANDARINA_BASE_URL}/products/${handle}.json`, {
+      headers: { ...DEFAULT_HEADERS, accept: "application/json" },
+      cache: "no-store",
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { product?: { body_html?: string | null } };
+    const body = data.product?.body_html;
+    if (!body) return null;
+    const text = stripHtml(body);
+    return text.length >= 20 ? text : null;
+  } catch {
+    return null;
+  }
+}
+
+// Guarantee a usable prose description: prefer the scraped one, else pull the
+// Shopify body_html. Applied to every Mandarina import path so no product falls
+// back to the "auto import" placeholder when a real description exists.
+async function withEnrichedDescription(product: SourceProduct): Promise<SourceProduct> {
+  if (product.description && product.description.trim().length >= 40) return product;
+  const body = await fetchMandarinaBodyDescription(product.sourceUrl);
+  return body ? { ...product, description: body } : product;
 }
 
 // Rebuild the canonical dashed Mandarina catalog (P10XXXXX-YYY-TU) from any
@@ -424,7 +465,7 @@ export async function fetchMandarinaByUrl(url: string): Promise<SourceProduct | 
   const fallbackCatalog = tokenMatch ? tokenMatch[1].toUpperCase() : "";
 
   try {
-    return extractProductFromPage(fallbackCatalog, productUrl, html);
+    return await withEnrichedDescription(extractProductFromPage(fallbackCatalog, productUrl, html));
   } catch {
     return null;
   }
@@ -520,7 +561,9 @@ export class MandarinaDuckScraperProvider implements CatalogSourceProvider {
       throw new Error("Failed to fetch product page from source");
     }
 
-    return extractProductFromPage(normalizedCatalog, bestPage.url, bestPage.html);
+    return withEnrichedDescription(
+      extractProductFromPage(normalizedCatalog, bestPage.url, bestPage.html),
+    );
   }
 }
 
