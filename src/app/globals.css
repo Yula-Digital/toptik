@@ -1188,6 +1188,11 @@ body {
   flex-direction: column;
   gap: 8px;
   padding-top: 20px;
+  /* Gold seam joining the text column to the image column. Sits on the meta's
+     right edge (facing the gallery), spans the image height, with padding so the
+     right-aligned text doesn't touch the line. */
+  padding-right: 18px;
+  border-right: 1px solid rgba(201, 164, 90, 0.55);
   height: min(54dvh, 500px);
   border-radius: 0;
 }
@@ -1213,12 +1218,19 @@ body {
   font-size: 15px;
   color: #2b3745;
   line-height: 1.35;
-  max-height: calc(1.35em * 10);
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
+  scrollbar-color: rgba(201, 164, 90, 0.55) transparent;
   flex: 1 1 auto;
+}
+.product-modal-description::-webkit-scrollbar {
+  width: 6px;
+}
+.product-modal-description::-webkit-scrollbar-thumb {
+  background: rgba(201, 164, 90, 0.55);
+  border-radius: 999px;
 }
 
 .product-modal-cycle-btn {
@@ -2292,6 +2304,8 @@ body {
   .product-modal-meta {
     min-height: auto;
     padding: 0;
+    /* Mobile stacks the layout — no side-by-side columns, so no seam. */
+    border-right: none;
   }
 
   .product-modal-catalog {
