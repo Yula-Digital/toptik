@@ -9,6 +9,7 @@ import { toCarouselColors, toBricsCarouselColors } from "@/lib/carousel/colors";
 import { translateToHebrew } from "@/lib/catalog-source/translate";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { supabaseEnv } from "@/lib/supabase/env";
+import { findProductByWebSearch } from "@/lib/catalog-source/web-search";
 import type { SourceColorVariant, SourceProduct } from "@/lib/catalog-source/types";
 import { CachedTechSpecs, CarouselColor, CarouselItem } from "@/lib/carousel/types";
 
@@ -219,7 +220,16 @@ export function createImportRouteHandler(vendor: CatalogVendor) {
       const { catalogNumber, targetItemId } = importCatalogSchema.parse(body);
 
       const provider = createCatalogSourceProvider(vendor);
-      const sourceProduct = await provider.fetchByCatalogNumber(catalogNumber);
+      let sourceProduct;
+      try {
+        sourceProduct = await provider.fetchByCatalogNumber(catalogNumber);
+      } catch (notFound) {
+        // Direct sources missed — last resort: web-search the catalog across the
+        // whole web and scrape a matching result (no-op unless CSE keys are set).
+        const viaSearch = await findProductByWebSearch(catalogNumber);
+        if (!viaSearch) throw notFound;
+        sourceProduct = viaSearch;
+      }
       const result = await importSourceProduct(vendor, sourceProduct, targetItemId, catalogNumber);
       return NextResponse.json(result);
     } catch (error) {
