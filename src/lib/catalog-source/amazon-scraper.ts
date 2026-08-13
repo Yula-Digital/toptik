@@ -63,21 +63,45 @@ function extractSearchAsins(searchHtml: string): string[] {
 }
 
 function extractTitle(html: string): string | null {
-  const match = /<span[^>]*id="productTitle"[^>]*>([\s\S]*?)<\/span>/.exec(html);
-  return match ? stripTags(match[1]) : null;
+  const byId = /<span[^>]*id="productTitle"[^>]*>([\s\S]*?)<\/span>/.exec(html);
+  if (byId) return stripTags(byId[1]);
+  const og = /<meta[^>]*property="og:title"[^>]*content="([^"]+)"/i.exec(html);
+  if (og) return stripTags(og[1]);
+  const title = /<title[^>]*>([^<]+)<\/title>/i.exec(html);
+  if (title) return stripTags(title[1].replace(/\s*[:|-]\s*Amazon[\s\S]*$/i, ""));
+  return null;
+}
+
+// Reduce an Amazon media URL to its stable image id (…/images/I/<id>._…jpg →
+// <id>), so the same photo at different sizes dedupes to one.
+function amazonImageId(url: string): string | null {
+  const m = /\/images\/I\/([A-Za-z0-9%+._-]+?)(?:\._[^/]*)?\.(?:jpg|jpeg|png)/i.exec(url);
+  return m ? m[1] : null;
 }
 
 function extractImages(html: string): string[] {
-  const urls: string[] = [];
-  const push = (url: string) => {
-    const clean = url.replace(/\\\//g, "/");
-    if (/^https:\/\//.test(clean) && !urls.includes(clean)) urls.push(clean);
+  const byId = new Map<string, string>();
+  const consider = (raw: string) => {
+    const clean = raw.replace(/\\u002F/gi, "/").replace(/\\\//g, "/");
+    if (!/^https:\/\/[^"]*\/images\/I\//i.test(clean)) return;
+    const id = amazonImageId(clean);
+    if (!id) return;
+    // Prefer a large render; rebuild a canonical high-res URL from the id.
+    if (!byId.has(id)) byId.set(id, `https://m.media-amazon.com/images/I/${id}._AC_SL1500_.jpg`);
   };
-  for (const m of html.matchAll(/"hiRes"\s*:\s*"(https:[^"]+)"/g)) push(m[1]);
-  if (urls.length === 0) {
-    for (const m of html.matchAll(/"large"\s*:\s*"(https:[^"]+)"/g)) push(m[1]);
+
+  // Priority order: the hi-res gallery block, then large, then the dynamic-image
+  // attribute, then any product image anywhere on the page (covers stripped
+  // "cannot ship here" / storefront layouts that omit the gallery JSON).
+  for (const m of html.matchAll(/"hiRes"\s*:\s*"(https:[^"]+)"/g)) consider(m[1]);
+  for (const m of html.matchAll(/"large"\s*:\s*"(https:[^"]+)"/g)) consider(m[1]);
+  for (const m of html.matchAll(/data-a-dynamic-image="([^"]+)"/g)) {
+    for (const u of m[1].matchAll(/https:[^"\\]+\/images\/I\/[^"\\]+/g)) consider(u[0]);
   }
-  return urls.slice(0, MAX_IMPORTED_IMAGES);
+  for (const m of html.matchAll(/https:\/\/m\.media-amazon\.com\/images\/I\/[A-Za-z0-9%+._-]+\.(?:jpg|jpeg|png)/gi)) {
+    consider(m[0]);
+  }
+  return [...byId.values()].slice(0, MAX_IMPORTED_IMAGES);
 }
 
 function extractBullets(html: string): string {
