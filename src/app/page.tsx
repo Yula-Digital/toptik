@@ -3,6 +3,7 @@ import homePageImage from "../../images/images_from_mandarina/Home_page.png";
 import MobileLayer from "./MobileLayer";
 import { HomeToCarouselCta } from "@/components/carousel/HomeToCarouselCta";
 import { InfoMenu } from "@/components/InfoMenu";
+import { AccessibilityWidget } from "@/components/AccessibilityWidget";
 import { isCarouselEnabled } from "@/lib/carousel/feature-flag";
 
 const navItems = [
@@ -45,7 +46,7 @@ export default function Home() {
 
   return (
     <div className="page">
-      <div className="stage" data-variant="v1">
+      <div className="stage" data-variant="v1" id="main-content">
         {/* Hero — desktop landscape (1366x666) */}
         <Image
           src={homePageImage}
@@ -151,6 +152,9 @@ export default function Home() {
         {/* ═══ MOBILE LAYER (<768px only - hidden on desktop via CSS) ═══ */}
         <MobileLayer isCarouselEnabled={carouselEnabled} />
       </div>
+
+      {/* Site-wide accessibility menu (floating button, bottom-left in RTL) */}
+      <AccessibilityWidget />
 
       <style>{`
         /* Desktop: stage ALWAYS fills full viewport (width + height) — no side margins, no scroll.

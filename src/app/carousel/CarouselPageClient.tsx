@@ -6,6 +6,7 @@ import { CarouselGrid } from "@/components/carousel/CarouselGrid";
 import { CategoryNav } from "@/components/carousel/CategoryNav";
 import { ProductModal } from "@/components/carousel/ProductModal";
 import { TechSpecsModal } from "@/components/carousel/TechSpecsModal";
+import { AccessibilityWidget } from "@/components/AccessibilityWidget";
 import { CarouselItem, CarouselPayload } from "@/lib/carousel/types";
 import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
 import { buildModelSiblingSwatches, resolveItemSwatches } from "@/lib/carousel/colors";
@@ -116,7 +117,7 @@ export default function CarouselPageClient() {
   );
 
   return (
-    <main className="carousel-page">
+    <main className="carousel-page" id="main-content">
       {/* Black-leather background — texture generated entirely by SVG filters
           (no image asset), with 5 stacked lighting/texture layers above a
           #070605 base. Sits behind all content. */}
@@ -188,6 +189,8 @@ export default function CarouselPageClient() {
       />
 
       <TechSpecsModal item={techSpecsItem} onClose={onCloseTechSpecs} />
+
+      <AccessibilityWidget />
     </main>
   );
 }
