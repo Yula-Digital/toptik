@@ -306,15 +306,11 @@ export default function AdminPage() {
         coverImagePath: "/hero-web-airport.png",
         displayOrder: next.items.length + 1,
         isActive: true,
-        angles: [
-          {
-            id: crypto.randomUUID(),
-            itemId,
-            angleKey: "front",
-            imagePath: "/hero-web-airport.png",
-            angleOrder: 1,
-          },
-        ],
+        dimensions: null,
+        weight: null,
+        techSpecs: null,
+        // Manual entry starts with no angle images — upload cover + angles below.
+        angles: [],
       });
       return next;
     });
@@ -358,6 +354,83 @@ export default function AdminPage() {
     } catch (error) {
       setStatus(resolveErrorMessage(error, "שגיאת העלאה"));
     }
+  }
+
+  // Manual entry — upload an angle image and append it to the product's gallery.
+  // The first uploaded image also becomes the cover if the cover is still the
+  // placeholder, so a hand-entered product shows a real photo on its card.
+  async function onAngleUpload(itemIndex: number, file: File) {
+    try {
+      setStatus("מעלה תמונת זווית...");
+      const item = payload.items[itemIndex];
+      const url = await uploadFile(file, `items/${item.id}/angles`);
+      setPayload((current) => {
+        const next = structuredClone(current);
+        const target = next.items[itemIndex];
+        const order = target.angles.length + 1;
+        target.angles.push({
+          id: crypto.randomUUID(),
+          itemId: target.id,
+          angleKey: `view-${order}`,
+          angleOrder: order,
+          imagePath: url,
+        });
+        if (!target.coverImagePath || target.coverImagePath === "/hero-web-airport.png") {
+          target.coverImagePath = url;
+        }
+        return next;
+      });
+      setStatus("תמונת זווית הועלתה");
+    } catch (error) {
+      setStatus(resolveErrorMessage(error, "שגיאת העלאה"));
+    }
+  }
+
+  function removeAngle(itemIndex: number, angleId: string) {
+    setPayload((current) => {
+      const next = structuredClone(current);
+      const target = next.items[itemIndex];
+      target.angles = target.angles
+        .filter((a) => a.id !== angleId)
+        .map((a, i) => ({ ...a, angleOrder: i + 1 }));
+      return next;
+    });
+  }
+
+  // Dimensions/weight are stored inside item.techSpecs (the "מידות" section).
+  // That JSON blob is the ONLY spec data that survives a save→reload (the flat
+  // dimensions/weight columns are written but not read back), and the tech-specs
+  // modal renders techSpecs directly — so writing here makes hand-entered
+  // dimensions show up exactly like scraped ones.
+  const DIM_HEADING = "מידות";
+  function getDimValue(item: CarouselPayload["items"][number], label: "מידות" | "משקל") {
+    const section = item.techSpecs?.specs?.find((s) => s.heading === DIM_HEADING);
+    return section?.items.find((i) => i.label === label)?.value ?? "";
+  }
+  function setDimValue(itemIndex: number, label: "מידות" | "משקל", value: string) {
+    setPayload((current) => {
+      const next = structuredClone(current);
+      const item = next.items[itemIndex];
+      const existing = item.techSpecs;
+      const otherSections = (existing?.specs ?? []).filter((s) => s.heading !== DIM_HEADING);
+      const dimSection = (existing?.specs ?? []).find((s) => s.heading === DIM_HEADING);
+      let weightVal = dimSection?.items.find((i) => i.label === "משקל")?.value ?? "";
+      let dimsVal = dimSection?.items.find((i) => i.label === "מידות")?.value ?? "";
+      const v = value.trim();
+      if (label === "משקל") weightVal = v;
+      if (label === "מידות") dimsVal = v;
+      item.weight = weightVal || null;
+      item.dimensions = dimsVal || null;
+      const dimItems: Array<{ label: string; value: string }> = [];
+      if (weightVal) dimItems.push({ label: "משקל", value: weightVal });
+      if (dimsVal) dimItems.push({ label: "מידות", value: dimsVal });
+      const specs = dimItems.length > 0 ? [...otherSections, { heading: DIM_HEADING, items: dimItems }] : otherSections;
+      item.techSpecs =
+        specs.length > 0 || (existing?.colors?.length ?? 0) > 0
+          ? { specs, colors: existing?.colors ?? [] }
+          : null;
+      return next;
+    });
   }
 
   async function onExportExcel() {
@@ -477,8 +550,8 @@ export default function AdminPage() {
   }
 
   // Import a product straight from a product-page URL (supported sources:
-  // mandarinaduck.com / bricstore.com / huntleather.com / amazon). Imports and
-  // saves in one action, like the batch flow.
+  // mandarinaduck.com / bricstore.com). Imports and saves in one action, like
+  // the batch flow.
   async function onImportByUrl() {
     const url = urlImportValue.trim();
     if (!url) {
@@ -621,7 +694,7 @@ export default function AdminPage() {
       const succeededCatalogs: string[] = [];
       for (const row of filledRows) {
         // Each row is routed by its own content: a full URL is scraped directly
-        // (eMAG / Amazon / bricstore / …), a catalog number goes through the
+        // (mandarinaduck.com / bricstore.com), a catalog number goes through the
         // vendor source-chain (detected from the number). So a single batch can
         // mix catalogs and URLs — the section is just a starting point.
         const rowIsUrl = isUrlValue(row.catalogNumber);
@@ -818,8 +891,8 @@ export default function AdminPage() {
             <p className="admin-import-note">
               הדבק כתובת של עמוד מוצר והמערכת תייבא אותו עם כל הפרטים (תמונות מכל הזוויות,
               צבעים, מפרט טכני ותיאור מתורגם). אתרים נתמכים:{" "}
-              <span dir="ltr">mandarinaduck.com · bricstore.com · huntleather.com · amazon.de · emag.hu</span>{" "}
-              וכל חנות Shopify (כתובת עם /products/...)
+              <span dir="ltr">mandarinaduck.com · bricstore.com</span>. למוצרים ממקורות אחרים
+              השתמש בהזנה ידנית (הוסף מוצר → העלאת תמונות + מידות + תיאור).
             </p>
             <div className="admin-url-import-row">
               <input
@@ -867,9 +940,8 @@ export default function AdminPage() {
                   קובץ אקסל, ולחץ &quot;ייבא ושמור הכל&quot;. המערכת מזהה אוטומטית לכל מק״ט
                   אם הוא Mandarina Duck או Bric&apos;s — אפשר לערבב, ולא משנה מאיזה סקשן
                   מייבאים. כל צורת כתיבה מתקבלת (עם/בלי נקודות ומקפים). <b>אפשר גם להדביק
-                  בשורה כתובת URL מלאה של מוצר</b> (<span dir="ltr">emag.hu · amazon.de ·
-                  bricstore.com · huntleather.com · mandarinaduck.com</span>) והיא תיסרק
-                  ישירות — כך שבייבוא אחד אפשר לערבב מק״טים וכתובות. ליד כל שורה יוצג חיווי
+                  בשורה כתובת URL מלאה של מוצר</b> (<span dir="ltr">mandarinaduck.com ·
+                  bricstore.com</span>) והיא תיסרק ישירות. ליד כל שורה יוצג חיווי
                   הצלחה/כישלון מפורט.
                 </p>
                 <div className="admin-batch-grid">
@@ -1088,11 +1160,30 @@ export default function AdminPage() {
                         onChange={(e) => updateItemField(itemIndex, "title", e.target.value)}
                       />
                     </label>
-                    <label>
+                    <label style={{ gridColumn: "1 / -1" }}>
                       תיאור
-                      <input
+                      <textarea
                         value={item.description ?? ""}
                         onChange={(e) => updateItemField(itemIndex, "description", e.target.value)}
+                        rows={4}
+                        style={{ width: "100%", resize: "vertical", font: "inherit" }}
+                        placeholder="תיאור המוצר (יופיע בכרטיסייה ובחלון המוצר)"
+                      />
+                    </label>
+                    <label>
+                      מידות
+                      <input
+                        value={getDimValue(item, "מידות")}
+                        onChange={(e) => setDimValue(itemIndex, "מידות", e.target.value)}
+                        placeholder="למשל: 55x40x20 ס״מ"
+                      />
+                    </label>
+                    <label>
+                      משקל
+                      <input
+                        value={getDimValue(item, "משקל")}
+                        onChange={(e) => setDimValue(itemIndex, "משקל", e.target.value)}
+                        placeholder="למשל: 3.2 ק״ג"
                       />
                     </label>
                     <label>
@@ -1205,9 +1296,74 @@ export default function AdminPage() {
                     </div>
                   </div>
 
-                  <p className="admin-import-note">
-                    זוויות מוצר ({item.angles.length}) מתעדכנות אוטומטית בייבוא לפי מספר קטלוגי.
-                  </p>
+                  <div className="admin-item-angles" style={{ marginTop: 12 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                        gap: 8,
+                        flexWrap: "wrap",
+                      }}
+                    >
+                      <strong>תמונות זוויות ({item.angles.length})</strong>
+                      <label className="admin-batch-upload" style={{ cursor: "pointer" }}>
+                        + הוסף תמונת זווית
+                        <input
+                          type="file"
+                          accept="image/png,image/jpeg,image/webp"
+                          style={{ display: "none" }}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) void onAngleUpload(itemIndex, file);
+                            e.target.value = "";
+                          }}
+                        />
+                      </label>
+                    </div>
+                    {item.angles.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+                        {item.angles.map((angle) => (
+                          <div key={angle.id} style={{ position: "relative" }}>
+                            <Image
+                              src={angle.imagePath}
+                              alt=""
+                              width={64}
+                              height={64}
+                              className="admin-item-thumb"
+                              unoptimized
+                            />
+                            <button
+                              type="button"
+                              onClick={() => removeAngle(itemIndex, angle.id)}
+                              aria-label="הסר תמונה"
+                              style={{
+                                position: "absolute",
+                                top: -6,
+                                insetInlineEnd: -6,
+                                width: 20,
+                                height: 20,
+                                borderRadius: "50%",
+                                border: "none",
+                                background: "#c0392b",
+                                color: "#fff",
+                                cursor: "pointer",
+                                lineHeight: "20px",
+                                padding: 0,
+                                fontSize: 12,
+                              }}
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <p className="admin-import-note" style={{ marginTop: 8 }}>
+                      התמונה הראשונה משמשת כברירת מחדל לתצוגה. הזוויות מתעדכנות גם אוטומטית
+                      בייבוא לפי מק״ט.
+                    </p>
+                  </div>
                 </article>
               );
             })}

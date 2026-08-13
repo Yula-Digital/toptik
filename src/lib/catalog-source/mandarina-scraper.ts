@@ -1,6 +1,5 @@
 import { CatalogSourceProvider, SourceColorVariant, SourceProduct } from "@/lib/catalog-source/types";
 import { extractColorWord } from "@/lib/carousel/color-groups";
-import { fetchMandarinaFromAmazon } from "@/lib/catalog-source/amazon-scraper";
 
 const MANDARINA_BASE_URL = "https://mandarinaduck.com";
 const DEFAULT_HEADERS = {
@@ -526,13 +525,10 @@ export class MandarinaDuckScraperProvider implements CatalogSourceProvider {
     }
 
     if (productLinks.length === 0) {
-      // Source-priority chain: the official manufacturer site first; models it
-      // no longer lists fall back to Amazon.de (verified by model token there).
-      if (canonical) {
-        const amazonProduct = await fetchMandarinaFromAmazon(canonical);
-        if (amazonProduct) return amazonProduct;
-      }
-      throw new Error("Product not found on Mandarina Duck (site + Amazon.de)");
+      // Not on the official manufacturer site — products the site no longer
+      // lists are entered manually in the admin (cover + angles + description +
+      // dimensions), so there is no external-source fallback here.
+      throw new Error("Product not found on Mandarina Duck");
     }
 
     let bestPage:

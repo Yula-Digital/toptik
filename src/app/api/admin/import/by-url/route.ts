@@ -3,10 +3,6 @@ import { z } from "zod";
 import { importSourceProduct } from "@/lib/import/import-handler";
 import { fetchMandarinaByUrl } from "@/lib/catalog-source/mandarina-scraper";
 import { fetchBricsByUrl } from "@/lib/catalog-source/brics-scraper";
-import { fetchAmazonByUrl } from "@/lib/catalog-source/amazon-scraper";
-import { fetchEmagByUrl } from "@/lib/catalog-source/emag-scraper";
-import { fetchShopifyByUrl } from "@/lib/catalog-source/shopify-scraper";
-import { detectVendorFromCatalog } from "@/lib/catalog-source/vendor-detect";
 import { supabaseEnv } from "@/lib/supabase/env";
 import type { SourceProduct } from "@/lib/catalog-source/types";
 import type { CatalogVendor } from "@/lib/catalog-source/provider";
@@ -31,11 +27,13 @@ type UrlSource = {
   label: string;
   matches: (host: string) => boolean;
   fetch: (url: string) => Promise<SourceProduct | null>;
-  // Which vendor pipeline handles storage-folder + colour enumeration; null =
-  // detect from the extracted catalog number.
-  vendor: CatalogVendor | null;
+  // Which vendor pipeline handles storage-folder + colour enumeration.
+  vendor: CatalogVendor;
 };
 
+// Only the two brand sites are supported. Products from anywhere else are
+// entered manually in the admin (cover + angle images + description +
+// dimensions) rather than scraped from arbitrary hosts.
 const URL_SOURCES: UrlSource[] = [
   {
     label: "Mandarina Duck",
@@ -48,24 +46,6 @@ const URL_SOURCES: UrlSource[] = [
     matches: (host) => host.endsWith("bricstore.com"),
     fetch: fetchBricsByUrl,
     vendor: "brics",
-  },
-  {
-    label: "Hunt Leather",
-    matches: (host) => host.endsWith("huntleather.com"),
-    fetch: fetchBricsByUrl,
-    vendor: "brics",
-  },
-  {
-    label: "Amazon",
-    matches: (host) => /(^|\.)amazon\.(de|com|co\.uk|it|fr|es)$/.test(host),
-    fetch: fetchAmazonByUrl,
-    vendor: null,
-  },
-  {
-    label: "eMAG",
-    matches: (host) => /(^|\.)emag\.(hu|ro|bg|pl)$/.test(host),
-    fetch: fetchEmagByUrl,
-    vendor: null,
   },
 ];
 
@@ -85,27 +65,21 @@ export async function POST(req: NextRequest) {
       throw new Error("כתובת לא תקינה");
     }
 
-    // Known source for this host (specialised scraper); else null and we fall
-    // back to the generic Shopify scraper below.
     const source = URL_SOURCES.find((entry) => entry.matches(host));
-
-    let sourceProduct = source ? await source.fetch(url) : null;
-    // Generic fallback: ANY Shopify storefront exposes /products/<handle>.json,
-    // so a product URL on an unknown (or a failed specialised) host is scraped
-    // generically — no per-retailer code needed.
-    if (!sourceProduct) {
-      sourceProduct = await fetchShopifyByUrl(url);
-    }
-
-    if (!sourceProduct) {
+    if (!source) {
       throw new Error(
-        source
-          ? `לא הצלחתי לחלץ מוצר מהעמוד ב-${source.label}. ודא שזו כתובת של עמוד מוצר.`
-          : `לא הצלחתי לחלץ מוצר מהעמוד ב-${host}. נתמכים: mandarinaduck.com, bricstore.com, huntleather.com, amazon.de, emag.hu, וכל חנות Shopify (כתובת /products/...).`,
+        `כתובת לא נתמכת (${host}). ייבוא לפי כתובת נתמך רק ל-mandarinaduck.com ו-bricstore.com. למוצרים ממקורות אחרים השתמש בהזנה ידנית.`,
       );
     }
 
-    const vendor = source?.vendor ?? detectVendorFromCatalog(sourceProduct.catalogNumber);
+    const sourceProduct = await source.fetch(url);
+    if (!sourceProduct) {
+      throw new Error(
+        `לא הצלחתי לחלץ מוצר מהעמוד ב-${source.label}. ודא שזו כתובת של עמוד מוצר.`,
+      );
+    }
+
+    const vendor = source.vendor;
     const result = await importSourceProduct(
       vendor,
       sourceProduct,
