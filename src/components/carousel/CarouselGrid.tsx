@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Image from "next/image";
 import { A11y, Autoplay, Keyboard, Pagination } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
@@ -205,8 +205,18 @@ function CatalogCard({
 }
 
 export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }: CarouselGridProps) {
-  const pages = useMemo(() => chunkItems(items, 4), [items]);
-  const swiperKey = useMemo(() => items.map((item) => item.id).join("|"), [items]);
+  // Desktop shows 4 cards per slide (2×2); mobile shows 2 (stacked). Default to
+  // the desktop count for SSR, then adjust on mount + on viewport changes.
+  const [perPage, setPerPage] = useState(4);
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const apply = () => setPerPage(mq.matches ? 2 : 4);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+  const pages = useMemo(() => chunkItems(items, perPage), [items, perPage]);
+  const swiperKey = useMemo(() => `${perPage}:${items.map((item) => item.id).join("|")}`, [items, perPage]);
   const modelSiblings = useMemo(() => buildModelSiblingSwatches(items), [items]);
   const [swiperInstance, setSwiperInstance] = useState<SwiperType | null>(null);
   const [isBeginning, setIsBeginning] = useState(true);

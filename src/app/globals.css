@@ -2119,7 +2119,7 @@ body {
 
   .catalog-grid {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: 1fr;
     grid-template-rows: repeat(2, minmax(0, 1fr));
     gap: 8px;
     height: 100%;
@@ -2127,17 +2127,23 @@ body {
     direction: ltr;
   }
 
+  /* Mobile card mirrors the desktop connected layout: text | seam | image on
+     one continuous cream surface. Kills the old Figma translate/scale hacks. */
   .catalog-card {
     --card-frame: 3px;
     width: 100%;
     height: 100%;
     min-height: 0;
     display: grid;
-    grid-template-columns: 1fr;
-    grid-template-rows: 44% 31px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.25fr);
+    grid-template-rows: minmax(0, 1fr);
     gap: 0;
     margin: 0;
-    background: transparent;
+    background: #ece5d1;
+    border: 2px solid #fff;
+    border-radius: 12px;
+    translate: none;
+    scale: none;
   }
 
   .catalog-card-visual {
@@ -2145,7 +2151,7 @@ body {
   }
 
   .catalog-card-image-wrap {
-    grid-column: 1;
+    grid-column: 2;
     grid-row: 1;
     width: 100%;
     height: 100%;
@@ -2159,6 +2165,8 @@ body {
     align-items: center;
     justify-content: center;
     padding: 36px 8px 30px;
+    translate: none;
+    scale: none;
   }
 
   .catalog-card-image {
@@ -2174,35 +2182,45 @@ body {
 
   .catalog-card-body {
     grid-column: 1;
-    grid-row: 3;
-    display: block;
-    height: auto;
+    grid-row: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    height: 100%;
     min-height: 0;
-    padding: 6px;
-    background: #fff;
-    text-align: center;
+    padding: 8px 12px 8px 8px;
+    background: #ece5d1;
+    text-align: right;
     overflow: hidden;
-    border-right: none;
+    border-right: 2px solid #c9a45a;
+    translate: none;
+    scale: none;
   }
 
   .catalog-card-main {
-    display: block;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    flex: 1 1 auto;
     min-height: 0;
   }
 
   .catalog-card-title {
     font-size: 12px;
-    -webkit-line-clamp: 1;
+    -webkit-line-clamp: 2;
+    flex-shrink: 0;
   }
 
   .catalog-card-description {
     font-size: 10px;
-    max-height: calc(1.35em * 2);
+    flex: 1 1 auto;
+    min-height: 0;
+    max-height: none;
   }
 
   .catalog-card-catalog {
     font-size: 10px;
-    text-align: center;
+    text-align: right;
   }
 
   .catalog-card-cta {
@@ -2215,6 +2233,16 @@ body {
     min-height: 24px;
     padding: 0 6px;
     gap: 4px;
+    translate: none;
+    scale: none;
+  }
+
+  /* Neutralise the old Figma per-width translate/scale nudges on the floating
+     card elements — the clean 2-column layout positions them itself. */
+  .catalog-card-actions,
+  .catalog-card-colors {
+    translate: none;
+    scale: none;
   }
 
   .catalog-card-cta-icon {
@@ -2344,13 +2372,9 @@ body {
   }
 
   .product-modal-description {
-    position: absolute;
-    top: 356px;
-    left: 18px;
-    right: 18px;
-    font-size: 11px;
-    text-align: center;
-    max-height: calc(1.35em * 5);
+    /* Mobile: the rotate-product modal doesn't need the description repeated —
+       it reads poorly in the cramped space and is redundant with the card. */
+    display: none;
   }
 
   /* Mobile modal positions every meta element absolutely; anchor the buy+tech
