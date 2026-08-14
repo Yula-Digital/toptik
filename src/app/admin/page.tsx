@@ -6,7 +6,7 @@ import Image from "next/image";
 import { CarouselPayload, TransitionMode } from "@/lib/carousel/types";
 import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
 import { detectVendorFromCatalog, normalizeCatalogKey } from "@/lib/catalog-source/vendor-detect";
-import { CATEGORIES, categorizeItem, type CategoryKey } from "@/lib/carousel/categories";
+import { PRODUCT_CATEGORIES, categorizeItem, type ProductCategory } from "@/lib/carousel/categories";
 
 const STORAGE_KEY = "toptik_admin_token";
 const BATCH_IMPORT_INITIAL = 5;
@@ -480,10 +480,10 @@ export default function AdminPage() {
   // so it round-trips without a new DB column. Show the effective category
   // (explicit choice, else the title-derived guess) and preserve specs/colours
   // when the editor changes it.
-  function getItemCategory(item: CarouselPayload["items"][number]): CategoryKey {
+  function getItemCategory(item: CarouselPayload["items"][number]): ProductCategory {
     return categorizeItem(item);
   }
-  function setItemCategory(itemIndex: number, key: CategoryKey) {
+  function setItemCategory(itemIndex: number, key: ProductCategory) {
     setPayload((current) => {
       const next = structuredClone(current);
       const item = next.items[itemIndex];
@@ -1330,7 +1330,7 @@ export default function AdminPage() {
                     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                       <span>קטגוריה (בתפריט הקטלוג)</span>
                       <div style={{ display: "flex", gap: 14, marginTop: 2, flexWrap: "wrap" }}>
-                        {CATEGORIES.map((c) => (
+                        {PRODUCT_CATEGORIES.map((c) => (
                           <label
                             key={c.key}
                             style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer" }}

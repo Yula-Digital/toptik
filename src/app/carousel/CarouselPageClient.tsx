@@ -32,7 +32,8 @@ export default function CarouselPageClient() {
     setActiveCategory(key);
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
-    url.searchParams.set("category", key);
+    if (key === "all") url.searchParams.delete("category");
+    else url.searchParams.set("category", key);
     window.history.replaceState({}, "", url.toString());
   }, []);
 

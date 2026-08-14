@@ -11,6 +11,13 @@ type CategoryNavProps = {
 // Outline-stroke icons matching the mockup — Mandarina warm brown, ~22px,
 // stroke-width 1.6 to match the catalog-card-tech-btn family.
 const ICONS: Record<CategoryKey, ReactNode> = {
+  // All products — a shopping/bag glyph for the view-all tab.
+  all: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+      <path d="M5 8h14l-1.4 11.2a2 2 0 0 1-2 1.8h-7.2a2 2 0 0 1-2-1.8L5 8z" />
+      <path d="M9 8V6a3 3 0 0 1 6 0v2" />
+    </svg>
+  ),
   // Suitcase — large checked case on wheels.
   suitcase: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
