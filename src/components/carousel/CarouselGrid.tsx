@@ -223,7 +223,15 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }:
   const [isEnd, setIsEnd] = useState(false);
 
   return (
-    <section className="catalog-carousel" aria-label="קטלוג מוצרים">
+    <section
+      className="catalog-carousel"
+      aria-label="קטלוג מוצרים"
+      // Pause autoplay while the pointer is anywhere inside the carousel, resume
+      // on leave. Swiper's built-in pauseOnMouseEnter is unreliable with
+      // disableOnInteraction:false, so drive it explicitly to guarantee it.
+      onMouseEnter={() => swiperInstance?.autoplay?.pause()}
+      onMouseLeave={() => swiperInstance?.autoplay?.resume()}
+    >
       <button
         type="button"
         dir="ltr"
