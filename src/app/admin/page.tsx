@@ -229,13 +229,21 @@ export default function AdminPage() {
   }
 
   async function persistPayload(nextPayload: CarouselPayload) {
+    // Renumber displayOrder to a clean 1..N by current sort order before saving.
+    // This keeps the saved order identical to what the editor shows AND makes
+    // sure every value satisfies the server's >=1 rule — so a product added "at
+    // the top" (or any stray 0/negative order) always saves.
+    const orderedItems = [...nextPayload.items]
+      .sort((a, b) => a.displayOrder - b.displayOrder)
+      .map((item, index) => ({ ...item, displayOrder: index + 1 }));
+    const payloadToSave: CarouselPayload = { ...nextPayload, items: orderedItems };
     const res = await fetch("/api/admin/carousel", {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
         "x-admin-token": token,
       },
-      body: JSON.stringify(nextPayload),
+      body: JSON.stringify(payloadToSave),
     });
     if (!res.ok) {
       const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -298,18 +306,14 @@ export default function AdminPage() {
     setPayload((current) => {
       const next = structuredClone(current);
       const itemId = crypto.randomUUID();
-      // Add at the TOP of the list: give it a displayOrder below the current
-      // minimum so the sorted editor (and the catalog) shows it first — no
-      // scrolling to the bottom to fill in a new product.
-      const minOrder = next.items.reduce((min, item) => Math.min(min, item.displayOrder), 1);
-      next.items.push({
+      const newItem: CarouselPayload["items"][number] = {
         id: itemId,
         title: "מוצר חדש",
         description: "",
         catalogNumber: null,
         sourceUrl: null,
         coverImagePath: "/hero-web-airport.png",
-        displayOrder: minOrder - 1,
+        displayOrder: 1,
         isActive: true,
         dimensions: null,
         weight: null,
@@ -317,7 +321,12 @@ export default function AdminPage() {
         techSpecs: { specs: [], colors: [], category: "suitcase" },
         // Manual entry starts with no angle images — upload cover + angles below.
         angles: [],
-      });
+      };
+      // Insert at the TOP and renumber 1..N by current order, so the new product
+      // shows first AND every displayOrder stays a valid >=1 integer (the save
+      // schema rejects 0/negative).
+      const rest = [...next.items].sort((a, b) => a.displayOrder - b.displayOrder);
+      next.items = [newItem, ...rest].map((it, i) => ({ ...it, displayOrder: i + 1 }));
       return next;
     });
   }
