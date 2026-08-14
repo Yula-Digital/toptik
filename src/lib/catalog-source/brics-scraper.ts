@@ -30,11 +30,15 @@ type ShopifyVariant = {
   option1?: string | null;
   option2?: string | null;
   option3?: string | null;
+  // Shopify's authoritative per-colour image for this variant.
+  featured_image?: { src?: string | null } | null;
 };
 
 type ShopifyImage = {
   src: string;
   position?: number;
+  // Variant ids this image is explicitly assigned to (Shopify colour linkage).
+  variant_ids?: number[];
 };
 
 type ShopifyProduct = {
@@ -224,35 +228,47 @@ function colorCodeFromSku(sku: string | null | undefined): string | null {
   return segments.length > 1 ? segments[segments.length - 1].toUpperCase() : null;
 }
 
-function baseSkuOf(sku: string) {
-  const segments = sku.split(".");
-  return segments.length > 1 ? segments.slice(0, -1).join(".") : sku;
-}
-
 function imageFileName(url: string) {
   const [withoutQuery] = url.split("?");
   const segments = withoutQuery.split("/");
   return (segments[segments.length - 1] ?? "").toUpperCase();
 }
 
-// Bric's image files are named `<baseSku>.<colorCode>.<viewIndex>.jpg`, so a
-// variant's full rotation gallery is every image whose name starts with its SKU.
-function selectVariantImages(product: ShopifyProduct, variantSku: string | null) {
-  const images = (product.images ?? [])
-    .map((image) => image.src)
-    .filter((src) => /^https?:\/\//i.test(src));
+// Resolve the images that belong to THIS colour variant using Shopify's own
+// linkage — never a mixed-colour fallback. Order:
+//   1. the variant's featured_image (authoritative per-colour cover),
+//   2. images explicitly assigned to the variant id (Shopify colour linkage),
+//   3. images whose filename is prefixed with the exact SKU (Bric's per-colour
+//      gallery naming `<baseSku>.<colorCode>.<view>.jpg`) — a full rotation set
+//      when the store names files that way.
+// If nothing matches it returns [] rather than the whole (multi-colour) gallery,
+// so a wrong colour is never shown. This fixes SKUs whose files are named
+// `p_<uuid>.jpg` / `download.jpg` (no SKU in the name), which previously fell
+// back to ALL images and made every colour share one cover.
+function resolveVariantImages(product: ShopifyProduct, variant: ShopifyVariant): string[] {
+  const isHttp = (src: string) => /^https?:\/\//i.test(src);
+  const out: string[] = [];
+  const push = (src?: string | null) => {
+    if (src && isHttp(src) && !out.includes(src)) out.push(src);
+  };
 
-  if (variantSku) {
-    const exactPrefix = `${variantSku.toUpperCase()}.`;
-    const variantImages = images.filter((src) => imageFileName(src).startsWith(exactPrefix));
-    if (variantImages.length > 0) return variantImages;
+  push(variant.featured_image?.src ?? null);
 
-    const basePrefix = `${baseSkuOf(variantSku).toUpperCase()}.`;
-    const familyImages = images.filter((src) => imageFileName(src).startsWith(basePrefix));
-    if (familyImages.length > 0) return familyImages;
+  if (variant.id != null) {
+    for (const image of product.images ?? []) {
+      if ((image.variant_ids ?? []).includes(variant.id)) push(image.src);
+    }
   }
 
-  return images;
+  const sku = variant.sku?.trim();
+  if (sku) {
+    const exactPrefix = `${sku.toUpperCase()}.`;
+    for (const image of product.images ?? []) {
+      if (isHttp(image.src) && imageFileName(image.src).startsWith(exactPrefix)) push(image.src);
+    }
+  }
+
+  return out;
 }
 
 type SpecBlock = {
@@ -357,6 +373,12 @@ export async function enumerateBricsColorVariants(
   if (colorIdx === -1) return [];
   const optionKey = `option${colorIdx + 1}` as "option1" | "option2" | "option3";
 
+  // One Shopify product can bundle MORE than one model (e.g. BXL58139.* and
+  // BXL58145.* live on the same page). Only enumerate colours of the SAME base
+  // model as the imported catalog number, so a card never shows another model's
+  // colours.
+  const baseKey = input.catalogNumber ? bricsBaseSku(input.catalogNumber) : "";
+
   const variants: SourceColorVariant[] = [];
   const seenColors = new Set<string>();
 
@@ -364,10 +386,11 @@ export async function enumerateBricsColorVariants(
     const colorValue = variant[optionKey]?.trim();
     const sku = variant.sku?.trim();
     if (!colorValue || !sku) continue;
+    if (baseKey && bricsBaseSku(sku) !== baseKey) continue;
     const colorKey = colorValue.toLowerCase();
     if (seenColors.has(colorKey)) continue;
 
-    const imageUrls = selectVariantImages(product, sku).slice(0, MAX_IMPORTED_IMAGES);
+    const imageUrls = resolveVariantImages(product, variant).slice(0, MAX_IMPORTED_IMAGES);
     if (imageUrls.length === 0) continue;
 
     seenColors.add(colorKey);
@@ -510,7 +533,7 @@ async function buildBricstoreSourceProduct(
   const variantSku = variant.sku?.trim() || null;
   const sourceUrl = `${BRICS_BASE_URL}/products/${product.handle}`;
 
-  const imageUrls = selectVariantImages(product, variantSku).slice(0, MAX_IMPORTED_IMAGES);
+  const imageUrls = resolveVariantImages(product, variant).slice(0, MAX_IMPORTED_IMAGES);
   if (imageUrls.length === 0) {
     throw new Error("No product gallery images detected on source page");
   }
