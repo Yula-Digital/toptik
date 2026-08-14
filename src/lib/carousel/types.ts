@@ -11,6 +11,9 @@ export interface CarouselAngle {
 export interface CachedTechSpecs {
   specs: Array<{ heading: string; items: Array<{ label: string; value: string }> }>;
   colors: Array<{ name: string; hex: string | null; swatchUrl: string | null }>;
+  // Catalog category ("suitcase" | "carryon") set in the admin. Stored here so
+  // it round-trips in the tech_specs JSON without a dedicated DB column.
+  category?: string | null;
 }
 
 // One selectable colour of a product, scraped from Mandarina Duck's sibling

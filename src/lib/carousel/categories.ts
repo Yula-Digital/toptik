@@ -1,6 +1,7 @@
 import type { CarouselItem } from "./types";
 
-export type CategoryKey = "all" | "bags" | "travel" | "wheeled";
+// Exactly two catalog categories, chosen per-product in the admin.
+export type CategoryKey = "suitcase" | "carryon";
 
 export interface CategoryDefinition {
   key: CategoryKey;
@@ -8,33 +9,35 @@ export interface CategoryDefinition {
 }
 
 export const CATEGORIES: readonly CategoryDefinition[] = [
-  { key: "all", label: "כל המוצרים" },
-  { key: "bags", label: "תיקים שונים" },
-  { key: "travel", label: "תיקי נסיעה" },
-  { key: "wheeled", label: "מזוודה / טרולי על גלגלים" },
+  { key: "suitcase", label: "מזוודה" },
+  { key: "carryon", label: "טרולי / Carry-on" },
 ] as const;
+
+export const DEFAULT_CATEGORY: CategoryKey = "suitcase";
 
 const CATEGORY_KEYS = new Set<string>(CATEGORIES.map((c) => c.key));
 
-export function parseCategoryParam(raw: string | null | undefined): CategoryKey {
-  if (raw && CATEGORY_KEYS.has(raw)) return raw as CategoryKey;
-  return "all";
+export function isCategoryKey(value: string | null | undefined): value is CategoryKey {
+  return Boolean(value && CATEGORY_KEYS.has(value));
 }
 
-// Classify an item into exactly one non-"all" category by inspecting the
-// English title — robust to new imports since Mandarina's title structure
-// is stable (it always names the product type).
-//
-// Order matters: wheeled wins over travel (a "Trolley Backpack" is wheeled),
-// travel wins over bags (a "Travel Crossbody" is travel).
-export function categorizeItem(item: CarouselItem): Exclude<CategoryKey, "all"> {
+export function parseCategoryParam(raw: string | null | undefined): CategoryKey {
+  return isCategoryKey(raw) ? raw : DEFAULT_CATEGORY;
+}
+
+// The category chosen in the admin (stored in techSpecs.category) wins. For
+// legacy products with no explicit choice, guess from the English title so they
+// still land in one of the two buckets — a clear cabin/carry-on marker maps to
+// "carryon", everything else defaults to "suitcase". The admin checkbox lets an
+// editor correct any guess.
+export function categorizeItem(item: CarouselItem): CategoryKey {
+  const explicit = item.techSpecs?.category;
+  if (isCategoryKey(explicit)) return explicit;
   const t = item.title.toLowerCase();
-  if (/\b(trolley|cabin|rolling|spinner|suitcase|luggage)\b/.test(t)) return "wheeled";
-  if (/\b(backpack|beauty\s*case|necessaire|toiletry|duffel|carry[-\s]?on|travel)\b/.test(t)) return "travel";
-  return "bags";
+  if (/\b(cabin|carry[-\s]?on|hand\s*luggage|underseat|trolley\s*case)\b/.test(t)) return "carryon";
+  return "suitcase";
 }
 
 export function filterByCategory(items: CarouselItem[], category: CategoryKey): CarouselItem[] {
-  if (category === "all") return items;
   return items.filter((item) => categorizeItem(item) === category);
 }

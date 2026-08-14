@@ -12,6 +12,7 @@ import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
 import { buildModelSiblingSwatches, resolveItemSwatches } from "@/lib/carousel/colors";
 import {
   CategoryKey,
+  DEFAULT_CATEGORY,
   filterByCategory,
   parseCategoryParam,
 } from "@/lib/carousel/categories";
@@ -22,7 +23,7 @@ export default function CarouselPageClient() {
   const [selectedItem, setSelectedItem] = useState<CarouselItem | null>(null);
   const [techSpecsItem, setTechSpecsItem] = useState<CarouselItem | null>(null);
   const [activeCategory, setActiveCategory] = useState<CategoryKey>(() => {
-    if (typeof window === "undefined") return "all";
+    if (typeof window === "undefined") return DEFAULT_CATEGORY;
     const param = new URL(window.location.href).searchParams.get("category");
     return parseCategoryParam(param);
   });
@@ -31,8 +32,7 @@ export default function CarouselPageClient() {
     setActiveCategory(key);
     if (typeof window === "undefined") return;
     const url = new URL(window.location.href);
-    if (key === "all") url.searchParams.delete("category");
-    else url.searchParams.set("category", key);
+    url.searchParams.set("category", key);
     window.history.replaceState({}, "", url.toString());
   }, []);
 

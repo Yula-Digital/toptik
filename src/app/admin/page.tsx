@@ -6,6 +6,7 @@ import Image from "next/image";
 import { CarouselPayload, TransitionMode } from "@/lib/carousel/types";
 import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
 import { detectVendorFromCatalog, normalizeCatalogKey } from "@/lib/catalog-source/vendor-detect";
+import { CATEGORIES, categorizeItem, type CategoryKey } from "@/lib/carousel/categories";
 
 const STORAGE_KEY = "toptik_admin_token";
 const BATCH_IMPORT_INITIAL = 5;
@@ -298,6 +299,10 @@ export default function AdminPage() {
     setPayload((current) => {
       const next = structuredClone(current);
       const itemId = crypto.randomUUID();
+      // Add at the TOP of the list: give it a displayOrder below the current
+      // minimum so the sorted editor (and the catalog) shows it first — no
+      // scrolling to the bottom to fill in a new product.
+      const minOrder = next.items.reduce((min, item) => Math.min(min, item.displayOrder), 1);
       next.items.push({
         id: itemId,
         title: "מוצר חדש",
@@ -305,11 +310,12 @@ export default function AdminPage() {
         catalogNumber: null,
         sourceUrl: null,
         coverImagePath: "/hero-web-airport.png",
-        displayOrder: next.items.length + 1,
+        displayOrder: minOrder - 1,
         isActive: true,
         dimensions: null,
         weight: null,
-        techSpecs: null,
+        // Start explicitly in the first category; the editor can switch it.
+        techSpecs: { specs: [], colors: [], category: "suitcase" },
         // Manual entry starts with no angle images — upload cover + angles below.
         angles: [],
       });
@@ -461,10 +467,32 @@ export default function AdminPage() {
       if (weightVal) dimItems.push({ label: "משקל", value: weightVal });
       if (dimsVal) dimItems.push({ label: "מידות", value: dimsVal });
       const specs = dimItems.length > 0 ? [...otherSections, { heading: DIM_HEADING, items: dimItems }] : otherSections;
+      const category = existing?.category ?? null;
       item.techSpecs =
-        specs.length > 0 || (existing?.colors?.length ?? 0) > 0
-          ? { specs, colors: existing?.colors ?? [] }
+        specs.length > 0 || (existing?.colors?.length ?? 0) > 0 || category
+          ? { specs, colors: existing?.colors ?? [], category }
           : null;
+      return next;
+    });
+  }
+
+  // Catalog category (מזוודה / טרולי-Carry-on) is stored inside item.techSpecs
+  // so it round-trips without a new DB column. Show the effective category
+  // (explicit choice, else the title-derived guess) and preserve specs/colours
+  // when the editor changes it.
+  function getItemCategory(item: CarouselPayload["items"][number]): CategoryKey {
+    return categorizeItem(item);
+  }
+  function setItemCategory(itemIndex: number, key: CategoryKey) {
+    setPayload((current) => {
+      const next = structuredClone(current);
+      const item = next.items[itemIndex];
+      const existing = item.techSpecs;
+      item.techSpecs = {
+        specs: existing?.specs ?? [],
+        colors: existing?.colors ?? [],
+        category: key,
+      };
       return next;
     });
   }
@@ -1299,6 +1327,25 @@ export default function AdminPage() {
                         }}
                       />
                     </label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                      <span>קטגוריה (בתפריט הקטלוג)</span>
+                      <div style={{ display: "flex", gap: 14, marginTop: 2, flexWrap: "wrap" }}>
+                        {CATEGORIES.map((c) => (
+                          <label
+                            key={c.key}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 5, cursor: "pointer" }}
+                          >
+                            <input
+                              type="radio"
+                              name={`category-${item.id}`}
+                              checked={getItemCategory(item) === c.key}
+                              onChange={() => setItemCategory(itemIndex, c.key)}
+                            />
+                            <span>{c.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
                     <label>
                       ונדור (מקור המוצר)
                       <select

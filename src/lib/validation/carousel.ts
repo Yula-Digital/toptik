@@ -24,7 +24,9 @@ const carouselColorSchema = z.object({
   catalogNumber: z.string().max(64).nullable(),
 });
 
-// Cached tech-specs blob (the נתונים טכניים modal).
+// Cached tech-specs blob (the נתונים טכניים modal). Also carries the product's
+// catalog category ("suitcase" | "carryon") set in the admin — stored here so
+// it round-trips in the tech_specs JSON without a new DB column.
 const cachedTechSpecsSchema = z.object({
   specs: z.array(
     z.object({
@@ -39,6 +41,7 @@ const cachedTechSpecsSchema = z.object({
       swatchUrl: z.string().max(2000).nullable(),
     }),
   ).max(40),
+  category: z.string().max(20).nullable().optional(),
 });
 
 export const carouselItemInputSchema = z.object({
@@ -57,7 +60,9 @@ export const carouselItemInputSchema = z.object({
   availableColors: z.array(z.string().max(40)).max(20).nullable().optional(),
   colors: z.array(carouselColorSchema).max(40).nullable().optional(),
   techSpecs: cachedTechSpecsSchema.nullable().optional(),
-  angles: z.array(carouselAngleInputSchema).min(1).max(30),
+  // May be empty: a hand-entered product can be saved with only a cover image
+  // before angle images are uploaded (the display falls back to the cover).
+  angles: z.array(carouselAngleInputSchema).max(30),
 });
 
 export const adminCarouselPayloadSchema = z.object({
