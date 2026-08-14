@@ -11,6 +11,7 @@ type ProductModalProps = {
   colors?: ResolvedSwatch[];
   onClose: () => void;
   onOpenTechSpecs: (item: CarouselItem) => void;
+  onNavigateToItem: (itemId: string) => void;
 };
 
 // The angle paths a swatch rotates through: its own scraped angles, else its
@@ -68,14 +69,15 @@ function warmImages(urls: string[], eager: boolean, warmed: Set<string>) {
   }
 }
 
-export function ProductModal({ item, colors = [], onClose, onOpenTechSpecs }: ProductModalProps) {
+export function ProductModal({ item, colors = [], onClose, onOpenTechSpecs, onNavigateToItem }: ProductModalProps) {
   const touchStartX = useRef<number | null>(null);
   // Tracks every URL already preloaded for THIS modal open. The modal is remounted
   // per item (keyed by id in the parent), so this resets on each open.
   const warmedRef = useRef<Set<string>>(new Set());
-  // The modal is remounted per item, so initialising the selected colour to the
-  // item's own colour runs once per open.
-  const [selectedColorKey, setSelectedColorKey] = useState<string | null>(
+  // The modal is remounted per item, so the selected colour is fixed to the
+  // item's own colour for this open. Swatches navigate to another product rather
+  // than swapping the gallery in place, so this never changes after mount.
+  const [selectedColorKey] = useState<string | null>(
     () => colors.find((c) => c.isCurrent)?.key ?? null,
   );
   const [angleIdx, setAngleIdx] = useState(0);
@@ -137,12 +139,8 @@ export function ProductModal({ item, colors = [], onClose, onOpenTechSpecs }: Pr
 
   const next = () => setAngleIdx((i) => (count ? (i + 1) % count : 0));
   const prev = () => setAngleIdx((i) => (count ? (i - 1 + count) % count : 0));
-  const selectColor = (key: string) => {
-    setSelectedColorKey(key);
-    setAngleIdx(0);
-  };
   // Hovering/touching a swatch warms that colour's full gallery at high priority,
-  // so by the time the click lands the images are already in cache.
+  // so navigating to that product paints from cache.
   const warmColor = (swatch: ResolvedSwatch) =>
     warmImages(galleryUrls(anglesOf(swatch)), true, warmedRef.current);
 
@@ -246,13 +244,14 @@ export function ProductModal({ item, colors = [], onClose, onOpenTechSpecs }: Pr
                           title={c.name}
                           style={c.hex ? { background: c.hex } : undefined}
                           aria-label={c.name}
-                          aria-pressed={selected}
+                          aria-current={selected || undefined}
                           onMouseEnter={() => warmColor(c)}
                           onFocus={() => warmColor(c)}
                           onTouchStart={() => warmColor(c)}
                           onClick={(e) => {
                             e.stopPropagation();
-                            selectColor(c.key);
+                            // Each swatch IS its own product — navigate to it.
+                            if (!c.isCurrent && c.itemId) onNavigateToItem(c.itemId);
                           }}
                         />
                       );
@@ -279,7 +278,7 @@ export function ProductModal({ item, colors = [], onClose, onOpenTechSpecs }: Pr
               >
                 לרכישה
               </button>
-              {item.sourceUrl && (
+              {(item.sourceUrl || (item.techSpecs?.specs?.length ?? 0) > 0) && (
                 <button
                   className="product-modal-tech-btn"
                   onClick={(e) => { e.stopPropagation(); onOpenTechSpecs(item); }}

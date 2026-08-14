@@ -18,6 +18,7 @@ type CarouselGridProps = {
   autoplayMs: number;
   onOpenItem: (item: CarouselItem) => void;
   onOpenTechSpecs: (item: CarouselItem) => void;
+  onNavigateToItem: (itemId: string) => void;
 };
 
 // Warm a card's first few angle images when the user signals open-intent
@@ -79,14 +80,15 @@ function CatalogCard({
   swatches,
   onOpenItem,
   onOpenTechSpecs,
+  onNavigate,
 }: {
   item: CarouselItem;
   swatches: ResolvedSwatch[];
   onOpenItem: (item: CarouselItem) => void;
   onOpenTechSpecs: (item: CarouselItem) => void;
+  onNavigate: (itemId: string) => void;
 }) {
-  const [colorImage, setColorImage] = useState<string | null>(null);
-  const displayed = colorImage ?? item.coverImagePath;
+  const displayed = item.coverImagePath;
   const catalog = extractCatalogNumber(item);
 
   return (
@@ -181,15 +183,15 @@ function CatalogCard({
                       style={swatch.hex ? { background: swatch.hex } : undefined}
                       title={swatch.name}
                       aria-label={swatch.name}
-                      aria-pressed={actionable ? colorImage === swatch.imagePath : undefined}
+                      aria-current={swatch.isCurrent || undefined}
                       onMouseEnter={() => warmCardImage(swatch.imagePath)}
                       onFocus={() => warmCardImage(swatch.imagePath)}
                       onTouchStart={() => warmCardImage(swatch.imagePath)}
                       onClick={(e) => {
                         e.stopPropagation();
-                        if (swatch.imagePath) {
-                          setColorImage((prev) => (prev === swatch.imagePath ? null : swatch.imagePath));
-                        }
+                        // Each swatch IS its own product — navigate to it (unless
+                        // it's the colour already shown on this card).
+                        if (!swatch.isCurrent && swatch.itemId) onNavigate(swatch.itemId);
                       }}
                       onKeyDown={(e) => e.stopPropagation()}
                     />
@@ -204,7 +206,7 @@ function CatalogCard({
   );
 }
 
-export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }: CarouselGridProps) {
+export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs, onNavigateToItem }: CarouselGridProps) {
   // Desktop shows 4 cards per slide (2×2); mobile shows 2 (stacked). Default to
   // the desktop count for SSR, then adjust on mount + on viewport changes.
   const [perPage, setPerPage] = useState(4);
@@ -279,9 +281,10 @@ export function CarouselGrid({ items, autoplayMs, onOpenItem, onOpenTechSpecs }:
                 <CatalogCard
                   key={item.id}
                   item={item}
-                  swatches={resolveItemSwatches(item, modelSiblings.get(item.id))}
+                  swatches={resolveItemSwatches(modelSiblings.get(item.id))}
                   onOpenItem={onOpenItem}
                   onOpenTechSpecs={onOpenTechSpecs}
+                  onNavigate={onNavigateToItem}
                 />
               ))}
             </div>

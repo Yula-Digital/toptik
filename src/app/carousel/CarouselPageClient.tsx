@@ -108,6 +108,18 @@ export default function CarouselPageClient() {
     setSelectedItem({ ...item, angles: orderedAngles });
   }, []);
 
+  // Clicking a colour swatch navigates to THAT colour's product (each colour is
+  // its own catalog item). Opens/replaces the product modal with the target.
+  const onNavigateToItem = useCallback(
+    (id: string) => {
+      const target = payload.items.find((i) => i.id === id);
+      if (!target) return;
+      const orderedAngles = [...target.angles].sort((a, b) => a.angleOrder - b.angleOrder);
+      setSelectedItem({ ...target, angles: orderedAngles });
+    },
+    [payload.items],
+  );
+
   const onCloseModal = useCallback(() => setSelectedItem(null), []);
   const onOpenTechSpecs = useCallback((item: CarouselItem) => setTechSpecsItem(item), []);
   const onCloseTechSpecs = useCallback(() => setTechSpecsItem(null), []);
@@ -177,6 +189,7 @@ export default function CarouselPageClient() {
             autoplayMs={payload.settings.autoplayMs}
             onOpenItem={onOpenItem}
             onOpenTechSpecs={onOpenTechSpecs}
+            onNavigateToItem={onNavigateToItem}
           />
         </div>
       )}
@@ -184,9 +197,10 @@ export default function CarouselPageClient() {
       <ProductModal
         key={selectedItem?.id ?? "none"}
         item={selectedItem}
-        colors={selectedItem ? resolveItemSwatches(selectedItem, modelSiblings.get(selectedItem.id)) : []}
+        colors={selectedItem ? resolveItemSwatches(modelSiblings.get(selectedItem.id)) : []}
         onClose={onCloseModal}
         onOpenTechSpecs={onOpenTechSpecs}
+        onNavigateToItem={onNavigateToItem}
       />
 
       <TechSpecsModal item={techSpecsItem} onClose={onCloseTechSpecs} />

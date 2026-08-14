@@ -145,6 +145,7 @@ export function ensureOwnColor(
 // product image to that colour; null ⇒ a passive colour dot (title fallback).
 export interface ResolvedSwatch {
   key: string;
+  itemId?: string; // the catalog item this colour IS (drives navigation on click)
   name: string;
   hex: string | null;
   imagePath: string | null; // cover (= angles[0])
@@ -165,39 +166,19 @@ export function colorCodeFromCatalog(catalogNumber: string | null | undefined): 
 // Every colour of a product shares this code; the colour is the second segment.
 export function modelCodeFromCatalog(catalogNumber: string | null | undefined): string | null {
   if (!catalogNumber) return null;
-  const head = catalogNumber.toUpperCase().split(/[-_/]/)[0] ?? "";
+  // Split on Bric's dot too (BXL58145.101 → base "BXL58145"), so every colour of
+  // a model shares one model code (Mandarina P10SZV24-05J-TU → "SZV24").
+  const head = catalogNumber.toUpperCase().split(/[-_/.]/)[0] ?? "";
   const stripped = head.replace(/^P\d+/, "");
   return stripped.length >= 4 ? stripped : null;
 }
 
-// Prefer the scraped per-colour set (real re-hosted galleries). Otherwise use the
-// in-catalog model-sibling swatches. Each swatch carries the colour's full gallery
-// so it stays rotatable; the item's OWN colour shows its curated imported angles.
-export function resolveItemSwatches(
-  item: CarouselItem,
-  modelSiblings?: ResolvedSwatch[],
-): ResolvedSwatch[] {
-  if (item.colors && item.colors.length > 0) {
-    const ownCode = colorCodeFromCatalog(item.catalogNumber);
-    const ownAngles =
-      item.angles.length > 0
-        ? [...item.angles].sort((a, b) => a.angleOrder - b.angleOrder).map((a) => a.imagePath)
-        : null;
-    return item.colors.map((color) => {
-      const isCurrent =
-        ownCode != null && color.colorCode != null && color.colorCode.toUpperCase() === ownCode;
-      const scraped = color.angles && color.angles.length > 0 ? color.angles : [color.imagePath];
-      return {
-        key: color.colorCode ?? color.name,
-        name: color.name,
-        hex: color.hex,
-        imagePath: color.imagePath,
-        angles: isCurrent && ownAngles ? ownAngles : scraped,
-        isCurrent,
-      };
-    });
-  }
-
+// Swatches for a card come ONLY from colour-sibling ITEMS that actually exist in
+// the catalog (built by buildModelSiblingSwatches, grouped by model code). A
+// colour that has no product of its own is never shown, and clicking a swatch
+// navigates to that colour's product. A model with a single colour in the
+// catalog therefore has no swatch selector at all.
+export function resolveItemSwatches(modelSiblings?: ResolvedSwatch[]): ResolvedSwatch[] {
   return modelSiblings ?? [];
 }
 
@@ -231,7 +212,10 @@ export function buildModelSiblingSwatches(items: CarouselItem[]): Map<string, Re
         member.angles.length > 0
           ? [...member.angles].sort((a, b) => a.angleOrder - b.angleOrder).map((a) => a.imagePath)
           : [member.coverImagePath];
-      base.push({ code, swatch: { key: code, name, hex, imagePath: member.coverImagePath, angles } });
+      base.push({
+        code,
+        swatch: { key: code, itemId: member.id, name, hex, imagePath: member.coverImagePath, angles },
+      });
     }
     if (base.length < 2) continue; // need 2+ colours to form a selector
 
