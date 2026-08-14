@@ -106,7 +106,7 @@ function CatalogCard({
           >
             <span>לרכישה</span>
           </button>
-          {item.sourceUrl && (
+          {(item.sourceUrl || (item.techSpecs?.specs?.length ?? 0) > 0) && (
             <button
               className="catalog-card-tech-btn"
               onClick={(e) => {

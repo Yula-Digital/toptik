@@ -452,29 +452,42 @@ export default function AdminPage() {
   // dimensions/weight columns are written but not read back), and the tech-specs
   // modal renders techSpecs directly — so writing here makes hand-entered
   // dimensions show up exactly like scraped ones.
-  const DIM_HEADING = "מידות";
-  function getDimValue(item: CarouselPayload["items"][number], label: "מידות" | "משקל") {
-    const section = item.techSpecs?.specs?.find((s) => s.heading === DIM_HEADING);
-    return section?.items.find((i) => i.label === label)?.value ?? "";
+  // Free-form tech specs: one "label: value" per line, stored as a section in
+  // item.techSpecs (the only spec data that round-trips + what the tech-specs
+  // modal renders). Lets a manual product carry any fields (רוחב/גובה/עומק/נפח/
+  // משקל…), not just two. Other sections (e.g. scraped) and the category are
+  // preserved.
+  const SPEC_HEADING = "מפרט טכני";
+  function getSpecsText(item: CarouselPayload["items"][number]) {
+    const section = item.techSpecs?.specs?.find((s) => s.heading === SPEC_HEADING);
+    if (!section) return "";
+    return section.items.map((i) => (i.value ? `${i.label}: ${i.value}` : i.label)).join("\n");
   }
-  function setDimValue(itemIndex: number, label: "מידות" | "משקל", value: string) {
+  function parseSpecLines(text: string): Array<{ label: string; value: string }> {
+    return text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .flatMap((line) => {
+        const idx = line.indexOf(":");
+        // No colon → a stand-alone label line (renders full width).
+        if (idx === -1) return [{ label: line, value: "" }];
+        const label = line.slice(0, idx).trim();
+        const value = line.slice(idx + 1).trim();
+        if (!label) return [];
+        // "Label:" with an empty value (e.g. an unfilled "Weight:") is dropped.
+        if (!value) return [];
+        return [{ label, value }];
+      });
+  }
+  function setSpecsText(itemIndex: number, text: string) {
     setPayload((current) => {
       const next = structuredClone(current);
       const item = next.items[itemIndex];
       const existing = item.techSpecs;
-      const otherSections = (existing?.specs ?? []).filter((s) => s.heading !== DIM_HEADING);
-      const dimSection = (existing?.specs ?? []).find((s) => s.heading === DIM_HEADING);
-      let weightVal = dimSection?.items.find((i) => i.label === "משקל")?.value ?? "";
-      let dimsVal = dimSection?.items.find((i) => i.label === "מידות")?.value ?? "";
-      const v = value.trim();
-      if (label === "משקל") weightVal = v;
-      if (label === "מידות") dimsVal = v;
-      item.weight = weightVal || null;
-      item.dimensions = dimsVal || null;
-      const dimItems: Array<{ label: string; value: string }> = [];
-      if (weightVal) dimItems.push({ label: "משקל", value: weightVal });
-      if (dimsVal) dimItems.push({ label: "מידות", value: dimsVal });
-      const specs = dimItems.length > 0 ? [...otherSections, { heading: DIM_HEADING, items: dimItems }] : otherSections;
+      const otherSections = (existing?.specs ?? []).filter((s) => s.heading !== SPEC_HEADING);
+      const items = parseSpecLines(text);
+      const specs = items.length > 0 ? [...otherSections, { heading: SPEC_HEADING, items }] : otherSections;
       const category = existing?.category ?? null;
       item.techSpecs =
         specs.length > 0 || (existing?.colors?.length ?? 0) > 0 || category
@@ -1254,20 +1267,15 @@ export default function AdminPage() {
                         הדבק תיאור באנגלית ולחץ — אותו מנוע תרגום כמו בסקרייפינג.
                       </span>
                     </div>
-                    <label>
-                      מידות
-                      <input
-                        value={getDimValue(item, "מידות")}
-                        onChange={(e) => setDimValue(itemIndex, "מידות", e.target.value)}
-                        placeholder="למשל: 55x40x20 ס״מ"
-                      />
-                    </label>
-                    <label>
-                      משקל
-                      <input
-                        value={getDimValue(item, "משקל")}
-                        onChange={(e) => setDimValue(itemIndex, "משקל", e.target.value)}
-                        placeholder="למשל: 3.2 ק״ג"
+                    <label style={{ gridColumn: "1 / -1" }}>
+                      פרטים טכניים (שורה לכל שדה, בפורמט &quot;שם: ערך&quot;)
+                      <textarea
+                        value={getSpecsText(item)}
+                        onChange={(e) => setSpecsText(itemIndex, e.target.value)}
+                        rows={5}
+                        dir="rtl"
+                        style={{ width: "100%", resize: "vertical", font: "inherit" }}
+                        placeholder={"רוחב: 40 ס״מ\nגובה: 35 ס״מ\nעומק: 16 ס״מ\nנפח: 28 ליטר\nמשקל: 3.2 ק״ג"}
                       />
                     </label>
                     <label>
