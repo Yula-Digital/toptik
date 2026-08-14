@@ -14,13 +14,13 @@ export interface CategoryDefinition {
 export const CATEGORIES: readonly CategoryDefinition[] = [
   { key: "all", label: "כל המוצרים" },
   { key: "suitcase", label: "מזוודה" },
-  { key: "carryon", label: "פריט נסיעה" },
+  { key: "carryon", label: "טרולי / Carry-on" },
 ] as const;
 
 // The two categories an editor can assign to a product (no "all").
 export const PRODUCT_CATEGORIES: ReadonlyArray<{ key: ProductCategory; label: string }> = [
   { key: "suitcase", label: "מזוודה" },
-  { key: "carryon", label: "פריט נסיעה" },
+  { key: "carryon", label: "טרולי / Carry-on" },
 ] as const;
 
 export const DEFAULT_CATEGORY: CategoryKey = "all";
