@@ -546,6 +546,15 @@ export default function AdminPage() {
       setStatus("שומר...");
       await persistPayload(payload);
       setStatus("נשמר בהצלחה");
+      // Any catalog number that now exists as a saved product (e.g. a product
+      // entered manually after its auto-import failed) is resolved — drop it
+      // from the "failed imports" list.
+      setFailedImports((prev) => {
+        const presentKeys = new Set(
+          payload.items.map((it) => normalizeCatalogKey(it.catalogNumber ?? "")).filter(Boolean),
+        );
+        return prev.filter((f) => !presentKeys.has(normalizeCatalogKey(f.catalog)));
+      });
       setImportFeedback({
         tone: "success",
         message: "השינויים נשמרו בהצלחה.",
