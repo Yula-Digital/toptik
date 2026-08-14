@@ -50,7 +50,6 @@ export default function AdminPage() {
   const [urlImportValue, setUrlImportValue] = useState("");
   const [isUrlImporting, setIsUrlImporting] = useState(false);
   const [urlImportStatus, setUrlImportStatus] = useState<BatchImportStatus | null>(null);
-  const [itemCatalogInputs, setItemCatalogInputs] = useState<Record<string, string>>({});
   const [itemVendorMap, setItemVendorMap] = useState<Record<string, Vendor>>({});
   const [itemImportingMap, setItemImportingMap] = useState<Record<string, boolean>>({});
   const [translatingItemId, setTranslatingItemId] = useState<string | null>(null);
@@ -669,12 +668,13 @@ export default function AdminPage() {
   async function onImportIntoItem(itemId: string) {
     const item = payload.items.find((row) => row.id === itemId);
     if (!item) return;
-    const itemCatalogNumber = normalizeCatalogNumber(itemCatalogInputs[itemId] || "");
+    // Import uses THIS item's own catalog number (single source of truth).
+    const itemCatalogNumber = normalizeCatalogNumber(item.catalogNumber ?? "");
     if (!itemCatalogNumber) {
-      setImportFeedback({ tone: "error", message: "יש להזין מספר קטלוגי ליבוא למוצר זה." });
+      setImportFeedback({ tone: "error", message: 'מלא את שדה "מספר קטלוגי" למעלה לפני ייבוא.' });
       return;
     }
-    // The typed catalog number decides the vendor (the select is a hint only).
+    // The catalog number decides the vendor (the select is a hint only).
     const vendor = detectVendorFromCatalog(itemCatalogNumber);
 
     try {
@@ -685,7 +685,6 @@ export default function AdminPage() {
       });
       const data = await importCatalogNumberFromSource(vendor, itemCatalogNumber, itemId);
       setPayload((current) => upsertImportedItem(current, data, itemId).next);
-      setItemCatalogInputs((current) => ({ ...current, [itemId]: "" }));
       recordImportResults([itemCatalogNumber], []);
       setImportFeedback({
         tone: "success",
@@ -1268,8 +1267,24 @@ export default function AdminPage() {
                         value={item.catalogNumber ?? ""}
                         onChange={(e) => updateItemField(itemIndex, "catalogNumber", e.target.value)}
                         placeholder="למשל: QMT32A74"
+                        dir="ltr"
                       />
                     </label>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, justifyContent: "flex-end" }}>
+                      <span className="admin-import-note" style={{ margin: 0 }}>
+                        ייבוא אוטומטי לפי המק״ט שלמעלה (Mandarina / Bric&apos;s):
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => onImportIntoItem(item.id)}
+                        disabled={
+                          Boolean(itemImportingMap[item.id] || isSaving || isBatchImporting) ||
+                          !(item.catalogNumber ?? "").trim()
+                        }
+                      >
+                        {itemImportingMap[item.id] ? "מייבא..." : "ייבא למוצר זה"}
+                      </button>
+                    </div>
                     <label>
                       סדר תצוגה
                       <input
@@ -1289,35 +1304,7 @@ export default function AdminPage() {
                       />
                     </label>
                     <label>
-                      Cover URL
-                      <input
-                        value={item.coverImagePath}
-                        onChange={(e) =>
-                          setPayload((current) => {
-                            const next = structuredClone(current);
-                            next.items[itemIndex].coverImagePath = e.target.value;
-                            return next;
-                          })
-                        }
-                      />
-                    </label>
-                    <label>
-                      כתובת מקור
-                      <input
-                        value={item.sourceUrl ?? ""}
-                        onChange={(e) =>
-                          setPayload((current) => {
-                            const next = structuredClone(current);
-                            const normalized = e.target.value.trim();
-                            next.items[itemIndex].sourceUrl = normalized ? normalized : null;
-                            return next;
-                          })
-                        }
-                        placeholder="https://mandarinaduck.com/products/..."
-                      />
-                    </label>
-                    <label>
-                      העלאת Cover
+                      תמונה ראשית (העלאה מהמחשב)
                       <input
                         type="file"
                         accept="image/png,image/jpeg,image/webp"
@@ -1364,31 +1351,6 @@ export default function AdminPage() {
                         ))}
                       </select>
                     </label>
-                    <div className="admin-item-import">
-                      <label>
-                        מספר קטלוגי ליבוא למוצר זה
-                        <input
-                          value={itemCatalogInputs[item.id] || ""}
-                          onChange={(e) =>
-                            setItemCatalogInputs((current) => ({
-                              ...current,
-                              [item.id]: e.target.value,
-                            }))
-                          }
-                          placeholder={
-                            VENDOR_OPTIONS.find((o) => o.value === vendorForItem(item))?.example
-                          }
-                          dir="ltr"
-                        />
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => onImportIntoItem(item.id)}
-                        disabled={Boolean(itemImportingMap[item.id] || isSaving || isBatchImporting)}
-                      >
-                        {itemImportingMap[item.id] ? "מייבא..." : "ייבא למוצר זה"}
-                      </button>
-                    </div>
                   </div>
 
                   <div className="admin-item-angles" style={{ marginTop: 12 }}>
