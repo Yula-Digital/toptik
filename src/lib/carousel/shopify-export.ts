@@ -136,6 +136,27 @@ function tagsFor(vendor: string, type: string, color: string): string {
   return [vendor, type, color].filter(Boolean).join(", ");
 }
 
+// Matching key for a catalog number: letters+digits, uppercase, with the
+// Mandarina size suffix dropped, so "BAH08453.001" and "BAH08453-001" — and
+// "P10SZV24-05J-TU" against a supplier's "P10SZV2405J" — collapse to one key.
+function catalogKey(value: string): string {
+  return normalizeCatalogKey(value).replace(/TU$/, "");
+}
+
+// Catalog key WITHOUT the colour segment, so every colour of one model shares a
+// Product_Key. Vendors separate the colour differently: Mandarina and most of
+// Bric's use a separator (P10SZV24-05J-TU, BAH08453.001), while some Bric's SKUs
+// run together (BXL38124078) and need the trailing 3-digit colour split off.
+function modelKey(sku: string): string {
+  const parts = sku
+    .toUpperCase()
+    .split(/[.\-_/ ]/)
+    .filter((part) => part && part !== "TU");
+  if (parts.length >= 2) return parts.slice(0, -1).join("");
+  const key = catalogKey(sku);
+  return /^[A-Z]{2,4}\d{8}$/.test(key) ? key.slice(0, -3) : key;
+}
+
 // SKU for a colour that was scraped without its own catalog number. Mandarina
 // catalogs carry the colour in their middle segment (P10QMC01-465-TU), so swap
 // that segment for this colour's code rather than appending it — appending
@@ -163,13 +184,29 @@ function firstTwoImages(gallery: Array<string | null | undefined>, origin: strin
 }
 
 export function buildShopifyExportRows(items: CarouselItem[], origin: string): ShopifyExportRow[] {
-  const rows: ShopifyExportRow[] = [];
+  // A SKU must appear ONCE. Bric's colours were each imported as their own
+  // product while also carrying the full sibling colour list, so a naive
+  // per-item expansion emits every SKU once per sibling. Keyed insertion
+  // collapses those, preferring the row whose own product IS that SKU — that
+  // product's gallery and title are first-hand rather than a sibling's copy.
+  const bySku = new Map<string, { row: ShopifyExportRow; self: boolean }>();
+  let fallbackKey = 0;
+
+  const add = (row: ShopifyExportRow, parentCatalog: string) => {
+    // Rows with no catalog number cannot be compared — keep each of them.
+    const key = row.SKU ? catalogKey(row.SKU) : `#${fallbackKey++}`;
+    const self = Boolean(row.SKU) && catalogKey(row.SKU) === catalogKey(parentCatalog);
+    const existing = bySku.get(key);
+    if (!existing || (self && !existing.self)) bySku.set(key, { row, self });
+  };
 
   for (const item of [...items].sort((a, b) => a.displayOrder - b.displayOrder)) {
     const baseCatalog = item.catalogNumber?.trim() ?? "";
-    // Every variant of a product shares the parent's catalog key. Items imported
-    // without a catalog number fall back to their row id, which is just as stable.
-    const productKey = normalizeCatalogKey(baseCatalog) || item.id;
+    // Group by MODEL, not by parent row: for Bric's every colour was imported as
+    // its own product, so keying on the parent would give each colour of one
+    // model a different Product_Key. Items with no catalog number fall back to
+    // their row id, which is just as stable.
+    const productKey = baseCatalog ? modelKey(baseCatalog) : item.id;
     // detectVendorFromCatalog defaults to Bric's for anything that is not a
     // Mandarina pattern — including an empty string. Only claim a brand when
     // there is actually a catalog number to judge.
@@ -215,14 +252,17 @@ export function buildShopifyExportRows(items: CarouselItem[], origin: string): S
         [item.coverImagePath, ...item.angles.map((a) => a.imagePath)],
         origin,
       );
-      rows.push({
-        SKU: baseCatalog,
-        ...shared,
-        Color: "",
-        Image_1_URL: images.first,
-        Image_2_URL: images.second,
-        Tags: tagsFor(vendor, type, ""),
-      });
+      add(
+        {
+          SKU: baseCatalog,
+          ...shared,
+          Color: "",
+          Image_1_URL: images.first,
+          Image_2_URL: images.second,
+          Tags: tagsFor(vendor, type, ""),
+        },
+        baseCatalog,
+      );
       continue;
     }
 
@@ -235,16 +275,22 @@ export function buildShopifyExportRows(items: CarouselItem[], origin: string): S
       // Colours scraped without their own catalog number get one derived from the
       // parent + the global colour code, so the SKU column is never blank.
       const sku = color.catalogNumber?.trim() || deriveVariantSku(baseCatalog, color.colorCode);
-      rows.push({
-        SKU: sku,
-        ...shared,
-        Color: color.name ?? "",
-        Image_1_URL: images.first,
-        Image_2_URL: images.second,
-        Tags: tagsFor(vendor, type, color.name ?? ""),
-      });
+      add(
+        {
+          SKU: sku,
+          ...shared,
+          Color: color.name ?? "",
+          Image_1_URL: images.first,
+          Image_2_URL: images.second,
+          Tags: tagsFor(vendor, type, color.name ?? ""),
+        },
+        baseCatalog,
+      );
     }
   }
 
-  return rows;
+  // Colours of one model sit together, ready for review.
+  return [...bySku.values()]
+    .map((entry) => entry.row)
+    .sort((a, b) => a.Product_Key.localeCompare(b.Product_Key) || a.SKU.localeCompare(b.SKU));
 }
