@@ -6,7 +6,12 @@ import Image from "next/image";
 import { CarouselPayload, TransitionMode } from "@/lib/carousel/types";
 import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
 import { detectVendorFromCatalog, normalizeCatalogKey } from "@/lib/catalog-source/vendor-detect";
-import { PRODUCT_CATEGORIES, categorizeItem, type ProductCategory } from "@/lib/carousel/categories";
+import {
+  PRODUCT_CATEGORIES,
+  categorizeItem,
+  categoryLabel,
+  type ProductCategory,
+} from "@/lib/carousel/categories";
 
 const STORAGE_KEY = "toptik_admin_token";
 const BATCH_IMPORT_INITIAL = 5;
@@ -527,9 +532,12 @@ export default function AdminPage() {
         .map((item) => ({
           "מק״ט": item.catalogNumber ?? "",
           "שם המוצר": item.title,
+          // Same effective category the catalog filters by: the admin's explicit
+          // choice, else the title-derived guess.
+          "קטגוריה": categoryLabel(categorizeItem(item)),
         }));
       const worksheet = XLSX.utils.json_to_sheet(rows);
-      worksheet["!cols"] = [{ wch: 18 }, { wch: 60 }];
+      worksheet["!cols"] = [{ wch: 18 }, { wch: 60 }, { wch: 20 }];
       const workbook = XLSX.utils.book_new();
       workbook.Workbook = { Views: [{ RTL: true }] };
       XLSX.utils.book_append_sheet(workbook, worksheet, "מוצרים");
