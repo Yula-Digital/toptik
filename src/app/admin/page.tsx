@@ -12,6 +12,8 @@ import {
   categoryLabel,
   type ProductCategory,
 } from "@/lib/carousel/categories";
+import { trimmedProductSrc } from "@/lib/carousel/trim-src";
+import { LANDING_URL } from "@/lib/admin/config";
 
 const STORAGE_KEY = "toptik_admin_token";
 const BATCH_IMPORT_INITIAL = 5;
@@ -21,6 +23,20 @@ const VENDOR_OPTIONS: Array<{ value: Vendor; label: string; example: string }> =
   { value: "mandarina", label: "Mandarina Duck", example: "P10QMC01-465-TU" },
   { value: "brics", label: "Bric's", example: "BOE58117.050" },
 ];
+
+// Widest tier /api/img-trim accepts. `withoutEnlargement` keeps it a ceiling, so
+// smaller sources are served at their own size rather than upscaled.
+const EXPORT_IMG_WIDTH = 2048;
+
+// Cover-image URL for the Excel export: routed through the background trimmer
+// and made absolute against the landing domain (which serves /api/img-trim), so
+// the cell is a URL any external system — e.g. Shopify — can fetch directly.
+function exportImageUrl(coverImagePath: string): string {
+  const trimmed = trimmedProductSrc(coverImagePath, EXPORT_IMG_WIDTH);
+  if (!trimmed) return "";
+  return trimmed.startsWith("/") ? `${LANDING_URL.replace(/\/$/, "")}${trimmed}` : trimmed;
+}
+
 type ImportFeedbackTone = "info" | "success" | "error";
 type ImportPreview = {
   id: string;
@@ -535,9 +551,15 @@ export default function AdminPage() {
           // Same effective category the catalog filters by: the admin's explicit
           // choice, else the title-derived guess.
           "קטגוריה": categoryLabel(categorizeItem(item)),
+          // Absolute, publicly fetchable URL of the cover image AFTER the
+          // background trim — the same pipeline the catalog renders, at the
+          // largest tier the trimmer allows, so it can be pulled straight into
+          // Shopify. Absolute against LANDING_URL (not the current origin) so
+          // the sheet is valid even when exported from a local dev run.
+          "תמונה ראשית": exportImageUrl(item.coverImagePath),
         }));
       const worksheet = XLSX.utils.json_to_sheet(rows);
-      worksheet["!cols"] = [{ wch: 18 }, { wch: 60 }, { wch: 20 }];
+      worksheet["!cols"] = [{ wch: 18 }, { wch: 60 }, { wch: 20 }, { wch: 80 }];
       const workbook = XLSX.utils.book_new();
       workbook.Workbook = { Views: [{ RTL: true }] };
       XLSX.utils.book_append_sheet(workbook, worksheet, "מוצרים");
