@@ -146,7 +146,10 @@ function isBareCode(name: string): boolean {
 }
 
 function tagsFor(vendor: string, type: string, color: string): string {
-  return [vendor, type, color].filter(Boolean).join(", ");
+  // The store's automatic "מזוודות" collection matches on the PLURAL tag, so
+  // the singular Type label is pluralized for tagging.
+  const collectionTag = type === "מזוודה" ? "מזוודות" : type;
+  return [vendor, collectionTag, color].filter(Boolean).join(", ");
 }
 
 // Matching key for a catalog number: letters+digits, uppercase, with the
