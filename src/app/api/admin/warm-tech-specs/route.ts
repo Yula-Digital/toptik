@@ -60,12 +60,29 @@ function extractHebrewSpecs(text: string | null): { volume?: string; material?: 
 
 type SpecSections = NonNullable<StoredTechSpecs["specs"]>;
 
-function ensureSpec(specs: SpecSections, heading: string, label: string, value?: string) {
+// Add {label,value} unless the specs already carry it under ANY of the alias
+// labels (e.g. dimensions may be stored as מידות or גודל).
+function ensureSpec(
+  specs: SpecSections,
+  heading: string,
+  label: string,
+  value?: string,
+  aliases: string[] = [label],
+) {
   if (!value) return;
-  if (specs.some((s) => s.items.some((i) => i.label === label))) return;
+  if (specs.some((s) => s.items.some((i) => aliases.includes(i.label)))) return;
   const section = specs.find((s) => s.heading === heading);
   if (section) section.items.push({ label, value });
   else specs.push({ heading, items: [{ label, value }] });
+}
+
+function findSpecValue(specs: SpecSections | undefined, labels: string[]): string | undefined {
+  for (const section of specs ?? []) {
+    for (const item of section.items) {
+      if (labels.includes(item.label) && item.value?.trim()) return item.value;
+    }
+  }
+  return undefined;
 }
 
 function specCount(ts: StoredTechSpecs | null | undefined) {
@@ -125,13 +142,18 @@ export async function POST(req: NextRequest) {
         ...(existing?.category ? { category: existing.category } : {}),
       };
 
-      // Whatever the scrape missed, complete from the item's own Hebrew
-      // description (e.g. "נפח 32 ליטר", "פוליקרבונט") — curated data we
-      // already hold, so vendor pages that omit litres no longer leave נפח
-      // empty when the description states it.
+      // Whatever the fresh scrape missed, complete from (in order): the values
+      // already STORED for this item — including data entered manually or
+      // researched from other retailers, which a re-scrape can't reproduce and
+      // must never wipe — then the item's own Hebrew description. A live
+      // scrape still wins for any field it actually found.
       const fromDesc = extractHebrewSpecs(item.description);
-      ensureSpec(merged.specs ?? [], "מידות", "נפח", fromDesc.volume);
-      ensureSpec(merged.specs ?? [], "הרכב", "חומר", fromDesc.material);
+      const prev = existing?.specs;
+      const specs = merged.specs ?? [];
+      ensureSpec(specs, "מידות", "נפח", findSpecValue(prev, ["נפח"]) ?? fromDesc.volume);
+      ensureSpec(specs, "הרכב", "חומר", findSpecValue(prev, ["חומר"]) ?? fromDesc.material);
+      ensureSpec(specs, "מידות", "מידות", findSpecValue(prev, ["מידות", "גודל"]), ["מידות", "גודל"]);
+      ensureSpec(specs, "מידות", "משקל", findSpecValue(prev, ["משקל", "משקל עצמי"]), ["משקל", "משקל עצמי"]);
 
       const update: Record<string, unknown> = { tech_specs: merged };
       if (recoveredUrl) update.source_url = sourceUrl;
