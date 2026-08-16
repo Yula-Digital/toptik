@@ -45,6 +45,7 @@ export default function AdminPage() {
   const [payload, setPayload] = useState<CarouselPayload>(fallbackCarouselPayload);
   const [status, setStatus] = useState<string>("טוען...");
   const [isSaving, setIsSaving] = useState(false);
+  const [isWarming, setIsWarming] = useState(false);
   const [batchCatalogInputs, setBatchCatalogInputs] = useState<Record<Vendor, string[]>>({
     mandarina: Array.from({ length: BATCH_IMPORT_INITIAL }, () => ""),
     brics: Array.from({ length: BATCH_IMPORT_INITIAL }, () => ""),
@@ -523,6 +524,30 @@ export default function AdminPage() {
       };
       return next;
     });
+  }
+
+  // Re-scrape specs (volume, material, dimensions…) for every product via the
+  // warmer, using the token the admin already entered — no hand-built URL. The
+  // warmer merges: manual data and the category choice are never overwritten.
+  async function onWarmTechSpecs() {
+    try {
+      setIsWarming(true);
+      setStatus("מעדכן מפרטים מאתרי היצרנים... (עד 3 דקות)");
+      const res = await fetch("/api/admin/warm-tech-specs?force=1", {
+        method: "POST",
+        headers: { "x-admin-token": token },
+      });
+      const data = (await res.json().catch(() => null)) as
+        | { succeeded?: number; failed?: number; error?: string }
+        | null;
+      if (!res.ok) throw new Error(data?.error || "Warm failed");
+      setStatus(`מפרטים עודכנו: ${data?.succeeded ?? 0} הצליחו, ${data?.failed ?? 0} נכשלו`);
+      await loadData(token); // pull the refreshed specs into the editor
+    } catch (error) {
+      setStatus(resolveErrorMessage(error, "שגיאה בעדכון המפרטים"));
+    } finally {
+      setIsWarming(false);
+    }
   }
 
   async function onExportExcel() {
@@ -1222,6 +1247,9 @@ export default function AdminPage() {
                 <button onClick={addItem}>הוסף מוצר</button>
                 <button onClick={onExportExcel} disabled={payload.items.length === 0}>
                   הורד אקסל
+                </button>
+                <button onClick={onWarmTechSpecs} disabled={isWarming || isSaving || isBatchImporting}>
+                  {isWarming ? "מעדכן מפרטים..." : "עדכן מפרטים"}
                 </button>
               </div>
             </div>
