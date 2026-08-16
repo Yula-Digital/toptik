@@ -2780,6 +2780,52 @@ body {
 .navbar-info-link:hover { color: #8a6a2d; }
 .navbar-info-link:hover::after { transform: scaleX(1); }
 
+/* "פרטיות / נגישות והצהרות" — desktop dropdown */
+.navbar-info-group {
+  position: relative;
+  display: inline-flex;
+}
+.navbar-info-caret {
+  font-size: 0.7em;
+  margin-inline-start: 4px;
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+.navbar-info-group[data-open] .navbar-info-caret { transform: rotate(180deg); }
+.navbar-info-dropdown {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  padding: 8px;
+  background: #fdf8ee;
+  border: 1px solid rgba(31, 39, 49, 0.12);
+  border-radius: 12px;
+  box-shadow: 0 14px 34px rgba(31, 22, 6, 0.22);
+  z-index: 40;
+}
+.navbar-info-sublink {
+  font-family: var(--font-assistant), var(--font-rubik), sans-serif;
+  font-size: clamp(13px, 1.05vw, 15px);
+  font-weight: 600;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  text-align: start;
+  padding: 9px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+.navbar-info-sublink:hover {
+  color: #8a6a2d;
+  background: rgba(31, 39, 49, 0.06);
+}
+
 /* Mobile: button styled like the existing burger-menu anchors */
 .m-menu-info-link {
   font-family: var(--font-assistant), var(--font-rubik), sans-serif;
@@ -2799,6 +2845,32 @@ body {
   width: 100%;
 }
 .m-menu-info-link:active { background: rgba(31, 39, 49, 0.06); }
+
+/* "פרטיות / נגישות והצהרות" — mobile collapsible section */
+.m-menu-info-group {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+.m-menu-info-caret {
+  font-size: 0.75em;
+  margin-inline-start: 6px;
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+.m-menu-info-caret.is-open { transform: rotate(180deg); }
+.m-menu-info-sub {
+  display: flex;
+  flex-direction: column;
+  margin-inline-start: 10px;
+  padding-inline-start: 10px;
+  border-inline-start: 2px solid rgba(31, 39, 49, 0.14);
+}
+.m-menu-info-sub .m-menu-info-link {
+  font-size: 15.5px;
+  padding: 11px 8px;
+  min-height: 42px;
+}
 
 /* Modal backdrop + container */
 .info-modal-backdrop {

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { DOCS, DOC_ORDER, type DocId } from "@/content/legal-docs";
+import { DOCS, MENU, type DocId } from "@/content/legal-docs";
 
 type Variant = "desktop" | "mobile";
 
@@ -14,6 +14,10 @@ type Props = {
 
 export function InfoMenu({ variant, onItemSelect }: Props) {
   const [openId, setOpenId] = useState<DocId | null>(null);
+  // The "פרטיות / נגישות והצהרות" parent: dropdown open state (desktop) /
+  // collapsible section state (mobile).
+  const [groupOpen, setGroupOpen] = useState(false);
+  const groupRef = useRef<HTMLDivElement | null>(null);
 
   const close = useCallback(() => setOpenId(null), []);
 
@@ -31,8 +35,28 @@ export function InfoMenu({ variant, onItemSelect }: Props) {
     };
   }, [openId, close]);
 
+  // Desktop dropdown: close on outside click / Escape.
+  useEffect(() => {
+    if (!groupOpen || variant !== "desktop") return;
+    const onDown = (e: PointerEvent) => {
+      if (groupRef.current && !groupRef.current.contains(e.target as Node)) {
+        setGroupOpen(false);
+      }
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setGroupOpen(false);
+    };
+    document.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [groupOpen, variant]);
+
   const openDoc = (id: DocId) => {
     setOpenId(id);
+    setGroupOpen(false);
     onItemSelect?.();
   };
 
@@ -75,16 +99,81 @@ export function InfoMenu({ variant, onItemSelect }: Props) {
 
   return (
     <>
-      {DOC_ORDER.map((id) => (
-        <button
-          key={id}
-          type="button"
-          className={linkClass}
-          onClick={() => openDoc(id)}
-        >
-          {DOCS[id].title}
-        </button>
-      ))}
+      {MENU.map((entry) => {
+        if (entry.kind === "doc") {
+          return (
+            <button
+              key={entry.id}
+              type="button"
+              className={linkClass}
+              onClick={() => openDoc(entry.id)}
+            >
+              {DOCS[entry.id].title}
+            </button>
+          );
+        }
+        const subButtons = entry.ids.map((id) => (
+          <button
+            key={id}
+            type="button"
+            className={
+              variant === "mobile" ? "m-menu-info-link" : "navbar-info-sublink"
+            }
+            onClick={() => openDoc(id)}
+          >
+            {DOCS[id].title}
+          </button>
+        ));
+        if (variant === "mobile") {
+          return (
+            <div key={entry.title} className="m-menu-info-group">
+              <button
+                type="button"
+                className="m-menu-info-link"
+                aria-expanded={groupOpen}
+                onClick={() => setGroupOpen((v) => !v)}
+              >
+                {entry.title}
+                <span
+                  className={`m-menu-info-caret${groupOpen ? " is-open" : ""}`}
+                  aria-hidden
+                >
+                  ▾
+                </span>
+              </button>
+              {groupOpen && (
+                <div className="m-menu-info-sub">{subButtons}</div>
+              )}
+            </div>
+          );
+        }
+        return (
+          <div
+            key={entry.title}
+            ref={groupRef}
+            className="navbar-info-group"
+            data-open={groupOpen || undefined}
+          >
+            <button
+              type="button"
+              className="navbar-info-link"
+              aria-expanded={groupOpen}
+              aria-haspopup="menu"
+              onClick={() => setGroupOpen((v) => !v)}
+            >
+              {entry.title}
+              <span className="navbar-info-caret" aria-hidden>
+                ▾
+              </span>
+            </button>
+            {groupOpen && (
+              <div className="navbar-info-dropdown" role="menu" dir="rtl">
+                {subButtons}
+              </div>
+            )}
+          </div>
+        );
+      })}
       {modal}
     </>
   );

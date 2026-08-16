@@ -10,15 +10,27 @@ export type DocId =
   | "webAccessibility"
   | "terms"
   | "privacy"
-  | "about";
+  | "about"
+  | "aboutMandarina"
+  | "aboutBrics";
 
-export const DOC_ORDER: DocId[] = [
-  "stores",
-  "accessibility",
-  "webAccessibility",
-  "terms",
-  "privacy",
-  "about",
+// The info menu's shape: flat doc links, plus one group ("פרטיות / נגישות
+// והצהרות") that folds the legal/accessibility docs under a single parent —
+// a dropdown on desktop, a collapsible section in the mobile burger.
+export type MenuEntry =
+  | { kind: "doc"; id: DocId }
+  | { kind: "group"; title: string; ids: DocId[] };
+
+export const MENU: MenuEntry[] = [
+  { kind: "doc", id: "stores" },
+  { kind: "doc", id: "about" },
+  { kind: "doc", id: "aboutMandarina" },
+  { kind: "doc", id: "aboutBrics" },
+  {
+    kind: "group",
+    title: "פרטיות / נגישות והצהרות",
+    ids: ["accessibility", "webAccessibility", "terms", "privacy"],
+  },
 ];
 
 type Doc = { title: string; body: ReactNode };
@@ -564,6 +576,56 @@ const AboutBody = (
   </>
 );
 
+const AboutMandarinaBody = (
+  <>
+    <h2>Mandarina Duck</h2>
+    <p>
+      Mandarina Duck הוא מותג אופנה ועסקים איטלקי יוקרתי וחדשני, הידוע בעיקר בזכות השפה העיצובית
+      הנקייה שלו.
+    </p>
+    <p>
+      מותג תיקי היוקרה האיטלקי Mandarina Duck נוסד בשנת 1977, ובשנת 1984 נפתחה חנות הדגל הראשונה
+      למותג, שמאז התרחב ונמכר בחנויות ברחבי העולם. עם השנים צברה לעצמה החברה לקוחות נאמנים שנהנים
+      להתחדש במוצרים באיכות בלתי מתפשרת, ייחודיים ופרקטיים.
+    </p>
+    <p>
+      חברת Mandarina Duck משווקת בשמונים מדינות ברחבי העולם, ובכלל זה בישראל, ומאופיינת במגוון
+      מוצריה הפונה לקהל צעיר, דינמי ובעל חוש אופנה וסטייל מפותח.
+    </p>
+    <p>
+      הקו המנחה את המותג הוא ייצור פריטים מעוצבים, מלאי סטייל וצבע, העשויים באיכות וסטנדרטים
+      בינלאומיים.
+    </p>
+    <p>
+      בין מגוון מוצריה תמצאו ארנקי נשים וגברים, טרולים מעוצבים, מזוודות מיוחדות לאנשי עסקים, תיקי
+      מחשב ותיקי נסיעות בעיצוב מרשים במיוחד.
+    </p>
+  </>
+);
+
+const AboutBricsBody = (
+  <>
+    <h2>BRIC&apos;S Milano</h2>
+    <p>
+      BRIC&apos;S Milano הוא מותג איטלקי ותיק למזוודות, תיקי נסיעות ומוצרי עור, המשלב עיצוב אלגנטי
+      עם שימושיות המותאמת לנוסעים מודרניים.
+    </p>
+    <p>
+      המותג נוסד בשנת 1952 על ידי מריו בריקולה באזור אגם קומו שבצפון איטליה. מאז צמח מעסק משפחתי
+      למותג בינלאומי, הממשיך להתנהל בידי משפחת בריקולה תוך שמירה על איכות, ירידה לפרטים ומסורת
+      איטלקית.
+    </p>
+    <p>
+      בלב העשייה של BRIC&apos;S נמצא החיבור בין מסורת לחדשנות: עבודת יד, חומרי גלם שנבחרים בקפידה
+      ועיצוב על־זמני, לצד פתרונות פונקציונליים לצורכי הנסיעה העכשוויים.
+    </p>
+    <p>
+      קולקציות המותג כוללות מזוודות קבינה, טרולים בינוניים וגדולים, תיקי נסיעות, תיקי עסקים, תיקי
+      גב ואביזרים — בשילוב עמידות, נוחות וסגנון איטלקי מזוהה.
+    </p>
+  </>
+);
+
 export const DOCS: Record<DocId, Doc> = {
   stores: { title: "סניפים", body: StoresBody },
   accessibility: { title: "נגישות בחנויות", body: AccessibilityBody },
@@ -571,4 +633,6 @@ export const DOCS: Record<DocId, Doc> = {
   terms: { title: "תקנון", body: TermsBody },
   privacy: { title: "מדיניות פרטיות", body: PrivacyBody },
   about: { title: "אודותנו", body: AboutBody },
+  aboutMandarina: { title: "אודות מנדרינה דאק", body: AboutMandarinaBody },
+  aboutBrics: { title: "אודות בריקס", body: AboutBricsBody },
 };
