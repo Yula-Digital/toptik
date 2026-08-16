@@ -32,7 +32,41 @@ type ItemRow = {
   catalog_number: string | null;
   source_url: string | null;
   tech_specs: StoredTechSpecs | null;
+  description: string | null;
 };
+
+// Fallback completion from the item's own stored Hebrew description — data an
+// editor already curated. Used only for fields the vendor scrape didn't yield,
+// so a live scrape always wins.
+function extractHebrewSpecs(text: string | null): { volume?: string; material?: string } {
+  if (!text) return {};
+  const out: { volume?: string; material?: string } = {};
+  const vol = /(\d+(?:[.,]\d+)?)\s*ליטר/.exec(text);
+  if (vol) out.volume = `${vol[1].replace(",", ".")} ליטר`;
+  const materials: Array<[RegExp, string]> = [
+    [/פוליקרבונט/, "פוליקרבונט"],
+    [/פוליפרופילן/, "פוליפרופילן"],
+    [/פוליאמיד/, "פוליאמיד"],
+    [/פוליאסטר/, "פוליאסטר"],
+    [/ניילון/, "ניילון"],
+    [/\bABS\b/, "ABS"],
+    [/אלומיניום/, "אלומיניום"],
+    [/עור/, "עור"],
+  ];
+  const hit = materials.find(([re]) => re.test(text));
+  if (hit) out.material = hit[1];
+  return out;
+}
+
+type SpecSections = NonNullable<StoredTechSpecs["specs"]>;
+
+function ensureSpec(specs: SpecSections, heading: string, label: string, value?: string) {
+  if (!value) return;
+  if (specs.some((s) => s.items.some((i) => i.label === label))) return;
+  const section = specs.find((s) => s.heading === heading);
+  if (section) section.items.push({ label, value });
+  else specs.push({ heading, items: [{ label, value }] });
+}
 
 function specCount(ts: StoredTechSpecs | null | undefined) {
   return ts?.specs?.reduce((n, s) => n + s.items.length, 0) ?? 0;
@@ -51,7 +85,7 @@ export async function POST(req: NextRequest) {
 
   const { data: items, error } = await supabase
     .from("carousel_items")
-    .select("id,catalog_number,source_url,tech_specs")
+    .select("id,catalog_number,source_url,tech_specs,description")
     .eq("is_active", true);
 
   if (error) {
@@ -91,6 +125,14 @@ export async function POST(req: NextRequest) {
         ...(existing?.category ? { category: existing.category } : {}),
       };
 
+      // Whatever the scrape missed, complete from the item's own Hebrew
+      // description (e.g. "נפח 32 ליטר", "פוליקרבונט") — curated data we
+      // already hold, so vendor pages that omit litres no longer leave נפח
+      // empty when the description states it.
+      const fromDesc = extractHebrewSpecs(item.description);
+      ensureSpec(merged.specs ?? [], "מידות", "נפח", fromDesc.volume);
+      ensureSpec(merged.specs ?? [], "הרכב", "חומר", fromDesc.material);
+
       const update: Record<string, unknown> = { tech_specs: merged };
       if (recoveredUrl) update.source_url = sourceUrl;
       const { error: updateError } = await supabase
@@ -109,17 +151,21 @@ export async function POST(req: NextRequest) {
   );
 
   const succeeded = results.filter((r) => r.status === "fulfilled").length;
-  const failed = results.filter((r) => r.status === "rejected").length;
+  // Name every failure with its catalog number so the admin banner can say
+  // exactly which products could not be completed, not just a count.
+  const failures = results.flatMap((r, i) =>
+    r.status === "rejected"
+      ? [{ catalog: targets[i].catalog_number ?? targets[i].id, error: String(r.reason) }]
+      : [],
+  );
 
   return NextResponse.json({
     totalActive: items?.length ?? 0,
     targetsAttempted: targets.length,
     succeeded,
-    failed,
+    failed: failures.length,
+    failures,
     skipped: (items?.length ?? 0) - targets.length,
-    sample: results
-      .slice(0, 10)
-      .map((r) => (r.status === "fulfilled" ? r.value : { error: String((r as PromiseRejectedResult).reason) })),
   });
 }
 

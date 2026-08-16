@@ -538,13 +538,23 @@ export default function AdminPage() {
         headers: { "x-admin-token": token },
       });
       const data = (await res.json().catch(() => null)) as
-        | { succeeded?: number; failed?: number; error?: string }
+        | { succeeded?: number; failed?: number; failures?: Array<{ catalog: string; error: string }>; error?: string }
         | null;
       if (!res.ok) throw new Error(data?.error || "Warm failed");
+      // Reload FIRST — loadData overwrites the status line with "מחובר", which
+      // used to wipe the success message the instant it appeared.
+      await loadData(token);
+      const failedList = (data?.failures ?? []).map((f) => f.catalog).join(", ");
       setStatus(`מפרטים עודכנו: ${data?.succeeded ?? 0} הצליחו, ${data?.failed ?? 0} נכשלו`);
-      await loadData(token); // pull the refreshed specs into the editor
+      setImportFeedback({
+        tone: data?.failed ? "info" : "success",
+        message:
+          `עדכון מפרטים הסתיים: ${data?.succeeded ?? 0} מוצרים עודכנו בהצלחה` +
+          (data?.failed ? `. נכשלו ${data.failed}: ${failedList} — בדרך כלל מוצר שכבר לא קיים באתר היצרן.` : "."),
+      });
     } catch (error) {
       setStatus(resolveErrorMessage(error, "שגיאה בעדכון המפרטים"));
+      setImportFeedback({ tone: "error", message: resolveErrorMessage(error, "שגיאה בעדכון המפרטים") });
     } finally {
       setIsWarming(false);
     }
