@@ -4,9 +4,11 @@ import { detectVendorFromCatalog, normalizeCatalogKey } from "@/lib/catalog-sour
 import { resolveColorMetaForCatalog } from "./colors";
 import { trimmedProductSrc } from "./trim-src";
 import { SUPPLIER_PRICE_LIST } from "./supplier-price-list";
+import { HEBREW_TITLES } from "./product-names";
 
-// Builds the Shopify-shaped product sheet: ONE ROW PER SKU (a colour variant is
-// its own SKU), variants of the same product tied together by `Product_Key`.
+// Builds the Shopify-shaped product sheet: ONE ROW PER SKU, and — per the
+// owner's decision (2026-08-16) — each colour is a SEPARATE product with its
+// own unique Product_Key/handle, not a variant of a shared model.
 //
 // Price and Quantity come from the supplier's catalog sheet (see
 // supplier-price-list.ts). The remaining commercial columns (cost, barcode,
@@ -154,23 +156,6 @@ function catalogKey(value: string): string {
   return normalizeCatalogKey(value).replace(/TU$/, "");
 }
 
-// Catalog key WITHOUT the colour segment, so every colour of one model shares a
-// Product_Key. Vendors separate the colour differently: Mandarina and most of
-// Bric's use a separator (P10SZV24-05J-TU, BAH08453.001), while some Bric's SKUs
-// run together (BXL38124078) and need the trailing 3-digit colour split off.
-function modelKey(sku: string): string {
-  const parts = sku
-    .toUpperCase()
-    .split(/[.\-_/ ]/)
-    .filter((part) => part && part !== "TU");
-  if (parts.length >= 2) return parts.slice(0, -1).join("");
-  const key = catalogKey(sku);
-  // Un-separated forms, colour always the last 3 characters: Mandarina is
-  // P + 2 digits + 5-char model + 3-char colour (P10JNV05|465), Bric's is a
-  // 2-4 letter prefix + 5 digits + 3-digit colour (BXL38124|078).
-  if (/^P\d{2}[A-Z0-9]{5}[A-Z0-9]{3}$/.test(key)) return key.slice(0, -3);
-  return /^[A-Z]{2,4}\d{8}$/.test(key) ? key.slice(0, -3) : key;
-}
 
 // First two DISTINCT images of a gallery. Some products repeat the cover as
 // their first angle; sending it twice would create a duplicate Shopify image.
@@ -205,16 +190,18 @@ export function buildShopifyExportRows(items: CarouselItem[], origin: string): S
 
   for (const item of [...items].sort((a, b) => a.displayOrder - b.displayOrder)) {
     const baseCatalog = item.catalogNumber?.trim() ?? "";
-    // Group by MODEL: the same model stocked in three colours is three gallery
-    // items, and they share one Product_Key. Items with no catalog number fall
-    // back to their row id, which is just as stable.
-    const productKey = baseCatalog ? modelKey(baseCatalog) : item.id;
+    // Each SKU is its own product with a unique key/handle. Items with no
+    // catalog number fall back to their row id, which is just as stable.
+    const productKey = baseCatalog ? catalogKey(baseCatalog) : item.id;
     // detectVendorFromCatalog defaults to Bric's for anything that is not a
     // Mandarina pattern — including an empty string. Only claim a brand when
     // there is actually a catalog number to judge.
     const vendor = baseCatalog ? VENDOR_LABEL[detectVendorFromCatalog(baseCatalog)] ?? "" : "";
     const type = TYPE_LABEL[categorizeItem(item)] ?? "";
     const title = splitTitle(item.title);
+    // Hebrew storefront name from the curated per-SKU table; a stored Hebrew
+    // title (an editor's rewrite) still wins.
+    const titleHe = title.he || (baseCatalog ? HEBREW_TITLES[catalogKey(baseCatalog)] ?? "" : "");
     const description = item.description?.trim() ?? "";
     const size = specValue(item.techSpecs, ["מידות", "גודל"]);
     const material = specValue(item.techSpecs, ["חומר", "חומרים", "הרכב"]);
@@ -226,7 +213,7 @@ export function buildShopifyExportRows(items: CarouselItem[], origin: string): S
 
     const shared = {
       Product_Key: productKey,
-      Title_HE: title.he,
+      Title_HE: titleHe,
       Title_EN: title.en,
       Description_HE: description,
       Vendor: vendor,
@@ -234,12 +221,11 @@ export function buildShopifyExportRows(items: CarouselItem[], origin: string): S
       Size: size,
       Price: supplier?.price ?? ("" as const),
       Quantity: supplier?.quantity ?? ("" as const),
-      // Always draft: these rows are NEW products in the target store, and
-      // importing straight to active would publish them before anyone reviews
-      // price and stock. `isActive` is deliberately NOT used here — it governs
-      // visibility in the landing-page carousel, which is a separate concern
-      // from a storefront's publication state.
-      Status: "draft",
+      // Active per the owner's decision (2026-08-16): price and stock now ship
+      // in the sheet, so imported products should be live immediately.
+      // `isActive` is deliberately NOT used here — it governs visibility in the
+      // landing-page carousel, a separate concern from storefront publication.
+      Status: "active",
       Barcode: "",
       Weight_kg: weight,
       Collection: "",
