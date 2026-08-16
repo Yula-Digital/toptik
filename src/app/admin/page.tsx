@@ -563,17 +563,29 @@ export default function AdminPage() {
   async function onExportExcel() {
     try {
       setStatus("מכין קובץ אקסל...");
+      // Fetch a FRESH payload for the export instead of using React state:
+      // with a saved token the page renders as "connected" while the initial
+      // load is still in flight, so state may still hold fallbackCarouselPayload
+      // ("דגם 1"…) — exporting that produced a file full of demo rows.
+      const res = await fetch("/api/admin/carousel", {
+        headers: { "x-admin-token": token },
+      });
+      if (!res.ok) {
+        throw new Error("הייצוא בוטל — אין חיבור לנתונים (בדוק את הטוקן ונסה שוב)");
+      }
+      const fresh = (await res.json()) as CarouselPayload;
+      setPayload(fresh);
       const XLSX = await import("xlsx");
       // Shopify-import shape: one row per SKU (each colour is its own SKU),
       // variants grouped by Product_Key. See lib/carousel/shopify-export.
-      const rows = buildShopifyExportRows(payload.items, LANDING_URL);
+      const rows = buildShopifyExportRows(fresh.items, LANDING_URL);
       const worksheet = XLSX.utils.json_to_sheet(rows, { header: SHOPIFY_EXPORT_COLUMNS });
       worksheet["!cols"] = SHOPIFY_EXPORT_COLUMN_WIDTHS.map((wch) => ({ wch }));
       const workbook = XLSX.utils.book_new();
       workbook.Workbook = { Views: [{ RTL: true }] };
       XLSX.utils.book_append_sheet(workbook, worksheet, "מוצרים");
       XLSX.writeFile(workbook, "toptik-shopify-import.xlsx");
-      setStatus(`קובץ אקסל ירד (${rows.length} שורות / ${payload.items.length} מוצרים)`);
+      setStatus(`קובץ אקסל ירד (${rows.length} שורות / ${fresh.items.length} מוצרים)`);
     } catch (error) {
       setStatus(resolveErrorMessage(error, "שגיאה ביצירת קובץ האקסל"));
     }
