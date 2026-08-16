@@ -161,20 +161,6 @@ function modelKey(sku: string): string {
   return /^[A-Z]{2,4}\d{8}$/.test(key) ? key.slice(0, -3) : key;
 }
 
-// SKU for a colour that was scraped without its own catalog number. Mandarina
-// catalogs carry the colour in their middle segment (P10QMC01-465-TU), so swap
-// that segment for this colour's code rather than appending it — appending
-// would leave the parent's colour code in a SKU belonging to another colour.
-function deriveVariantSku(baseCatalog: string, colorCode: string | null): string {
-  if (!baseCatalog || !colorCode) return baseCatalog;
-  const segments = baseCatalog.split("-");
-  if (segments.length >= 2) {
-    segments[1] = colorCode;
-    return segments.join("-");
-  }
-  return `${baseCatalog}-${colorCode}`;
-}
-
 // First two DISTINCT images of a gallery. Some products repeat the cover as
 // their first angle; sending it twice would create a duplicate Shopify image.
 function firstTwoImages(gallery: Array<string | null | undefined>, origin: string) {
@@ -188,28 +174,29 @@ function firstTwoImages(gallery: Array<string | null | undefined>, origin: strin
 }
 
 export function buildShopifyExportRows(items: CarouselItem[], origin: string): ShopifyExportRow[] {
-  // A SKU must appear ONCE. Bric's colours were each imported as their own
-  // product while also carrying the full sibling colour list, so a naive
-  // per-item expansion emits every SKU once per sibling. Keyed insertion
-  // collapses those, preferring the row whose own product IS that SKU — that
-  // product's gallery and title are first-hand rather than a sibling's copy.
-  const bySku = new Map<string, { row: ShopifyExportRow; self: boolean }>();
+  // ONE ROW PER GALLERY ITEM. An item's `colors` array is the swatch strip the
+  // carousel renders — every colour the vendor sells of that model, scraped from
+  // their site — NOT a list of products stocked here. Each gallery item is one
+  // product in one colour, carrying its own catalog number, so expanding the
+  // swatches would ship colours that were never bought.
+  const bySku = new Map<string, ShopifyExportRow>();
   let fallbackKey = 0;
 
-  const add = (row: ShopifyExportRow, parentCatalog: string) => {
-    // Rows with no catalog number cannot be compared — keep each of them.
-    const key = row.SKU ? catalogKey(row.SKU) : `#${fallbackKey++}`;
-    const self = Boolean(row.SKU) && catalogKey(row.SKU) === catalogKey(parentCatalog);
-    const existing = bySku.get(key);
-    if (!existing || (self && !existing.self)) bySku.set(key, { row, self });
-  };
+  // Colour names, pooled from every item's swatch list, so an item can be named
+  // even when its own swatch strip omits its colour (a few were scraped that way).
+  const colorByCatalog = new Map<string, string>();
+  for (const item of items) {
+    for (const color of item.colors ?? []) {
+      const key = color.catalogNumber ? catalogKey(color.catalogNumber) : "";
+      if (key && color.name && !colorByCatalog.has(key)) colorByCatalog.set(key, color.name);
+    }
+  }
 
   for (const item of [...items].sort((a, b) => a.displayOrder - b.displayOrder)) {
     const baseCatalog = item.catalogNumber?.trim() ?? "";
-    // Group by MODEL, not by parent row: for Bric's every colour was imported as
-    // its own product, so keying on the parent would give each colour of one
-    // model a different Product_Key. Items with no catalog number fall back to
-    // their row id, which is just as stable.
+    // Group by MODEL: the same model stocked in three colours is three gallery
+    // items, and they share one Product_Key. Items with no catalog number fall
+    // back to their row id, which is just as stable.
     const productKey = baseCatalog ? modelKey(baseCatalog) : item.id;
     // detectVendorFromCatalog defaults to Bric's for anything that is not a
     // Mandarina pattern — including an empty string. Only claim a brand when
@@ -248,53 +235,28 @@ export function buildShopifyExportRows(items: CarouselItem[], origin: string): S
       Cost: "",
     };
 
-    const colors = item.colors ?? [];
+    // The item's OWN gallery: cover first, then its rotation angles.
+    const images = firstTwoImages(
+      [item.coverImagePath, ...item.angles.map((a) => a.imagePath)],
+      origin,
+    );
+    const color = baseCatalog ? colorByCatalog.get(catalogKey(baseCatalog)) ?? "" : "";
 
-    if (colors.length === 0) {
-      // Single-SKU product: cover image first, then the first rotation angle.
-      const images = firstTwoImages(
-        [item.coverImagePath, ...item.angles.map((a) => a.imagePath)],
-        origin,
-      );
-      add(
-        {
-          SKU: baseCatalog,
-          ...shared,
-          Color: "",
-          Image_1_URL: images.first,
-          Image_2_URL: images.second,
-          Tags: tagsFor(vendor, type, ""),
-        },
-        baseCatalog,
-      );
-      continue;
-    }
-
-    for (const color of colors) {
-      // A colour's own gallery is the SKU's image set; its cover is angles[0].
-      const images = firstTwoImages(
-        color.angles?.length ? color.angles : [color.imagePath],
-        origin,
-      );
-      // Colours scraped without their own catalog number get one derived from the
-      // parent + the global colour code, so the SKU column is never blank.
-      const sku = color.catalogNumber?.trim() || deriveVariantSku(baseCatalog, color.colorCode);
-      add(
-        {
-          SKU: sku,
-          ...shared,
-          Color: color.name ?? "",
-          Image_1_URL: images.first,
-          Image_2_URL: images.second,
-          Tags: tagsFor(vendor, type, color.name ?? ""),
-        },
-        baseCatalog,
-      );
-    }
+    // Rows with no catalog number cannot be compared — keep each of them.
+    const key = baseCatalog ? catalogKey(baseCatalog) : `#${fallbackKey++}`;
+    if (bySku.has(key)) continue;
+    bySku.set(key, {
+      SKU: baseCatalog,
+      ...shared,
+      Color: color,
+      Image_1_URL: images.first,
+      Image_2_URL: images.second,
+      Tags: tagsFor(vendor, type, color),
+    });
   }
 
   // Colours of one model sit together, ready for review.
-  return [...bySku.values()]
-    .map((entry) => entry.row)
-    .sort((a, b) => a.Product_Key.localeCompare(b.Product_Key) || a.SKU.localeCompare(b.SKU));
+  return [...bySku.values()].sort(
+    (a, b) => a.Product_Key.localeCompare(b.Product_Key) || a.SKU.localeCompare(b.SKU),
+  );
 }
