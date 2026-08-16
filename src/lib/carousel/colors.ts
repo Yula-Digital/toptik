@@ -1,6 +1,7 @@
 import type { SourceColorVariant } from "@/lib/catalog-source/types";
 import type { CarouselColor, CarouselItem } from "./types";
 import { COLOR_HEX, COLOR_HEBREW, extractColorWord } from "./color-groups";
+import { detectVendorFromCatalog } from "@/lib/catalog-source/vendor-detect";
 
 // Global Mandarina Duck colour codes — the middle segment of the catalog number
 // (P10·QMC01·`465`·TU). The code is stable across every model, so it's the most
@@ -22,6 +23,23 @@ export const MANDARINA_COLOR_CODES: Record<string, { he: string; hex: string }> 
   "02F": { he: "אמרלד", hex: "#2e7d52" }, // emerald
   "24N": { he: "פנינה", hex: "#eae6da" }, // pearl
   A82: { he: "אגוז פקאן", hex: "#8a5a3b" }, // pecan nut
+  A32: { he: "טורקיז נצנצים", hex: "#3fb8ae" }, // glitter green/turquoise
+  A83: { he: "שוקולד", hex: "#6b4b3e" }, // choco ice
+  A81: { he: "מוקה לבן", hex: "#d9cdbf" }, // white mocha
+};
+
+// Bric's colour codes — the SKU suffix (BXL58145·`078`). Kept SEPARATE from the
+// Mandarina table on purpose: the numeric codes collide (Mandarina 465 = steel,
+// Bric's 465 would be something else entirely), so the two must never share a
+// lookup. Derived from the colour names already scraped for this catalog.
+export const BRICS_COLOR_CODES: Record<string, { he: string; hex: string }> = {
+  "001": { he: "שחור", hex: "#1a1a1a" },
+  "006": { he: "כחול", hex: "#1f3a6e" },
+  "014": { he: "קרם", hex: "#e6dcc8" },
+  "050": { he: "נייבי", hex: "#1c2a4a" },
+  "078": { he: "זית", hex: "#6b6f4a" },
+  "101": { he: "שחור", hex: "#1a1a1a" },
+  "254": { he: "ורוד", hex: "#d98ba6" },
 };
 
 // Resolve a Hebrew name + swatch hex from the colour code (preferred, global)
@@ -39,6 +57,27 @@ export function resolveColorMeta(
     return { name: COLOR_HEBREW[word] ?? colorWord!, hex: COLOR_HEX[word] ?? null };
   }
   return { name: code ?? "צבע", hex: null };
+}
+
+// Vendor-aware resolution from a catalog number: pick the colour table that
+// belongs to the brand that issued the number, then fall back to a colour word
+// in the title. `named` is false when nothing resolved and `name` is only the
+// raw code — callers that must not show a code can check it.
+export function resolveColorMetaForCatalog(
+  catalogNumber: string | null | undefined,
+  title: string | null | undefined,
+): { name: string; hex: string | null; named: boolean } {
+  const code = colorCodeFromCatalog(catalogNumber)?.toUpperCase() ?? null;
+  const table =
+    catalogNumber && detectVendorFromCatalog(catalogNumber) === "brics"
+      ? BRICS_COLOR_CODES
+      : MANDARINA_COLOR_CODES;
+  if (code && table[code]) return { ...table[code], name: table[code].he, named: true };
+  const word = title ? extractColorWord(title) : null;
+  if (word) {
+    return { name: COLOR_HEBREW[word.toLowerCase()] ?? word, hex: COLOR_HEX[word.toLowerCase()] ?? null, named: true };
+  }
+  return { name: code ?? "צבע", hex: null, named: false };
 }
 
 // Map scraped colour variants → persisted colours, attaching the Supabase-hosted
@@ -126,7 +165,8 @@ export function ensureOwnColor(
     (ownCode != null && colors.some((c) => c.colorCode?.toUpperCase() === ownCode)) ||
     colors.some((c) => c.imagePath === item.coverImagePath);
   if (hasOwn) return colors;
-  const { name, hex } = resolveColorMeta(item.title ? extractColorWord(item.title) : null, ownCode);
+  // Vendor-aware: a Bric's suffix must not be read off the Mandarina table.
+  const { name, hex } = resolveColorMetaForCatalog(item.catalogNumber, item.title);
   const own: CarouselColor = {
     name,
     hex,
@@ -155,11 +195,20 @@ export interface ResolvedSwatch {
 
 // Middle segment of a catalog number = the colour code. Handles both catalog
 // styles: Mandarina dash-separated (P10·QMC01·`465`·TU) and Bric's dot-separated
-// (BOE58117·`050`).
+// (BOE58117·`050`) — plus the un-separated forms some rows were saved in
+// (P10JNV05·465, BXL38124·078), where the colour is the trailing 3 characters.
+// Without that fallback those products resolve to no colour at all.
 export function colorCodeFromCatalog(catalogNumber: string | null | undefined): string | null {
   if (!catalogNumber) return null;
   const parts = catalogNumber.toUpperCase().split(/[-_/.]/).filter(Boolean);
-  return parts.length >= 2 ? parts[1] : null;
+  if (parts.length >= 2) return parts[1];
+  const token = parts[0]?.replace(/TU$/, "") ?? "";
+  // Mandarina: P + 2 digits + 5-char model + 3-char colour.
+  // Bric's: 2-4 letters + 5 digits + 3-digit colour.
+  if (/^P\d{2}[A-Z0-9]{5}[A-Z0-9]{3}$/.test(token) || /^[A-Z]{2,4}\d{8}$/.test(token)) {
+    return token.slice(-3);
+  }
+  return null;
 }
 
 // Model code = first catalog segment minus the P-prefix (P10·`QMC01`·465·TU).

@@ -1,6 +1,7 @@
 import type { CarouselItem, CachedTechSpecs } from "./types";
 import { categorizeItem } from "./categories";
 import { detectVendorFromCatalog, normalizeCatalogKey } from "@/lib/catalog-source/vendor-detect";
+import { resolveColorMetaForCatalog } from "./colors";
 import { trimmedProductSrc } from "./trim-src";
 
 // Builds the Shopify-shaped product sheet: ONE ROW PER SKU (a colour variant is
@@ -132,6 +133,12 @@ function publicImageUrl(path: string | null | undefined, origin: string): string
   return trimmed.startsWith("/") ? `${origin.replace(/\/$/, "")}${trimmed}` : trimmed;
 }
 
+// A scraped swatch sometimes carries the raw colour code as its name (e.g.
+// "A83") when the vendor page gave no word — that is not a colour to publish.
+function isBareCode(name: string): boolean {
+  return /^[A-Z0-9]{2,3}$/.test(name.trim());
+}
+
 function tagsFor(vendor: string, type: string, color: string): string {
   return [vendor, type, color].filter(Boolean).join(", ");
 }
@@ -240,7 +247,14 @@ export function buildShopifyExportRows(items: CarouselItem[], origin: string): S
       [item.coverImagePath, ...item.angles.map((a) => a.imagePath)],
       origin,
     );
-    const color = baseCatalog ? colorByCatalog.get(catalogKey(baseCatalog)) ?? "" : "";
+    // Colour, resolved the way the catalog itself resolves it: the swatch strip
+    // first, then the vendor's colour-code table (what `ensureOwnColor` does at
+    // render time — the export used to read only the stored strip, so items
+    // whose own colour was never scraped as a swatch came out blank). A bare
+    // code is not a colour name, so it is left empty rather than shipped.
+    const swatchName = baseCatalog ? colorByCatalog.get(catalogKey(baseCatalog)) : undefined;
+    const resolved = resolveColorMetaForCatalog(baseCatalog || null, item.title);
+    const color = swatchName && !isBareCode(swatchName) ? swatchName : resolved.named ? resolved.name : "";
 
     // Rows with no catalog number cannot be compared — keep each of them.
     const key = baseCatalog ? catalogKey(baseCatalog) : `#${fallbackKey++}`;
