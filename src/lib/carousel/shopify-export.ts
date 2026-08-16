@@ -31,6 +31,7 @@ export interface ShopifyExportRow {
   SKU: string;
   Product_Key: string;
   Title_HE: string;
+  Title_EN: string;
   Description_HE: string;
   Vendor: string;
   Type: string;
@@ -42,7 +43,8 @@ export interface ShopifyExportRow {
   Image_1_URL: string;
   Image_2_URL: string;
   Barcode: string;
-  Weight_kg: string;
+  // Numeric so the cell lands in the sheet as a real number, not text.
+  Weight_kg: number | "";
   Collection: string;
   Tags: string;
   Material: string;
@@ -57,6 +59,7 @@ export const SHOPIFY_EXPORT_COLUMNS: Array<keyof ShopifyExportRow> = [
   "SKU",
   "Product_Key",
   "Title_HE",
+  "Title_EN",
   "Description_HE",
   "Vendor",
   "Type",
@@ -79,7 +82,7 @@ export const SHOPIFY_EXPORT_COLUMNS: Array<keyof ShopifyExportRow> = [
 
 // Same order as SHOPIFY_EXPORT_COLUMNS.
 export const SHOPIFY_EXPORT_COLUMN_WIDTHS = [
-  22, 20, 60, 90, 16, 12, 18, 26, 10, 10, 10, 80, 80, 14, 12, 20, 40, 30, 14, 18, 10,
+  22, 20, 60, 60, 90, 16, 12, 18, 26, 10, 10, 10, 80, 80, 14, 12, 20, 40, 30, 14, 18, 10,
 ];
 
 // Spec labels are stored already translated (see catalog-source/product-details),
@@ -95,8 +98,10 @@ function specValue(techSpecs: CachedTechSpecs | null | undefined, labels: string
   return "";
 }
 
-// "3.5 ק״ג" → "3.5"; "850 גרם" → "0.85". Returns "" when no number is present.
-function weightKg(raw: string): string {
+// "3.5 ק״ג" → 3.5; "2,6 ק״ג" → 2.6; "850 גרם" → 0.85. Units and the European
+// decimal comma are stripped so the cell is a bare number, which is what an
+// import expects. Returns "" when no number is present.
+function weightKg(raw: string): number | "" {
   if (!raw) return "";
   const match = raw.replace(",", ".").match(/(\d+(?:\.\d+)?)/);
   if (!match) return "";
@@ -104,7 +109,17 @@ function weightKg(raw: string): string {
   if (!Number.isFinite(value)) return "";
   const isGrams = /גרם|\bg\b|\bgr\b/i.test(raw) && !/ק["״']?ג|\bkg\b/i.test(raw);
   const kg = isGrams ? value / 1000 : value;
-  return String(Math.round(kg * 100) / 100);
+  return Math.round(kg * 100) / 100;
+}
+
+// Titles are stored as the vendor wrote them; only the DESCRIPTION is translated
+// on import. So a title counts as Hebrew only if it actually contains Hebrew
+// letters (i.e. an editor rewrote it) — otherwise Title_HE is left blank and the
+// source name goes to Title_EN, making the rows still needing a Hebrew name
+// obvious instead of shipping English text in a column labelled Hebrew.
+function splitTitle(title: string): { he: string; en: string } {
+  const value = title?.trim() ?? "";
+  return /[֐-׿]/.test(value) ? { he: value, en: "" } : { he: "", en: value };
 }
 
 // Absolute, publicly fetchable URL of an image AFTER the background trim — the
@@ -160,7 +175,7 @@ export function buildShopifyExportRows(items: CarouselItem[], origin: string): S
     // there is actually a catalog number to judge.
     const vendor = baseCatalog ? VENDOR_LABEL[detectVendorFromCatalog(baseCatalog)] ?? "" : "";
     const type = TYPE_LABEL[categorizeItem(item)] ?? "";
-    const status = item.isActive ? "active" : "draft";
+    const title = splitTitle(item.title);
     const description = item.description?.trim() ?? "";
     const size = specValue(item.techSpecs, ["מידות", "גודל"]);
     const material = specValue(item.techSpecs, ["חומר", "חומרים", "הרכב"]);
@@ -169,14 +184,20 @@ export function buildShopifyExportRows(items: CarouselItem[], origin: string): S
 
     const shared = {
       Product_Key: productKey,
-      Title_HE: item.title,
+      Title_HE: title.he,
+      Title_EN: title.en,
       Description_HE: description,
       Vendor: vendor,
       Type: type,
       Size: size,
       Price: "",
       Quantity: "",
-      Status: status,
+      // Always draft: these rows are NEW products in the target store, and
+      // importing straight to active would publish them before anyone reviews
+      // price and stock. `isActive` is deliberately NOT used here — it governs
+      // visibility in the landing-page carousel, which is a separate concern
+      // from a storefront's publication state.
+      Status: "draft",
       Barcode: "",
       Weight_kg: weight,
       Collection: "",
