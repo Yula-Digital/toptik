@@ -110,6 +110,27 @@ function extractVolumeLiters(text: string): string | null {
   return `${normalizeNum(m[1])} ליטר`;
 }
 
+// Shell materials, most specific first (polyamide before the bare "poly" forms)
+// so "recycled polyamide" doesn't resolve to polyester. Used only as a fallback
+// when the composition accordion gave nothing.
+const MATERIAL_WORDS: Array<[RegExp, string]> = [
+  [/polycarbonate|policarbonato/i, "פוליקרבונט"],
+  [/polypropylene/i, "פוליפרופילן"],
+  [/polyamide|poliammide/i, "פוליאמיד"],
+  [/polyester|poliestere/i, "פוליאסטר"],
+  [/\bnylon\b/i, "ניילון"],
+  [/\bABS\b/, "ABS"],
+  [/alumini?um/i, "אלומיניום"],
+  [/genuine leather|\bleather\b|\bpelle\b/i, "עור"],
+];
+
+function extractMaterialWord(text: string): string | null {
+  for (const [pattern, hebrew] of MATERIAL_WORDS) {
+    if (pattern.test(text)) return hebrew;
+  }
+  return null;
+}
+
 // ─── Hebrew translation ──────────────────────────────────────────────────────
 
 // Used for whole-line replacement of common Mandarina descriptive items
@@ -779,6 +800,22 @@ export async function fetchProductDetails(sourceUrl: string): Promise<ProductDet
     "size",
   ]);
   if (dimContent) body.dimensions.push(...extractFromDimensionsAccordion(dimContent));
+
+  // Last-resort capture. Capacity and composition are not always inside the
+  // accordions we name above — Mandarina publishes a litre volume that never
+  // reached any parsed block, so every Mandarina product ended up with an empty
+  // נפח while Bric's (which states it in its dimensions block) came out fine.
+  // Scan the product's OWN accordions plus its description; NOT the whole page,
+  // which would pick up figures from related-product blocks.
+  const ownText = `${accordions.map((b) => clean(b.content)).join(" \n ")} \n ${clean(descBody)}`;
+  if (!body.dimensions.some((it) => it.label === "נפח")) {
+    const volume = extractVolumeLiters(ownText);
+    if (volume) body.dimensions.push({ label: "נפח", value: volume });
+  }
+  if (body.composition.length === 0) {
+    const material = extractMaterialWord(ownText);
+    if (material) body.composition.push({ label: "חומר", value: material });
+  }
 
   const sectionItems: Record<string, SpecItem[]> = {
     "חיצוני": dedupeItems(body.exterior),

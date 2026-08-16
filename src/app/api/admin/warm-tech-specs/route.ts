@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { fetchProductDetails } from "@/lib/catalog-source/product-details";
+import { fetchProductDetails, type ProductDetails } from "@/lib/catalog-source/product-details";
+import { createCatalogSourceProvider } from "@/lib/catalog-source/provider";
+import { detectVendorFromCatalog } from "@/lib/catalog-source/vendor-detect";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase/server";
 import { hasSupabaseAdminEnv, supabaseEnv } from "@/lib/supabase/env";
 
@@ -18,6 +20,24 @@ function isAuthorized(req: NextRequest) {
   return false;
 }
 
+type StoredTechSpecs = {
+  specs?: ProductDetails["specs"];
+  colors?: ProductDetails["colors"];
+  // Admin's manual מזוודה/טרולי choice — lives inside tech_specs (no DB column).
+  category?: string | null;
+};
+
+type ItemRow = {
+  id: string;
+  catalog_number: string | null;
+  source_url: string | null;
+  tech_specs: StoredTechSpecs | null;
+};
+
+function specCount(ts: StoredTechSpecs | null | undefined) {
+  return ts?.specs?.reduce((n, s) => n + s.items.length, 0) ?? 0;
+}
+
 export async function POST(req: NextRequest) {
   if (!isAuthorized(req)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -31,30 +51,59 @@ export async function POST(req: NextRequest) {
 
   const { data: items, error } = await supabase
     .from("carousel_items")
-    .select("id,source_url,tech_specs")
+    .select("id,catalog_number,source_url,tech_specs")
     .eq("is_active", true);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const targets = (items ?? []).filter(
-    (it: { source_url: string | null; tech_specs: unknown }) =>
-      it.source_url && (force || !it.tech_specs),
+  // Warm: forced, never-warmed, or warmed-but-empty (a failed earlier scrape
+  // stored {specs:[]}, which the old `!tech_specs` check skipped forever).
+  const targets = ((items ?? []) as ItemRow[]).filter(
+    (it) => (it.source_url || it.catalog_number) && (force || specCount(it.tech_specs) === 0),
   );
 
   const results = await Promise.allSettled(
-    targets.map(async (item: { id: string; source_url: string }) => {
-      const details = await fetchProductDetails(item.source_url);
+    targets.map(async (item) => {
+      // Manually-entered products often have no source URL. Recover it from the
+      // catalog number via the vendor's own search — the same path the importer
+      // uses — and persist it so the next warm skips the lookup.
+      let sourceUrl = item.source_url;
+      let recoveredUrl = false;
+      if (!sourceUrl && item.catalog_number) {
+        const provider = createCatalogSourceProvider(detectVendorFromCatalog(item.catalog_number));
+        const product = await provider.fetchByCatalogNumber(item.catalog_number);
+        sourceUrl = product.sourceUrl;
+        recoveredUrl = Boolean(sourceUrl);
+      }
+      if (!sourceUrl) throw new Error(`no source url for ${item.catalog_number ?? item.id}`);
+
+      const details = await fetchProductDetails(sourceUrl);
+
+      // COMPLETE, never clobber: a fresh scrape wins only where it actually
+      // found data; anything the admin entered stays when the scrape came back
+      // empty, and the manual category choice is always carried over.
+      const existing = item.tech_specs ?? null;
+      const merged: StoredTechSpecs = {
+        specs: details.specs.length > 0 ? details.specs : existing?.specs ?? [],
+        colors: details.colors.length > 0 ? details.colors : existing?.colors ?? [],
+        ...(existing?.category ? { category: existing.category } : {}),
+      };
+
+      const update: Record<string, unknown> = { tech_specs: merged };
+      if (recoveredUrl) update.source_url = sourceUrl;
       const { error: updateError } = await supabase
         .from("carousel_items")
-        .update({ tech_specs: details })
+        .update(update)
         .eq("id", item.id);
       if (updateError) throw updateError;
       return {
         id: item.id,
-        sections: details.specs.length,
-        items: details.specs.reduce((n, s) => n + s.items.length, 0),
+        catalog: item.catalog_number,
+        recoveredUrl,
+        sections: merged.specs?.length ?? 0,
+        items: specCount(merged),
       };
     }),
   );
@@ -69,7 +118,7 @@ export async function POST(req: NextRequest) {
     failed,
     skipped: (items?.length ?? 0) - targets.length,
     sample: results
-      .slice(0, 5)
+      .slice(0, 10)
       .map((r) => (r.status === "fulfilled" ? r.value : { error: String((r as PromiseRejectedResult).reason) })),
   });
 }
