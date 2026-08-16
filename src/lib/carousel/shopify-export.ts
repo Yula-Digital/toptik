@@ -154,6 +154,10 @@ function modelKey(sku: string): string {
     .filter((part) => part && part !== "TU");
   if (parts.length >= 2) return parts.slice(0, -1).join("");
   const key = catalogKey(sku);
+  // Un-separated forms, colour always the last 3 characters: Mandarina is
+  // P + 2 digits + 5-char model + 3-char colour (P10JNV05|465), Bric's is a
+  // 2-4 letter prefix + 5 digits + 3-digit colour (BXL38124|078).
+  if (/^P\d{2}[A-Z0-9]{5}[A-Z0-9]{3}$/.test(key)) return key.slice(0, -3);
   return /^[A-Z]{2,4}\d{8}$/.test(key) ? key.slice(0, -3) : key;
 }
 
