@@ -3,14 +3,17 @@ import { categorizeItem } from "./categories";
 import { detectVendorFromCatalog, normalizeCatalogKey } from "@/lib/catalog-source/vendor-detect";
 import { resolveColorMetaForCatalog } from "./colors";
 import { trimmedProductSrc } from "./trim-src";
+import { SUPPLIER_PRICE_LIST } from "./supplier-price-list";
 
 // Builds the Shopify-shaped product sheet: ONE ROW PER SKU (a colour variant is
 // its own SKU), variants of the same product tied together by `Product_Key`.
 //
-// Several columns are intentionally emitted empty: the catalog scrapers never
-// captured commercial data (price, cost, stock, barcode) and `Collection` is a
-// merchandising decision, not something stored here. They are kept in the sheet
-// so the file matches the agreed import schema and can be filled in by hand.
+// Price and Quantity come from the supplier's catalog sheet (see
+// supplier-price-list.ts). The remaining commercial columns (cost, barcode,
+// compare-at price) are intentionally emitted empty — the scrapers never
+// captured them — and `Collection` is a merchandising decision, not something
+// stored here. They are kept in the sheet so the file matches the agreed
+// import schema and can be filled in by hand.
 
 // Widest tier /api/img-trim accepts. `withoutEnlargement` keeps it a ceiling, so
 // smaller sources are served at their own size rather than upscaled.
@@ -38,8 +41,9 @@ export interface ShopifyExportRow {
   Type: string;
   Color: string;
   Size: string;
-  Price: string;
-  Quantity: string;
+  // Numeric so the cells land in the sheet as real numbers, not text.
+  Price: number | "";
+  Quantity: number | "";
   Status: string;
   Image_1_URL: string;
   Image_2_URL: string;
@@ -216,6 +220,9 @@ export function buildShopifyExportRows(items: CarouselItem[], origin: string): S
     const material = specValue(item.techSpecs, ["חומר", "חומרים", "הרכב"]);
     const volume = specValue(item.techSpecs, ["נפח", "קיבולת"]);
     const weight = weightKg(specValue(item.techSpecs, ["משקל"]));
+    // Unit price (incl. VAT) and purchased stock from the supplier's catalog
+    // sheet, matched on the normalized catalog key.
+    const supplier = baseCatalog ? SUPPLIER_PRICE_LIST[catalogKey(baseCatalog)] : undefined;
 
     const shared = {
       Product_Key: productKey,
@@ -225,8 +232,8 @@ export function buildShopifyExportRows(items: CarouselItem[], origin: string): S
       Vendor: vendor,
       Type: type,
       Size: size,
-      Price: "",
-      Quantity: "",
+      Price: supplier?.price ?? ("" as const),
+      Quantity: supplier?.quantity ?? ("" as const),
       // Always draft: these rows are NEW products in the target store, and
       // importing straight to active would publish them before anyone reviews
       // price and stock. `isActive` is deliberately NOT used here — it governs
