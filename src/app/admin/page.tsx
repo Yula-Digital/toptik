@@ -6,13 +6,12 @@ import Image from "next/image";
 import { CarouselPayload, TransitionMode } from "@/lib/carousel/types";
 import { fallbackCarouselPayload } from "@/lib/carousel/fallback-data";
 import { detectVendorFromCatalog, normalizeCatalogKey } from "@/lib/catalog-source/vendor-detect";
+import { PRODUCT_CATEGORIES, categorizeItem, type ProductCategory } from "@/lib/carousel/categories";
 import {
-  PRODUCT_CATEGORIES,
-  categorizeItem,
-  categoryLabel,
-  type ProductCategory,
-} from "@/lib/carousel/categories";
-import { trimmedProductSrc } from "@/lib/carousel/trim-src";
+  buildShopifyExportRows,
+  SHOPIFY_EXPORT_COLUMNS,
+  SHOPIFY_EXPORT_COLUMN_WIDTHS,
+} from "@/lib/carousel/shopify-export";
 import { LANDING_URL } from "@/lib/admin/config";
 
 const STORAGE_KEY = "toptik_admin_token";
@@ -23,19 +22,6 @@ const VENDOR_OPTIONS: Array<{ value: Vendor; label: string; example: string }> =
   { value: "mandarina", label: "Mandarina Duck", example: "P10QMC01-465-TU" },
   { value: "brics", label: "Bric's", example: "BOE58117.050" },
 ];
-
-// Widest tier /api/img-trim accepts. `withoutEnlargement` keeps it a ceiling, so
-// smaller sources are served at their own size rather than upscaled.
-const EXPORT_IMG_WIDTH = 2048;
-
-// Cover-image URL for the Excel export: routed through the background trimmer
-// and made absolute against the landing domain (which serves /api/img-trim), so
-// the cell is a URL any external system — e.g. Shopify — can fetch directly.
-function exportImageUrl(coverImagePath: string): string {
-  const trimmed = trimmedProductSrc(coverImagePath, EXPORT_IMG_WIDTH);
-  if (!trimmed) return "";
-  return trimmed.startsWith("/") ? `${LANDING_URL.replace(/\/$/, "")}${trimmed}` : trimmed;
-}
 
 type ImportFeedbackTone = "info" | "success" | "error";
 type ImportPreview = {
@@ -543,28 +529,16 @@ export default function AdminPage() {
     try {
       setStatus("מכין קובץ אקסל...");
       const XLSX = await import("xlsx");
-      const rows = [...payload.items]
-        .sort((a, b) => a.displayOrder - b.displayOrder)
-        .map((item) => ({
-          "מק״ט": item.catalogNumber ?? "",
-          "שם המוצר": item.title,
-          // Same effective category the catalog filters by: the admin's explicit
-          // choice, else the title-derived guess.
-          "קטגוריה": categoryLabel(categorizeItem(item)),
-          // Absolute, publicly fetchable URL of the cover image AFTER the
-          // background trim — the same pipeline the catalog renders, at the
-          // largest tier the trimmer allows, so it can be pulled straight into
-          // Shopify. Absolute against LANDING_URL (not the current origin) so
-          // the sheet is valid even when exported from a local dev run.
-          "תמונה ראשית": exportImageUrl(item.coverImagePath),
-        }));
-      const worksheet = XLSX.utils.json_to_sheet(rows);
-      worksheet["!cols"] = [{ wch: 18 }, { wch: 60 }, { wch: 20 }, { wch: 80 }];
+      // Shopify-import shape: one row per SKU (each colour is its own SKU),
+      // variants grouped by Product_Key. See lib/carousel/shopify-export.
+      const rows = buildShopifyExportRows(payload.items, LANDING_URL);
+      const worksheet = XLSX.utils.json_to_sheet(rows, { header: SHOPIFY_EXPORT_COLUMNS });
+      worksheet["!cols"] = SHOPIFY_EXPORT_COLUMN_WIDTHS.map((wch) => ({ wch }));
       const workbook = XLSX.utils.book_new();
       workbook.Workbook = { Views: [{ RTL: true }] };
       XLSX.utils.book_append_sheet(workbook, worksheet, "מוצרים");
-      XLSX.writeFile(workbook, "toptik-products.xlsx");
-      setStatus(`קובץ אקסל ירד (${rows.length} מוצרים)`);
+      XLSX.writeFile(workbook, "toptik-shopify-import.xlsx");
+      setStatus(`קובץ אקסל ירד (${rows.length} שורות / ${payload.items.length} מוצרים)`);
     } catch (error) {
       setStatus(resolveErrorMessage(error, "שגיאה ביצירת קובץ האקסל"));
     }

@@ -53,11 +53,6 @@ export function categorizeItem(item: CarouselItem): ProductCategory {
   return "suitcase";
 }
 
-// Hebrew label for a product category (used by the admin UI and the Excel export).
-export function categoryLabel(category: ProductCategory): string {
-  return PRODUCT_CATEGORIES.find((c) => c.key === category)?.label ?? category;
-}
-
 export function filterByCategory(items: CarouselItem[], category: CategoryKey): CarouselItem[] {
   if (category === "all") return items;
   return items.filter((item) => categorizeItem(item) === category);
