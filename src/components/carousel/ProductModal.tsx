@@ -5,6 +5,7 @@ import Image from "next/image";
 import { CarouselItem } from "@/lib/carousel/types";
 import type { ResolvedSwatch } from "@/lib/carousel/colors";
 import { trimmedProductSrc, MODAL_IMG_WIDTH } from "@/lib/carousel/trim-src";
+import { purchaseUrlFor } from "@/lib/carousel/purchase-links";
 
 type ProductModalProps = {
   item: CarouselItem | null;
@@ -273,7 +274,11 @@ export function ProductModal({ item, colors = [], onClose, onOpenTechSpecs, onNa
               <button
                 type="button"
                 className="product-modal-buy-btn"
-                onClick={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  const url = purchaseUrlFor(item.catalogNumber);
+                  if (url) window.open(url, "_blank", "noopener");
+                }}
                 aria-label="רכישה"
               >
                 לרכישה

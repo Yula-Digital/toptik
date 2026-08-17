@@ -8,6 +8,7 @@ import type { Swiper as SwiperType } from "swiper";
 import { CarouselItem } from "@/lib/carousel/types";
 import { buildModelSiblingSwatches, resolveItemSwatches, type ResolvedSwatch } from "@/lib/carousel/colors";
 import { trimmedProductSrc, CARD_IMG_WIDTH, MODAL_IMG_WIDTH } from "@/lib/carousel/trim-src";
+import { purchaseUrlFor } from "@/lib/carousel/purchase-links";
 
 import "swiper/css";
 import "swiper/css/navigation";
@@ -103,7 +104,11 @@ function CatalogCard({
           <button
             type="button"
             className="catalog-card-buy-btn"
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation();
+              const url = purchaseUrlFor(item.catalogNumber);
+              if (url) window.open(url, "_blank", "noopener");
+            }}
             aria-label={`רכישת ${item.title}`}
           >
             <span>לרכישה</span>
