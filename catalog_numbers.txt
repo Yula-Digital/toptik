@@ -1,0 +1,30 @@
+# מספרי קטלוג בגלריה - 27 פריטים (10/05/2026)
+# * = לא פעיל (is_active: false)
+
+P10QMC01-09K-TU    Md20 Briefcase Taupe
+P10QMC01-465-TU    Md20 Briefcase Steel
+P10QMMM3-09K-TU    MD20 Bum Bag Taupe
+P10QMTT5-09K-TU    MD20 Crossover Taupe
+P10QMT28-465-TU    MD20 Crossover Steel
+P10QMTT2-09K-TU    MD20 Backpack Taupe
+P10QMT39-465-TU    MD20 Backpack Steel
+P10QMT67-09K-TU    Md20 Backpack Taupe
+*P10SZV24-466-TU   Logoduck+ Trolley Cabin Exp Silver
+P10SZV24-05J-TU    Logoduck+ Trolley Cabin Exp Duck Yellow
+P10QMT04-024-TU    MD20 Crossover Pirite
+P10QMT49-09K-TU    MD20 Backpack Taupe
+P10QMT32-A74-TU    MD20 Pochette Oil
+P10QMT37-09K-TU    MD20 Hobo Taupe
+P10QMT43-09K-TU    MD20 Crossover Taupe
+P10QMT58-09K-TU    MD20 Crossover Taupe
+P10QMT57-09K-TU    MD20 Camera Bag Taupe
+P10QMT55-09K-TU    Md20 Crossover Taupe
+P10SZN01-05J-TU    Logoduck+ Beauty Case Duck Yellow
+P10OTN01-08Q-TU    Zephyr Necessaire Dress Blue
+P10OTV01-29U-TU    Zephyr Trolley Cabin Graphite
+P10OTV05-08Q-TU    Zephyr Trolley Xl Exp Dress Blue
+P10OTV07-08Q-TU    Zephyr Rolling Tote Dress Blue
+P10OTV01-08Q-TU    Zephyr Trolley Cabin Dress Blue
+P10OTV03-08Q-TU    Zephyr Trolley Medium Exp Dress Blue
+P10OTV04-08Q-TU    Zephyr Trolley Large Exp Dress Blue
+P10QMTT5-A89-TU    Md20 Crossover Lunar
