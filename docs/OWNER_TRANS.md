@@ -43,17 +43,33 @@
 - הפריסות, הדומיינים וה-env **עוברים עם הפרויקט**.
 
 ### 2.3 משתני סביבה — לוודא שכולם עברו ⚠️ (הנקודה שהכי מפילה העברות)
-המקור המוסמך: **Vercel → Settings → Environment Variables** (בטים החדש). מפתחות ידועים (שמות בלבד):
+המקור המוסמך: **Vercel → Settings → Environment Variables**. הרשימה הבאה נגזרה מהקוד (`process.env`)
+— אלה **כל** המשתנים שהאתר צורך ב-production. 🔒 = סוד.
+
+**סודות (Server) — לגבות ראשונים:**
+- [ ] `SUPABASE_SERVICE_ROLE_KEY` 🔒 — בלעדיו כתיבות אדמין/ייבוא נשברים
+- [ ] `ADMIN_PANEL_TOKEN` 🔒 — אימות ה-API של האדמין
+- [ ] `ADMIN_VAULT_KEY` 🔒🔒 — **הכי קריטי:** מפענח את כספת הסיסמאות (AES-256-GCM). **אם המפתח אובד — כל הסיסמאות בכספת אבודות לצמיתות, ללא שחזור.** גבה אותו ראשון ובזהירות.
+- [ ] `CRON_SECRET` 🔒 — אימות ה-cron
+
+**ציבוריים (`NEXT_PUBLIC_*`):**
 - [ ] `NEXT_PUBLIC_SUPABASE_URL`
 - [ ] `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- [ ] `SUPABASE_SERVICE_ROLE_KEY`  ← בלעדיו כתיבות אדמין/ייבוא נשברים
-- [ ] `ADMIN_PANEL_TOKEN`
-- [ ] `ADMIN_VAULT_KEY`  ← בלעדיו כספת הסיסמאות נסגרת
-- [ ] `CRON_SECRET`  ← אימות ה-cron
 - [ ] `NEXT_PUBLIC_ENABLE_CAROUSEL`
-- [ ] `WORKSPACE_API_KEY`
-> ב-Transfer הם אמורים לעבור אוטומטית — אבל **חובה לעבור אחד-אחד ולוודא**. אם חסר משהו,
-> מעתיקים את הערך מ-Vercel הישן (בעודך Member) או מ-`.env.local`.
+- [ ] `NEXT_PUBLIC_ADMIN_HOST`
+- [ ] `NEXT_PUBLIC_LANDING_URL`
+- [ ] `NEXT_PUBLIC_GALLERY_EDITOR_URL`
+- [ ] `NEXT_PUBLIC_SHOPIFY_ADMIN_URL`
+- [ ] `NEXT_PUBLIC_WHATSAPP_AGENT_URL`
+- [ ] `NEXT_PUBLIC_GITHUB_URL`
+- [ ] `NEXT_PUBLIC_INTERNIC_URL`
+- [ ] `NEXT_PUBLIC_VERCEL_URL`
+
+**לא צריך להעביר:** `NODE_ENV` (Vercel מגדיר אוטומטית), `PANEL_DEMO` (dev-only בלבד).
+
+> ⚠️ רק 5 מהם קיימים ב-`.env.local` המקומי — **9 מוגדרים רק ב-Vercel** (כולל `ADMIN_VAULT_KEY`
+> ו-`CRON_SECRET`). **לפני שלוחצים Transfer:** בעודך Member בטים הישן, העתק את הערכים של כולם
+> מ-Vercel למקום בטוח. ב-Transfer הם אמורים לעבור אוטומטית, אבל אם אחד מפספס — הגיבוי מציל.
 
 ### 2.4 חיבור GitHub
 - [ ] `Settings → Git` → לוודא חיבור ל-`toptikorg/toptik`.
