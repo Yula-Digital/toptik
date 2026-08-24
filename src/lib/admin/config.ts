@@ -33,7 +33,7 @@ export const VERCEL_URL =
   process.env.NEXT_PUBLIC_VERCEL_URL ?? "https://vercel.com/rordan-ais-projects";
 
 /** GitHub — source code in the cloud. */
-export const GITHUB_URL = process.env.NEXT_PUBLIC_GITHUB_URL ?? "https://github.com/Yula-Digital";
+export const GITHUB_URL = process.env.NEXT_PUBLIC_GITHUB_URL ?? "https://github.com/toptikorg/toptik";
 
 /**
  * URL path prefixes that belong to the admin panel surface. `proxy.ts` uses
