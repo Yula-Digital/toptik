@@ -76,9 +76,12 @@
 > ו-`CRON_SECRET`). **לפני שלוחצים Transfer:** בעודך Member בטים הישן, העתק את הערכים של כולם
 > מ-Vercel למקום בטוח. ב-Transfer הם אמורים לעבור אוטומטית, אבל אם אחד מפספס — הגיבוי מציל.
 
-### 2.4 חיבור GitHub
-- [ ] `Settings → Git` → לוודא חיבור ל-`toptikorg/toptik`.
-- [ ] אם לא מחובר: להתקין את **Vercel GitHub App** על הריפו (הלקוח כ-admin בארגון מאשר).
+### 2.4 חיבור GitHub — ✅ הושלם
+- [x] `Settings → Git` מחובר ל-`toptikorg/toptik`.
+- [x] **Vercel GitHub App** מותקן על הארגון `toptikorg` (Repository access: All repositories).
+- הערה: בתקופה שבין העברת הריפו ל-toptikorg (17.8) ובין העברת פרויקט ה-Vercel (24.8),
+  דחיפות לא יצרו פריסות אוטומטיות (הפרויקט ישב בטים שלא היה מקושר להתקנת ה-App של
+  הארגון). מאז ההעברה הצינור מחובר מחדש; פריסת ביניים הופעלה ידנית דרך Deploy Hook.
 
 ### 2.5 דומיינים
 - [ ] `admin.toptik.co.il` + `landing.toptik.co.il` עוברים עם הפרויקט.
