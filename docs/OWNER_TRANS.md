@@ -15,9 +15,14 @@
 | רכיב | ספק | מצב נוכחי (rordan) | יעד (לקוח) | סטטוס |
 |---|---|---|---|---|
 | קוד | GitHub | rordan-ai/toptik | **toptikorg/toptik** | ✅ הועבר |
-| אירוח + cron | Vercel | team `rordan-ais-projects` | team של הלקוח (Pro) | ⏳ |
+| אירוח + cron | Vercel | team `rordan-ais-projects` | **team `toptik` (Pro)** | ✅ הועבר 2026-08-24 |
 | מסד נתונים + אחסון | Supabase | פרויקט של rordan | org של הלקוח | ⏳ |
 | דומיין + DNS | internic → sitesdepot | rordan | לקוח | ⏳ |
+
+> **סטטוס ההעברה ל-Vercel (בוצע 2026-08-24):** הפרויקט הועבר לטים `toptik` (Pro) של הלקוח.
+> אומת: 8/8 env vars עברו · דומיינים admin+landing תקינים · git מחובר ל-toptikorg/toptik ·
+> האתר וה-API חיים · Speed Insights כובה לפני ההעברה (חוסך ללקוח 10$/ח'). גיבוי מלא של
+> ערכי ה-env נשמר מקומית אצל rordan (`.env.production-backup`, מחוץ ל-git).
 
 > **חשוב על "משקל" האתר:** זו אפליקציית Next.js צד-שרת (21 API routes, אימות אדמין,
 > `sharp` לעיבוד תמונות, 2 cron, middleware לתת-דומיינים). היא **חייבת** מנוע שמריץ
